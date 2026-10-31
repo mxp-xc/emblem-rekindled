@@ -2,6 +2,7 @@
   "name": "emblem-rekindled",
   "private": true,
   "scripts": {
+    "serve": "uv run python tools/serve_web.py",
     "format": "uv run gdformat --line-length 100 game tools && uv run ruff check --fix --select I tools && uv run ruff format tools && prettier --write 'tools/**/*.java' 'game/**/*.json' package.json .prettierrc.json",
     "lint": "uv run gdlint game tools && uv run gdformat --check --line-length 100 game tools && uv run ruff check tools && uv run ruff format --check tools && prettier --check 'tools/**/*.java' 'game/**/*.json' package.json .prettierrc.json",
     "test": "uv run python -m unittest discover -s tools -p 'test_*.py' && uv run python tools/check_godot.py",

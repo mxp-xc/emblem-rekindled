@@ -183,7 +183,7 @@ rtk godot --headless --path game --import
 rtk uv run tools/prepare_templates.py /path/to/Godot_v4.7.2-stable_export_templates.tpz
 rtk godot --headless --path game --export-debug Web
 rtk godot --headless --path game --export-debug Android
-rtk uv run python -m http.server 8765 --bind 127.0.0.1 --directory build/web
+rtk bun run serve
 ```
 
 模板放在忽略的 `build/templates/4.7.2.stable/`，不修改全局模板安装。
@@ -196,6 +196,10 @@ Android验证批次结束且短期无需继续测试时关闭模拟器，避免�
 模板默认 target SDK 为 36；标准 APK 导出使用现有 35.0.1 工具，可能提示版本回退，实际以签名/验证退出结果为准。
 
 APK 写入 `build/android/`，Web 写入 `build/web/`；产物可在脱离仓库的位置启动。
+本地预览固定使用 `http://127.0.0.1:8765/`，重新导出后普通刷新即可，不加版本查询参数。
+`serve` 对资源设置 `Cache-Control: no-store`，HTML 通过 `Clear-Site-Data: "cache"` 淘汰旧资源缓存；
+不清理 IndexedDB、cookies 或本地存档。默认只监听本机，其他本地端口用 `bun run serve --port 8766`。
+普通 `http.server` 可能让浏览器复用旧 PCK，不用于游戏开发预览。
 Web 由本地静态 HTTP 提供，首个用户操作后才启动音频；设置通过 `user://` 持久化。
 本轮以现有 Android 模拟器验证触屏、系统返回、后台恢复、存储及音频输出信号，配合电脑 Web 同流程。
 真机测试暂缓；模拟器通过不代表实体手机安全区、性能或扬声器听感已验证。
