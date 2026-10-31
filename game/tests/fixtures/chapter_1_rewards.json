@@ -1,0 +1,2483 @@
+{
+  "powers": [
+    {
+      "unit": {
+        "id": 10,
+        "name": "索菲亚军",
+        "className": "狂战士",
+        "faction": 1,
+        "classId": 8,
+        "classGroup": 2,
+        "move": 4,
+        "level": 1,
+        "hp": 27,
+        "maxHp": 27,
+        "sourceId": 10,
+        "formal": false,
+        "flags": 0,
+        "equipMask": 4,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 7,
+          "skill": 5,
+          "speed": 3,
+          "defense": 8,
+          "magic": 3,
+          "luck": 7
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_10:item_0",
+            "templateId": 22,
+            "durability": 28
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_10:item_0",
+        "x": 7,
+        "y": 10
+      },
+      "power": 101
+    },
+    {
+      "unit": {
+        "id": 67,
+        "name": "利盖鲁军",
+        "className": "多玛术师",
+        "faction": 2,
+        "classId": 12,
+        "classGroup": 3,
+        "move": 4,
+        "level": 1,
+        "hp": 21,
+        "maxHp": 21,
+        "sourceId": 67,
+        "formal": false,
+        "flags": 1,
+        "equipMask": 16,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 1,
+          "skill": 3,
+          "speed": 5,
+          "defense": 3,
+          "magic": 5,
+          "luck": 11
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_67:item_0",
+            "templateId": 40,
+            "durability": 25
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_67:item_0",
+        "x": 15,
+        "y": 21
+      },
+      "power": 82
+    },
+    {
+      "unit": {
+        "id": 66,
+        "name": "利盖鲁军",
+        "className": "多玛祭师",
+        "faction": 2,
+        "classId": 4,
+        "classGroup": 1,
+        "move": 4,
+        "level": 1,
+        "hp": 19,
+        "maxHp": 19,
+        "sourceId": 66,
+        "formal": false,
+        "flags": 1,
+        "equipMask": 32,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 0,
+          "skill": 5,
+          "speed": 5,
+          "defense": 4,
+          "magic": 6,
+          "luck": 6
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_66:item_0",
+            "templateId": 53,
+            "durability": 23
+          }
+        ],
+        "equippedInstanceId": "",
+        "x": 14,
+        "y": 21
+      },
+      "power": 50
+    },
+    {
+      "unit": {
+        "id": 65,
+        "name": "利盖鲁军",
+        "className": "刀斧手",
+        "faction": 2,
+        "classId": 8,
+        "classGroup": 2,
+        "move": 4,
+        "level": 1,
+        "hp": 26,
+        "maxHp": 26,
+        "sourceId": 65,
+        "formal": false,
+        "flags": 1,
+        "equipMask": 4,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 7,
+          "skill": 4,
+          "speed": 4,
+          "defense": 8,
+          "magic": 1,
+          "luck": 6
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_65:item_0",
+            "templateId": 21,
+            "durability": 33
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_65:item_0",
+        "x": 11,
+        "y": 23
+      },
+      "power": 91
+    },
+    {
+      "unit": {
+        "id": 64,
+        "name": "利盖鲁军",
+        "className": "刀斧手",
+        "faction": 2,
+        "classId": 8,
+        "classGroup": 2,
+        "move": 4,
+        "level": 1,
+        "hp": 27,
+        "maxHp": 27,
+        "sourceId": 64,
+        "formal": false,
+        "flags": 1,
+        "equipMask": 4,
+        "dropTemplateId": 22,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 9,
+          "skill": 5,
+          "speed": 4,
+          "defense": 8,
+          "magic": 2,
+          "luck": 2
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_64:item_0",
+            "templateId": 22,
+            "durability": 28
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_64:item_0",
+        "x": 9,
+        "y": 24
+      },
+      "power": 106
+    },
+    {
+      "unit": {
+        "id": 63,
+        "name": "利盖鲁军",
+        "className": "刀斧手",
+        "faction": 2,
+        "classId": 8,
+        "classGroup": 2,
+        "move": 4,
+        "level": 1,
+        "hp": 27,
+        "maxHp": 27,
+        "sourceId": 63,
+        "formal": false,
+        "flags": 1,
+        "equipMask": 4,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 6,
+          "skill": 6,
+          "speed": 4,
+          "defense": 6,
+          "magic": 2,
+          "luck": 3
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_63:item_0",
+            "templateId": 21,
+            "durability": 33
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_63:item_0",
+        "x": 7,
+        "y": 23
+      },
+      "power": 90
+    },
+    {
+      "unit": {
+        "id": 62,
+        "name": "利盖鲁军",
+        "className": "阻击手",
+        "faction": 2,
+        "classId": 20,
+        "classGroup": 5,
+        "move": 4,
+        "level": 1,
+        "hp": 26,
+        "maxHp": 26,
+        "sourceId": 62,
+        "formal": false,
+        "flags": 1,
+        "equipMask": 8,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 7,
+          "skill": 6,
+          "speed": 5,
+          "defense": 4,
+          "magic": 4,
+          "luck": 2
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_62:item_0",
+            "templateId": 31,
+            "durability": 28
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_62:item_0",
+        "x": 12,
+        "y": 21
+      },
+      "power": 86
+    },
+    {
+      "unit": {
+        "id": 61,
+        "name": "利盖鲁军",
+        "className": "阻击手",
+        "faction": 2,
+        "classId": 20,
+        "classGroup": 5,
+        "move": 4,
+        "level": 1,
+        "hp": 26,
+        "maxHp": 26,
+        "sourceId": 61,
+        "formal": false,
+        "flags": 1,
+        "equipMask": 8,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 7,
+          "skill": 4,
+          "speed": 5,
+          "defense": 3,
+          "magic": 3,
+          "luck": 4
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_61:item_0",
+            "templateId": 31,
+            "durability": 28
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_61:item_0",
+        "x": 7,
+        "y": 21
+      },
+      "power": 78
+    },
+    {
+      "unit": {
+        "id": 60,
+        "name": "利盖鲁军",
+        "className": "骑兵",
+        "faction": 2,
+        "classId": 16,
+        "classGroup": 4,
+        "move": 6,
+        "level": 1,
+        "hp": 20,
+        "maxHp": 20,
+        "sourceId": 60,
+        "formal": false,
+        "flags": 1,
+        "equipMask": 3,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 4,
+          "skill": 3,
+          "speed": 2,
+          "defense": 3,
+          "magic": 1,
+          "luck": 0
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_60:item_0",
+            "templateId": 13,
+            "durability": 30
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_60:item_0",
+        "x": 10,
+        "y": 22
+      },
+      "power": 66
+    },
+    {
+      "unit": {
+        "id": 59,
+        "name": "利盖鲁军",
+        "className": "骑兵",
+        "faction": 2,
+        "classId": 16,
+        "classGroup": 4,
+        "move": 6,
+        "level": 1,
+        "hp": 20,
+        "maxHp": 20,
+        "sourceId": 59,
+        "formal": false,
+        "flags": 1,
+        "equipMask": 3,
+        "dropTemplateId": 1,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 4,
+          "skill": 3,
+          "speed": 2,
+          "defense": 3,
+          "magic": 1,
+          "luck": 0
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_59:item_0",
+            "templateId": 13,
+            "durability": 30
+          },
+          {
+            "id": "chapter_1:unit_59:item_1",
+            "templateId": 1,
+            "durability": 30
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_59:item_0",
+        "x": 9,
+        "y": 22
+      },
+      "power": 66
+    },
+    {
+      "unit": {
+        "id": 58,
+        "name": "利盖鲁军",
+        "className": "骑兵",
+        "faction": 2,
+        "classId": 16,
+        "classGroup": 4,
+        "move": 6,
+        "level": 1,
+        "hp": 20,
+        "maxHp": 20,
+        "sourceId": 58,
+        "formal": false,
+        "flags": 1,
+        "equipMask": 3,
+        "dropTemplateId": 13,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 4,
+          "skill": 3,
+          "speed": 2,
+          "defense": 3,
+          "magic": 1,
+          "luck": 0
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_58:item_0",
+            "templateId": 13,
+            "durability": 30
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_58:item_0",
+        "x": 8,
+        "y": 22
+      },
+      "power": 66
+    },
+    {
+      "unit": {
+        "id": 57,
+        "name": "魔物",
+        "className": "石像鬼",
+        "faction": 2,
+        "classId": 32,
+        "classGroup": 8,
+        "move": 5,
+        "level": 1,
+        "hp": 18,
+        "maxHp": 18,
+        "sourceId": 57,
+        "formal": false,
+        "flags": 1,
+        "equipMask": 5,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 3,
+          "skill": 2,
+          "speed": 1,
+          "defense": 1,
+          "magic": 0,
+          "luck": 0
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_57:item_0",
+            "templateId": 30,
+            "durability": 99
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_57:item_0",
+        "x": 1,
+        "y": 5
+      },
+      "power": 55
+    },
+    {
+      "unit": {
+        "id": 56,
+        "name": "魔物",
+        "className": "石人",
+        "faction": 2,
+        "classId": 28,
+        "classGroup": 7,
+        "move": 4,
+        "level": 1,
+        "hp": 22,
+        "maxHp": 22,
+        "sourceId": 56,
+        "formal": false,
+        "flags": 1,
+        "equipMask": 5,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 4,
+          "skill": 1,
+          "speed": 1,
+          "defense": 5,
+          "magic": 1,
+          "luck": 0
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_56:item_0",
+            "templateId": 29,
+            "durability": 99
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_56:item_0",
+        "x": 9,
+        "y": 1
+      },
+      "power": 72
+    },
+    {
+      "unit": {
+        "id": 55,
+        "name": "魔物",
+        "className": "石人",
+        "faction": 2,
+        "classId": 28,
+        "classGroup": 7,
+        "move": 4,
+        "level": 1,
+        "hp": 22,
+        "maxHp": 22,
+        "sourceId": 55,
+        "formal": false,
+        "flags": 1,
+        "equipMask": 5,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 4,
+          "skill": 3,
+          "speed": 1,
+          "defense": 4,
+          "magic": 1,
+          "luck": 0
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_55:item_0",
+            "templateId": 29,
+            "durability": 99
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_55:item_0",
+        "x": 8,
+        "y": 2
+      },
+      "power": 70
+    },
+    {
+      "unit": {
+        "id": 54,
+        "name": "魔物",
+        "className": "邪灵",
+        "faction": 2,
+        "classId": 36,
+        "classGroup": 9,
+        "move": 5,
+        "level": 1,
+        "hp": 15,
+        "maxHp": 15,
+        "sourceId": 54,
+        "formal": false,
+        "flags": 1,
+        "equipMask": 16,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 0,
+          "skill": 2,
+          "speed": 2,
+          "defense": 2,
+          "magic": 3,
+          "luck": 1
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_54:item_0",
+            "templateId": 40,
+            "durability": 25
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_54:item_0",
+        "x": 12,
+        "y": 1
+      },
+      "power": 62
+    },
+    {
+      "unit": {
+        "id": 53,
+        "name": "魔物",
+        "className": "邪灵",
+        "faction": 2,
+        "classId": 36,
+        "classGroup": 9,
+        "move": 5,
+        "level": 1,
+        "hp": 15,
+        "maxHp": 15,
+        "sourceId": 53,
+        "formal": false,
+        "flags": 1,
+        "equipMask": 16,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 0,
+          "skill": 2,
+          "speed": 2,
+          "defense": 2,
+          "magic": 3,
+          "luck": 1
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_53:item_0",
+            "templateId": 44,
+            "durability": 26
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_53:item_0",
+        "x": 7,
+        "y": 1
+      },
+      "power": 55
+    },
+    {
+      "unit": {
+        "id": 52,
+        "name": "魔物",
+        "className": "邪灵",
+        "faction": 2,
+        "classId": 36,
+        "classGroup": 9,
+        "move": 5,
+        "level": 1,
+        "hp": 15,
+        "maxHp": 15,
+        "sourceId": 52,
+        "formal": false,
+        "flags": 1,
+        "equipMask": 16,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 0,
+          "skill": 2,
+          "speed": 2,
+          "defense": 2,
+          "magic": 3,
+          "luck": 1
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_52:item_0",
+            "templateId": 44,
+            "durability": 26
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_52:item_0",
+        "x": 6,
+        "y": 0
+      },
+      "power": 58
+    },
+    {
+      "unit": {
+        "id": 51,
+        "name": "魔物",
+        "className": "石像鬼",
+        "faction": 2,
+        "classId": 32,
+        "classGroup": 8,
+        "move": 5,
+        "level": 1,
+        "hp": 18,
+        "maxHp": 18,
+        "sourceId": 51,
+        "formal": false,
+        "flags": 1,
+        "equipMask": 5,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 3,
+          "skill": 2,
+          "speed": 2,
+          "defense": 1,
+          "magic": 0,
+          "luck": 0
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_51:item_0",
+            "templateId": 30,
+            "durability": 99
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_51:item_0",
+        "x": 15,
+        "y": 0
+      },
+      "power": 46
+    },
+    {
+      "unit": {
+        "id": 50,
+        "name": "魔物",
+        "className": "石像鬼",
+        "faction": 2,
+        "classId": 32,
+        "classGroup": 8,
+        "move": 5,
+        "level": 1,
+        "hp": 18,
+        "maxHp": 18,
+        "sourceId": 50,
+        "formal": false,
+        "flags": 1,
+        "equipMask": 5,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 3,
+          "skill": 2,
+          "speed": 2,
+          "defense": 1,
+          "magic": 0,
+          "luck": 0
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_50:item_0",
+            "templateId": 30,
+            "durability": 99
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_50:item_0",
+        "x": 10,
+        "y": 0
+      },
+      "power": 46
+    },
+    {
+      "unit": {
+        "id": 49,
+        "name": "魔物",
+        "className": "石像鬼",
+        "faction": 2,
+        "classId": 32,
+        "classGroup": 8,
+        "move": 5,
+        "level": 1,
+        "hp": 18,
+        "maxHp": 18,
+        "sourceId": 49,
+        "formal": false,
+        "flags": 1,
+        "equipMask": 5,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 3,
+          "skill": 2,
+          "speed": 2,
+          "defense": 1,
+          "magic": 0,
+          "luck": 0
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_49:item_0",
+            "templateId": 30,
+            "durability": 99
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_49:item_0",
+        "x": 16,
+        "y": 5
+      },
+      "power": 46
+    },
+    {
+      "unit": {
+        "id": 48,
+        "name": "魔物",
+        "className": "石像鬼",
+        "faction": 2,
+        "classId": 32,
+        "classGroup": 8,
+        "move": 5,
+        "level": 1,
+        "hp": 18,
+        "maxHp": 18,
+        "sourceId": 48,
+        "formal": false,
+        "flags": 1,
+        "equipMask": 5,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 3,
+          "skill": 2,
+          "speed": 2,
+          "defense": 1,
+          "magic": 0,
+          "luck": 0
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_48:item_0",
+            "templateId": 30,
+            "durability": 99
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_48:item_0",
+        "x": 3,
+        "y": 2
+      },
+      "power": 55
+    },
+    {
+      "unit": {
+        "id": 95,
+        "name": "索菲亚军",
+        "className": "狂战士",
+        "faction": 0,
+        "classId": 8,
+        "classGroup": 2,
+        "move": 4,
+        "level": 1,
+        "hp": 31,
+        "maxHp": 31,
+        "sourceId": 2,
+        "formal": false,
+        "flags": 0,
+        "equipMask": 4,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 8,
+          "skill": 5,
+          "speed": 4,
+          "defense": 7,
+          "magic": 2,
+          "luck": 3
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_95:item_0",
+            "templateId": 23,
+            "durability": 26
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_95:item_0",
+        "x": 9,
+        "y": 9
+      },
+      "power": 106
+    },
+    {
+      "unit": {
+        "id": 96,
+        "name": "索菲亚军",
+        "className": "圣骑士",
+        "faction": 0,
+        "classId": 16,
+        "classGroup": 4,
+        "move": 6,
+        "level": 1,
+        "hp": 29,
+        "maxHp": 29,
+        "sourceId": 5,
+        "formal": false,
+        "flags": 0,
+        "equipMask": 3,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 5,
+          "skill": 7,
+          "speed": 8,
+          "defense": 4,
+          "magic": 2,
+          "luck": 1
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_96:item_0",
+            "templateId": 17,
+            "durability": 20
+          },
+          {
+            "id": "chapter_1:unit_96:item_1",
+            "templateId": 60,
+            "durability": 3
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_96:item_0",
+        "x": 8,
+        "y": 13
+      },
+      "power": 91
+    },
+    {
+      "unit": {
+        "id": 97,
+        "name": "索菲亚军",
+        "className": "圣骑士",
+        "faction": 0,
+        "classId": 16,
+        "classGroup": 4,
+        "move": 6,
+        "level": 1,
+        "hp": 29,
+        "maxHp": 29,
+        "sourceId": 3,
+        "formal": false,
+        "flags": 0,
+        "equipMask": 3,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 6,
+          "skill": 6,
+          "speed": 6,
+          "defense": 4,
+          "magic": 2,
+          "luck": 1
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_97:item_0",
+            "templateId": 20,
+            "durability": 18
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_97:item_0",
+        "x": 9,
+        "y": 13
+      },
+      "power": 92
+    },
+    {
+      "unit": {
+        "id": 98,
+        "name": "索菲亚军",
+        "className": "狂战士",
+        "faction": 0,
+        "classId": 8,
+        "classGroup": 2,
+        "move": 4,
+        "level": 1,
+        "hp": 26,
+        "maxHp": 26,
+        "sourceId": 4,
+        "formal": false,
+        "flags": 0,
+        "equipMask": 4,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 7,
+          "skill": 7,
+          "speed": 5,
+          "defense": 6,
+          "magic": 3,
+          "luck": 3
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_98:item_0",
+            "templateId": 25,
+            "durability": 14
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_98:item_0",
+        "x": 7,
+        "y": 12
+      },
+      "power": 103
+    },
+    {
+      "unit": {
+        "id": 99,
+        "name": "索菲亚军",
+        "className": "修女",
+        "faction": 0,
+        "classId": 4,
+        "classGroup": 1,
+        "move": 4,
+        "level": 1,
+        "hp": 24,
+        "maxHp": 24,
+        "sourceId": 1,
+        "formal": false,
+        "flags": 0,
+        "equipMask": 32,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 0,
+          "skill": 5,
+          "speed": 5,
+          "defense": 3,
+          "magic": 6,
+          "luck": 5
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_99:item_0",
+            "templateId": 53,
+            "durability": 23
+          }
+        ],
+        "equippedInstanceId": "",
+        "x": 10,
+        "y": 10
+      },
+      "power": 46
+    },
+    {
+      "unit": {
+        "id": 9,
+        "name": "赛丽卡",
+        "className": "修女",
+        "faction": 0,
+        "classId": 4,
+        "classGroup": 1,
+        "move": 4,
+        "level": 1,
+        "hp": 26,
+        "maxHp": 26,
+        "sourceId": 9,
+        "formal": true,
+        "flags": 0,
+        "equipMask": 32,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 0,
+          "skill": 4,
+          "speed": 4,
+          "defense": 5,
+          "magic": 5,
+          "luck": 5
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_9:item_0",
+            "templateId": 53,
+            "durability": 23
+          },
+          {
+            "id": "chapter_1:unit_9:item_1",
+            "templateId": 60,
+            "durability": 3
+          }
+        ],
+        "equippedInstanceId": "",
+        "x": 9,
+        "y": 11
+      },
+      "power": 51
+    },
+    {
+      "unit": {
+        "id": 11,
+        "name": "索菲亚军",
+        "className": "狂战士",
+        "faction": 1,
+        "classId": 8,
+        "classGroup": 2,
+        "move": 4,
+        "level": 1,
+        "hp": 26,
+        "maxHp": 26,
+        "sourceId": 11,
+        "formal": false,
+        "flags": 0,
+        "equipMask": 4,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 6,
+          "skill": 6,
+          "speed": 4,
+          "defense": 7,
+          "magic": 2,
+          "luck": 6
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_11:item_0",
+            "templateId": 24,
+            "durability": 16
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_11:item_0",
+        "x": 10,
+        "y": 12
+      },
+      "power": 95
+    },
+    {
+      "unit": {
+        "id": 0,
+        "name": "雅木",
+        "className": "国王",
+        "faction": 0,
+        "classId": 0,
+        "classGroup": 0,
+        "move": 5,
+        "level": 1,
+        "hp": 30,
+        "maxHp": 30,
+        "sourceId": 0,
+        "formal": true,
+        "flags": 0,
+        "equipMask": 1,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 7,
+          "skill": 7,
+          "speed": 7,
+          "defense": 6,
+          "magic": 4,
+          "luck": 4
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_0:item_0",
+            "templateId": 9,
+            "durability": 15
+          },
+          {
+            "id": "chapter_1:unit_0:item_1",
+            "templateId": 60,
+            "durability": 3
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_0:item_0",
+        "x": 8,
+        "y": 11
+      },
+      "power": 196
+    },
+    {
+      "unit": {
+        "id": 13,
+        "name": "索菲亚军",
+        "className": "狂战士",
+        "faction": 1,
+        "classId": 8,
+        "classGroup": 2,
+        "move": 4,
+        "level": 1,
+        "hp": 27,
+        "maxHp": 27,
+        "sourceId": 13,
+        "formal": false,
+        "flags": 1,
+        "equipMask": 4,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 6,
+          "skill": 6,
+          "speed": 4,
+          "defense": 7,
+          "magic": 3,
+          "luck": 6
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_13:item_0",
+            "templateId": 21,
+            "durability": 33
+          },
+          {
+            "id": "chapter_1:unit_13:item_1",
+            "templateId": 65,
+            "durability": 4
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_13:item_0",
+        "x": 15,
+        "y": 22
+      },
+      "power": 111
+    },
+    {
+      "unit": {
+        "id": 14,
+        "name": "索菲亚军",
+        "className": "狂战士",
+        "faction": 1,
+        "classId": 8,
+        "classGroup": 2,
+        "move": 4,
+        "level": 1,
+        "hp": 26,
+        "maxHp": 26,
+        "sourceId": 14,
+        "formal": false,
+        "flags": 1,
+        "equipMask": 4,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 6,
+          "skill": 6,
+          "speed": 4,
+          "defense": 6,
+          "magic": 1,
+          "luck": 5
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_14:item_0",
+            "templateId": 21,
+            "durability": 33
+          },
+          {
+            "id": "chapter_1:unit_14:item_1",
+            "templateId": 65,
+            "durability": 4
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_14:item_0",
+        "x": 16,
+        "y": 21
+      },
+      "power": 104
+    },
+    {
+      "unit": {
+        "id": 15,
+        "name": "索菲亚军",
+        "className": "狂战士",
+        "faction": 1,
+        "classId": 8,
+        "classGroup": 2,
+        "move": 4,
+        "level": 1,
+        "hp": 26,
+        "maxHp": 26,
+        "sourceId": 15,
+        "formal": false,
+        "flags": 1,
+        "equipMask": 4,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 8,
+          "skill": 6,
+          "speed": 4,
+          "defense": 6,
+          "magic": 3,
+          "luck": 2
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_15:item_0",
+            "templateId": 21,
+            "durability": 33
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_15:item_0",
+        "x": 17,
+        "y": 21
+      },
+      "power": 98
+    }
+  ],
+  "experienceCases": [
+    {
+      "actor": {
+        "id": 0,
+        "name": "雅木",
+        "className": "国王",
+        "faction": 0,
+        "classId": 0,
+        "classGroup": 0,
+        "move": 5,
+        "level": 1,
+        "hp": 30,
+        "maxHp": 30,
+        "sourceId": 0,
+        "formal": true,
+        "flags": 0,
+        "equipMask": 1,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 7,
+          "skill": 7,
+          "speed": 7,
+          "defense": 6,
+          "magic": 4,
+          "luck": 4
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_0:item_0",
+            "templateId": 9,
+            "durability": 15
+          },
+          {
+            "id": "chapter_1:unit_0:item_1",
+            "templateId": 60,
+            "durability": 3
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_0:item_0",
+        "x": 8,
+        "y": 11
+      },
+      "target": {
+        "id": 59,
+        "name": "利盖鲁军",
+        "className": "骑兵",
+        "faction": 2,
+        "classId": 16,
+        "classGroup": 4,
+        "move": 6,
+        "level": 1,
+        "hp": 20,
+        "maxHp": 20,
+        "sourceId": 59,
+        "formal": false,
+        "flags": 1,
+        "equipMask": 3,
+        "dropTemplateId": 1,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 4,
+          "skill": 3,
+          "speed": 2,
+          "defense": 3,
+          "magic": 1,
+          "luck": 0
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_59:item_0",
+            "templateId": 13,
+            "durability": 30
+          },
+          {
+            "id": "chapter_1:unit_59:item_1",
+            "templateId": 1,
+            "durability": 30
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_59:item_0",
+        "x": 9,
+        "y": 22
+      },
+      "killed": false,
+      "hit": false,
+      "borrowed": false,
+      "experience": 1
+    },
+    {
+      "actor": {
+        "id": 0,
+        "name": "雅木",
+        "className": "国王",
+        "faction": 0,
+        "classId": 0,
+        "classGroup": 0,
+        "move": 5,
+        "level": 1,
+        "hp": 30,
+        "maxHp": 30,
+        "sourceId": 0,
+        "formal": true,
+        "flags": 0,
+        "equipMask": 1,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 7,
+          "skill": 7,
+          "speed": 7,
+          "defense": 6,
+          "magic": 4,
+          "luck": 4
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_0:item_0",
+            "templateId": 7,
+            "durability": 15
+          },
+          {
+            "id": "chapter_1:unit_0:item_1",
+            "templateId": 60,
+            "durability": 3
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_0:item_0",
+        "x": 8,
+        "y": 11
+      },
+      "target": {
+        "id": 59,
+        "name": "利盖鲁军",
+        "className": "骑兵",
+        "faction": 2,
+        "classId": 16,
+        "classGroup": 4,
+        "move": 6,
+        "level": 1,
+        "hp": 20,
+        "maxHp": 20,
+        "sourceId": 59,
+        "formal": false,
+        "flags": 1,
+        "equipMask": 3,
+        "dropTemplateId": 1,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 4,
+          "skill": 3,
+          "speed": 2,
+          "defense": 3,
+          "magic": 1,
+          "luck": 0
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_59:item_0",
+            "templateId": 13,
+            "durability": 30
+          },
+          {
+            "id": "chapter_1:unit_59:item_1",
+            "templateId": 1,
+            "durability": 30
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_59:item_0",
+        "x": 9,
+        "y": 22
+      },
+      "killed": false,
+      "hit": false,
+      "borrowed": false,
+      "experience": 1
+    },
+    {
+      "actor": {
+        "id": 0,
+        "name": "雅木",
+        "className": "国王",
+        "faction": 0,
+        "classId": 0,
+        "classGroup": 0,
+        "move": 5,
+        "level": 1,
+        "hp": 30,
+        "maxHp": 30,
+        "sourceId": 0,
+        "formal": true,
+        "flags": 0,
+        "equipMask": 1,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 7,
+          "skill": 7,
+          "speed": 7,
+          "defense": 6,
+          "magic": 4,
+          "luck": 4
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_0:item_0",
+            "templateId": 9,
+            "durability": 15
+          },
+          {
+            "id": "chapter_1:unit_0:item_1",
+            "templateId": 60,
+            "durability": 3
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_0:item_0",
+        "x": 8,
+        "y": 11
+      },
+      "target": {
+        "id": 59,
+        "name": "利盖鲁军",
+        "className": "骑兵",
+        "faction": 2,
+        "classId": 16,
+        "classGroup": 4,
+        "move": 6,
+        "level": 1,
+        "hp": 20,
+        "maxHp": 20,
+        "sourceId": 59,
+        "formal": false,
+        "flags": 1,
+        "equipMask": 3,
+        "dropTemplateId": 1,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 4,
+          "skill": 3,
+          "speed": 2,
+          "defense": 3,
+          "magic": 1,
+          "luck": 0
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_59:item_0",
+            "templateId": 13,
+            "durability": 30
+          },
+          {
+            "id": "chapter_1:unit_59:item_1",
+            "templateId": 1,
+            "durability": 30
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_59:item_0",
+        "x": 9,
+        "y": 22
+      },
+      "killed": false,
+      "hit": true,
+      "borrowed": false,
+      "experience": 12
+    },
+    {
+      "actor": {
+        "id": 0,
+        "name": "雅木",
+        "className": "国王",
+        "faction": 0,
+        "classId": 0,
+        "classGroup": 0,
+        "move": 5,
+        "level": 10,
+        "hp": 30,
+        "maxHp": 30,
+        "sourceId": 0,
+        "formal": true,
+        "flags": 0,
+        "equipMask": 1,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 7,
+          "skill": 7,
+          "speed": 7,
+          "defense": 6,
+          "magic": 4,
+          "luck": 4
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_0:item_0",
+            "templateId": 9,
+            "durability": 15
+          },
+          {
+            "id": "chapter_1:unit_0:item_1",
+            "templateId": 60,
+            "durability": 3
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_0:item_0",
+        "x": 8,
+        "y": 11
+      },
+      "target": {
+        "id": 59,
+        "name": "利盖鲁军",
+        "className": "骑兵",
+        "faction": 2,
+        "classId": 16,
+        "classGroup": 4,
+        "move": 6,
+        "level": 1,
+        "hp": 20,
+        "maxHp": 20,
+        "sourceId": 59,
+        "formal": false,
+        "flags": 1,
+        "equipMask": 3,
+        "dropTemplateId": 1,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 4,
+          "skill": 3,
+          "speed": 2,
+          "defense": 3,
+          "magic": 1,
+          "luck": 0
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_59:item_0",
+            "templateId": 13,
+            "durability": 30
+          },
+          {
+            "id": "chapter_1:unit_59:item_1",
+            "templateId": 1,
+            "durability": 30
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_59:item_0",
+        "x": 9,
+        "y": 22
+      },
+      "killed": false,
+      "hit": true,
+      "borrowed": false,
+      "experience": 7
+    },
+    {
+      "actor": {
+        "id": 0,
+        "name": "雅木",
+        "className": "国王",
+        "faction": 0,
+        "classId": 0,
+        "classGroup": 0,
+        "move": 5,
+        "level": 19,
+        "hp": 30,
+        "maxHp": 30,
+        "sourceId": 0,
+        "formal": true,
+        "flags": 0,
+        "equipMask": 1,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 7,
+          "skill": 7,
+          "speed": 7,
+          "defense": 6,
+          "magic": 4,
+          "luck": 4
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_0:item_0",
+            "templateId": 9,
+            "durability": 15
+          },
+          {
+            "id": "chapter_1:unit_0:item_1",
+            "templateId": 60,
+            "durability": 3
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_0:item_0",
+        "x": 8,
+        "y": 11
+      },
+      "target": {
+        "id": 59,
+        "name": "利盖鲁军",
+        "className": "骑兵",
+        "faction": 2,
+        "classId": 16,
+        "classGroup": 4,
+        "move": 6,
+        "level": 1,
+        "hp": 20,
+        "maxHp": 20,
+        "sourceId": 59,
+        "formal": false,
+        "flags": 1,
+        "equipMask": 3,
+        "dropTemplateId": 1,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 4,
+          "skill": 3,
+          "speed": 2,
+          "defense": 3,
+          "magic": 1,
+          "luck": 0
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_59:item_0",
+            "templateId": 13,
+            "durability": 30
+          },
+          {
+            "id": "chapter_1:unit_59:item_1",
+            "templateId": 1,
+            "durability": 30
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_59:item_0",
+        "x": 9,
+        "y": 22
+      },
+      "killed": false,
+      "hit": true,
+      "borrowed": false,
+      "experience": 1
+    },
+    {
+      "actor": {
+        "id": 0,
+        "name": "雅木",
+        "className": "国王",
+        "faction": 0,
+        "classId": 0,
+        "classGroup": 0,
+        "move": 5,
+        "level": 1,
+        "hp": 30,
+        "maxHp": 30,
+        "sourceId": 0,
+        "formal": true,
+        "flags": 0,
+        "equipMask": 1,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 7,
+          "skill": 7,
+          "speed": 7,
+          "defense": 6,
+          "magic": 4,
+          "luck": 4
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_0:item_0",
+            "templateId": 9,
+            "durability": 15
+          },
+          {
+            "id": "chapter_1:unit_0:item_1",
+            "templateId": 60,
+            "durability": 3
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_0:item_0",
+        "x": 8,
+        "y": 11
+      },
+      "target": {
+        "id": 59,
+        "name": "利盖鲁军",
+        "className": "骑兵",
+        "faction": 2,
+        "classId": 16,
+        "classGroup": 4,
+        "move": 6,
+        "level": 1,
+        "hp": 20,
+        "maxHp": 20,
+        "sourceId": 59,
+        "formal": false,
+        "flags": 1,
+        "equipMask": 3,
+        "dropTemplateId": 1,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 4,
+          "skill": 3,
+          "speed": 2,
+          "defense": 3,
+          "magic": 1,
+          "luck": 0
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_59:item_0",
+            "templateId": 13,
+            "durability": 30
+          },
+          {
+            "id": "chapter_1:unit_59:item_1",
+            "templateId": 1,
+            "durability": 30
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_59:item_0",
+        "x": 9,
+        "y": 22
+      },
+      "killed": false,
+      "hit": true,
+      "borrowed": true,
+      "experience": 12
+    },
+    {
+      "actor": {
+        "id": 0,
+        "name": "雅木",
+        "className": "国王",
+        "faction": 0,
+        "classId": 0,
+        "classGroup": 0,
+        "move": 5,
+        "level": 1,
+        "hp": 30,
+        "maxHp": 30,
+        "sourceId": 0,
+        "formal": true,
+        "flags": 0,
+        "equipMask": 1,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 7,
+          "skill": 7,
+          "speed": 7,
+          "defense": 6,
+          "magic": 4,
+          "luck": 4
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_0:item_0",
+            "templateId": 9,
+            "durability": 15
+          },
+          {
+            "id": "chapter_1:unit_0:item_1",
+            "templateId": 60,
+            "durability": 3
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_0:item_0",
+        "x": 8,
+        "y": 11
+      },
+      "target": {
+        "id": 59,
+        "name": "利盖鲁军",
+        "className": "骑兵",
+        "faction": 2,
+        "classId": 16,
+        "classGroup": 4,
+        "move": 6,
+        "level": 1,
+        "hp": 20,
+        "maxHp": 20,
+        "sourceId": 59,
+        "formal": false,
+        "flags": 1,
+        "equipMask": 3,
+        "dropTemplateId": 1,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 4,
+          "skill": 3,
+          "speed": 2,
+          "defense": 3,
+          "magic": 1,
+          "luck": 0
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_59:item_0",
+            "templateId": 13,
+            "durability": 30
+          },
+          {
+            "id": "chapter_1:unit_59:item_1",
+            "templateId": 1,
+            "durability": 30
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_59:item_0",
+        "x": 9,
+        "y": 22
+      },
+      "killed": true,
+      "hit": true,
+      "borrowed": false,
+      "experience": 10
+    },
+    {
+      "actor": {
+        "id": 0,
+        "name": "雅木",
+        "className": "国王",
+        "faction": 0,
+        "classId": 0,
+        "classGroup": 0,
+        "move": 5,
+        "level": 10,
+        "hp": 30,
+        "maxHp": 30,
+        "sourceId": 0,
+        "formal": true,
+        "flags": 0,
+        "equipMask": 1,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 7,
+          "skill": 7,
+          "speed": 7,
+          "defense": 6,
+          "magic": 4,
+          "luck": 4
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_0:item_0",
+            "templateId": 9,
+            "durability": 15
+          },
+          {
+            "id": "chapter_1:unit_0:item_1",
+            "templateId": 60,
+            "durability": 3
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_0:item_0",
+        "x": 8,
+        "y": 11
+      },
+      "target": {
+        "id": 59,
+        "name": "利盖鲁军",
+        "className": "骑兵",
+        "faction": 2,
+        "classId": 16,
+        "classGroup": 4,
+        "move": 6,
+        "level": 1,
+        "hp": 20,
+        "maxHp": 20,
+        "sourceId": 59,
+        "formal": false,
+        "flags": 1,
+        "equipMask": 3,
+        "dropTemplateId": 1,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 4,
+          "skill": 3,
+          "speed": 2,
+          "defense": 3,
+          "magic": 1,
+          "luck": 0
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_59:item_0",
+            "templateId": 13,
+            "durability": 30
+          },
+          {
+            "id": "chapter_1:unit_59:item_1",
+            "templateId": 1,
+            "durability": 30
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_59:item_0",
+        "x": 9,
+        "y": 22
+      },
+      "killed": true,
+      "hit": true,
+      "borrowed": false,
+      "experience": 1
+    },
+    {
+      "actor": {
+        "id": 0,
+        "name": "雅木",
+        "className": "国王",
+        "faction": 0,
+        "classId": 0,
+        "classGroup": 0,
+        "move": 5,
+        "level": 1,
+        "hp": 30,
+        "maxHp": 30,
+        "sourceId": 0,
+        "formal": true,
+        "flags": 0,
+        "equipMask": 1,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 7,
+          "skill": 7,
+          "speed": 7,
+          "defense": 6,
+          "magic": 4,
+          "luck": 4
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_0:item_0",
+            "templateId": 9,
+            "durability": 15
+          },
+          {
+            "id": "chapter_1:unit_0:item_1",
+            "templateId": 60,
+            "durability": 3
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_0:item_0",
+        "x": 8,
+        "y": 11
+      },
+      "target": {
+        "id": 59,
+        "name": "利盖鲁军",
+        "className": "骑兵",
+        "faction": 2,
+        "classId": 16,
+        "classGroup": 4,
+        "move": 6,
+        "level": 1,
+        "hp": 20,
+        "maxHp": 20,
+        "sourceId": 59,
+        "formal": false,
+        "flags": 1,
+        "equipMask": 3,
+        "dropTemplateId": 1,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 4,
+          "skill": 3,
+          "speed": 2,
+          "defense": 3,
+          "magic": 1,
+          "luck": 0
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_59:item_0",
+            "templateId": 13,
+            "durability": 30
+          },
+          {
+            "id": "chapter_1:unit_59:item_1",
+            "templateId": 1,
+            "durability": 30
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_59:item_0",
+        "x": 9,
+        "y": 22
+      },
+      "killed": true,
+      "hit": true,
+      "borrowed": true,
+      "experience": 5
+    },
+    {
+      "actor": {
+        "id": 0,
+        "name": "雅木",
+        "className": "国王",
+        "faction": 0,
+        "classId": 0,
+        "classGroup": 0,
+        "move": 5,
+        "level": 1,
+        "hp": 30,
+        "maxHp": 30,
+        "sourceId": 0,
+        "formal": true,
+        "flags": 0,
+        "equipMask": 1,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 7,
+          "skill": 7,
+          "speed": 7,
+          "defense": 6,
+          "magic": 4,
+          "luck": 4
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_0:item_0",
+            "templateId": 7,
+            "durability": 15
+          },
+          {
+            "id": "chapter_1:unit_0:item_1",
+            "templateId": 60,
+            "durability": 3
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_0:item_0",
+        "x": 8,
+        "y": 11
+      },
+      "target": {
+        "id": 59,
+        "name": "利盖鲁军",
+        "className": "骑兵",
+        "faction": 2,
+        "classId": 16,
+        "classGroup": 4,
+        "move": 6,
+        "level": 1,
+        "hp": 20,
+        "maxHp": 20,
+        "sourceId": 59,
+        "formal": false,
+        "flags": 1,
+        "equipMask": 3,
+        "dropTemplateId": 1,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 4,
+          "skill": 3,
+          "speed": 2,
+          "defense": 3,
+          "magic": 1,
+          "luck": 0
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_59:item_0",
+            "templateId": 13,
+            "durability": 30
+          },
+          {
+            "id": "chapter_1:unit_59:item_1",
+            "templateId": 1,
+            "durability": 30
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_59:item_0",
+        "x": 9,
+        "y": 22
+      },
+      "killed": true,
+      "hit": true,
+      "borrowed": false,
+      "experience": 20
+    },
+    {
+      "actor": {
+        "id": 0,
+        "name": "雅木",
+        "className": "国王",
+        "faction": 0,
+        "classId": 0,
+        "classGroup": 0,
+        "move": 5,
+        "level": 1,
+        "hp": 30,
+        "maxHp": 30,
+        "sourceId": 0,
+        "formal": true,
+        "flags": 0,
+        "equipMask": 1,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 7,
+          "skill": 7,
+          "speed": 7,
+          "defense": 6,
+          "magic": 4,
+          "luck": 4
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_0:item_0",
+            "templateId": 9,
+            "durability": 15
+          },
+          {
+            "id": "chapter_1:unit_0:item_1",
+            "templateId": 60,
+            "durability": 3
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_0:item_0",
+        "x": 8,
+        "y": 11
+      },
+      "target": {
+        "id": 80,
+        "name": "利盖鲁军",
+        "className": "骑兵",
+        "faction": 2,
+        "classId": 16,
+        "classGroup": 4,
+        "move": 6,
+        "level": 1,
+        "hp": 20,
+        "maxHp": 20,
+        "sourceId": 80,
+        "formal": false,
+        "flags": 1,
+        "equipMask": 3,
+        "dropTemplateId": 1,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 4,
+          "skill": 3,
+          "speed": 2,
+          "defense": 3,
+          "magic": 1,
+          "luck": 0
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_80:item_0",
+            "templateId": 13,
+            "durability": 30
+          },
+          {
+            "id": "chapter_1:unit_80:item_1",
+            "templateId": 1,
+            "durability": 30
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_80:item_0",
+        "x": 9,
+        "y": 22
+      },
+      "killed": true,
+      "hit": true,
+      "borrowed": false,
+      "experience": 30
+    }
+  ],
+  "growthCases": [
+    {
+      "roll": 0,
+      "before": {
+        "id": 0,
+        "name": "雅木",
+        "className": "国王",
+        "faction": 0,
+        "classId": 0,
+        "classGroup": 0,
+        "move": 5,
+        "level": 1,
+        "hp": 20,
+        "maxHp": 30,
+        "sourceId": 0,
+        "formal": true,
+        "flags": 0,
+        "equipMask": 1,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 7,
+          "skill": 12,
+          "speed": 5,
+          "defense": 7,
+          "magic": 0,
+          "luck": 2
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_0:item_0",
+            "templateId": 9,
+            "durability": 15
+          },
+          {
+            "id": "chapter_1:unit_0:item_1",
+            "templateId": 60,
+            "durability": 3
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_0:item_0",
+        "x": 8,
+        "y": 11
+      },
+      "after": {
+        "id": 0,
+        "name": "雅木",
+        "className": "国王",
+        "faction": 0,
+        "classId": 0,
+        "classGroup": 0,
+        "move": 5,
+        "level": 2,
+        "hp": 20,
+        "maxHp": 31,
+        "sourceId": 0,
+        "formal": true,
+        "flags": 0,
+        "equipMask": 1,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 8,
+          "skill": 13,
+          "speed": 6,
+          "defense": 8,
+          "magic": 1,
+          "luck": 3
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_0:item_0",
+            "templateId": 9,
+            "durability": 15
+          },
+          {
+            "id": "chapter_1:unit_0:item_1",
+            "templateId": 60,
+            "durability": 3
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_0:item_0",
+        "x": 8,
+        "y": 11
+      }
+    },
+    {
+      "roll": 99,
+      "before": {
+        "id": 0,
+        "name": "雅木",
+        "className": "国王",
+        "faction": 0,
+        "classId": 0,
+        "classGroup": 0,
+        "move": 5,
+        "level": 1,
+        "hp": 20,
+        "maxHp": 30,
+        "sourceId": 0,
+        "formal": true,
+        "flags": 0,
+        "equipMask": 1,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 7,
+          "skill": 12,
+          "speed": 5,
+          "defense": 7,
+          "magic": 0,
+          "luck": 2
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_0:item_0",
+            "templateId": 9,
+            "durability": 15
+          },
+          {
+            "id": "chapter_1:unit_0:item_1",
+            "templateId": 60,
+            "durability": 3
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_0:item_0",
+        "x": 8,
+        "y": 11
+      },
+      "after": {
+        "id": 0,
+        "name": "雅木",
+        "className": "国王",
+        "faction": 0,
+        "classId": 0,
+        "classGroup": 0,
+        "move": 5,
+        "level": 2,
+        "hp": 20,
+        "maxHp": 30,
+        "sourceId": 0,
+        "formal": true,
+        "flags": 0,
+        "equipMask": 1,
+        "dropTemplateId": 0,
+        "proficiency": 0,
+        "experience": 0,
+        "attributes": {
+          "strength": 7,
+          "skill": 12,
+          "speed": 5,
+          "defense": 7,
+          "magic": 0,
+          "luck": 2
+        },
+        "inventory": [
+          {
+            "id": "chapter_1:unit_0:item_0",
+            "templateId": 9,
+            "durability": 15
+          },
+          {
+            "id": "chapter_1:unit_0:item_1",
+            "templateId": 60,
+            "durability": 3
+          }
+        ],
+        "equippedInstanceId": "chapter_1:unit_0:item_0",
+        "x": 8,
+        "y": 11
+      }
+    }
+  ],
+  "sourceSha256": "67d1c77e823816e203244a15428ba9fb635d40edba04efa3180b3334025989fe"
+}

@@ -1,6 +1,6 @@
 # Godot最小工程实施计划
 
-对应[建立首关竖屏Godot工程并验证Android/Web最小运行](https://github.com/mxp-xc/emblem-rekindled/issues/10)，遵循[工程与文件系统组织设计](project-organization.md)。本计划只细化未来实施顺序与验收，当前尚未创建工程、安装模板或执行构建。
+对应[建立首关竖屏Godot工程并验证Android/Web最小运行](https://github.com/mxp-xc/emblem-rekindled/issues/10)，遵循[工程与文件系统组织设计](project-organization.md)。本计划规定阶段范围与验收，实际进度和证据以实施issue为准。
 
 ## 阶段结果
 
@@ -25,7 +25,7 @@
 ### 1. 建立最小启动与竖屏显示
 
 - 建立实际需要的game/project.godot、app/启动场景和导出预设，使用4.7.2标准版、typed GDScript、Compatibility。
-- 以720×1280设计尺寸组织竖屏布局，实际输出按设备分辨率绘制。地图像素缩放与UI文字/控件分开；电脑Web居中显示同一竖屏游戏区域。
+- 以720×1280设计尺寸组织竖屏布局，实际输出按设备分辨率绘制。地图像素缩放与UI文字/控件分开；游戏窗口铺满一体战场，按钮贴边，状态按点选显示，低频设置收菜单。电脑Web使用同一场景和输入规则，手机滑动、电脑鼠标拖动移动视野。
 - 确定随包中文字体及来源；需要下载或新增工具时先对齐，不依赖本机恰好安装的字体。
 - 通过条件：启动入口明确，中文可显示，页面能在目标长宽比下完整布局；此时尚不宣称Android/Web导出通过。
 

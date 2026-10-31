@@ -1,0 +1,124 @@
+{
+  "sourceSha256": "67d1c77e823816e203244a15428ba9fb635d40edba04efa3180b3334025989fe",
+  "preparation": "Direct unmodified Java formula/round calls; see issue16. Controlled round positions are (8,21),(9,21).",
+  "formulaCases": [
+    {
+      "pair": [0, 59],
+      "weapon": 9,
+      "damage": 19,
+      "criticalDamage": 38,
+      "hit": 100,
+      "critical": 17,
+      "speed": 4,
+      "double": true
+    },
+    {
+      "pair": [59, 0],
+      "weapon": 13,
+      "damage": 7,
+      "criticalDamage": 14,
+      "hit": 97,
+      "critical": 3,
+      "speed": -5,
+      "double": false
+    },
+    {
+      "pair": [0, 67],
+      "weapon": 9,
+      "damage": 19,
+      "criticalDamage": 38,
+      "hit": 92,
+      "critical": 17,
+      "speed": 4,
+      "double": true
+    },
+    {
+      "pair": [67, 0],
+      "weapon": 40,
+      "damage": 11,
+      "criticalDamage": 22,
+      "hit": 67,
+      "critical": 3,
+      "speed": -1,
+      "double": false
+    },
+    {
+      "pair": [9, 59],
+      "weapon": 0,
+      "damage": 0,
+      "criticalDamage": 0,
+      "hit": 12,
+      "critical": 4,
+      "speed": 4,
+      "double": true
+    },
+    {
+      "pair": [10, 59],
+      "weapon": 22,
+      "damage": 19,
+      "criticalDamage": 38,
+      "hit": 80,
+      "critical": 5,
+      "speed": -10,
+      "double": false
+    }
+  ],
+  "controlledRounds": [
+    {
+      "fixedRoll": 0,
+      "strikes": [[0, 0, 0, 20, 0, 20, 0]],
+      "almHp": 30,
+      "enemyHp": 0,
+      "almItems": [
+        [9, 14],
+        [60, 3]
+      ],
+      "enemyItems": [
+        [13, 30],
+        [1, 30]
+      ],
+      "almProficiency": 1,
+      "enemyProficiency": 0
+    },
+    {
+      "fixedRoll": 50,
+      "strikes": [
+        [0, 0, 1, 20, 1, 19, 0],
+        [1, 0, 1, 30, 23, 7, 0],
+        [0, 0, 1, 1, 0, 1, 0]
+      ],
+      "almHp": 23,
+      "enemyHp": 0,
+      "almItems": [
+        [9, 13],
+        [60, 3]
+      ],
+      "enemyItems": [
+        [13, 29],
+        [1, 30]
+      ],
+      "almProficiency": 2,
+      "enemyProficiency": 1
+    },
+    {
+      "fixedRoll": 99,
+      "strikes": [
+        [0, 0, 1, 20, 1, 19, 0],
+        [1, 1, 1, 30, 30, 0, 0],
+        [0, 0, 1, 1, 0, 1, 0]
+      ],
+      "almHp": 30,
+      "enemyHp": 0,
+      "almItems": [
+        [9, 13],
+        [60, 3]
+      ],
+      "enemyItems": [
+        [13, 30],
+        [1, 30]
+      ],
+      "almProficiency": 2,
+      "enemyProficiency": 0
+    }
+  ]
+}

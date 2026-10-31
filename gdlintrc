@@ -1,0 +1,4 @@
+# Validation guards intentionally return at the failed condition.
+disable:
+  - max-returns
+max-line-length: 100

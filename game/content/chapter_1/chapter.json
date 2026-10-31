@@ -1,0 +1,22 @@
+{
+  "id": "chapter_1",
+  "firstBattle": "m0",
+  "map": "res://content/chapter_1/generated/map.json",
+  "units": "res://content/chapter_1/generated/units.json",
+  "rules": "res://content/chapter_1/generated/rules.json",
+  "spawns": "res://content/chapter_1/generated/spawns.json",
+  "mapAnimations": "res://content/chapter_1/generated/map_animations.json",
+  "battleArt": "res://content/chapter_1/generated/battle/manifest.json",
+  "battleClips": "res://content/chapter_1/generated/battle/clips/manifest.json",
+  "battleMusic": "res://content/chapter_1/generated/battle_music.ogg",
+  "mapTexture": "res://content/chapter_1/generated/map.png",
+  "spriteDirectory": "res://content/chapter_1/generated/",
+  "music": "res://content/chapter_1/generated/map_music.ogg",
+  "story": "res://content/chapter_1/generated/story/manifest.json",
+  "titleMusic": "res://content/chapter_1/generated/title_music.ogg",
+  "worldMusic": "res://content/chapter_1/generated/world_music.ogg",
+  "victoryMusic": "res://content/chapter_1/generated/victory_music.ogg",
+  "defeatMusic": "res://content/chapter_1/generated/defeat_music.ogg",
+  "controls": "res://content/chapter_1/authored/controls.json",
+  "interface": "res://content/chapter_1/generated/ui/manifest.json"
+}

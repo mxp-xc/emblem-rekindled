@@ -1,3 +1,11 @@
 # Original J2ME games are local reference material.
 /reference/original-jars/
 temp/
+/game/.godot/
+/game/export_credentials.cfg
+/build/
+/.playwright-cli/
+/.venv/
+/node_modules/
+/.ruff_cache/
+__pycache__/

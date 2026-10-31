@@ -1,0 +1,64 @@
+{
+  "source": "Original c.d plus renderer; BattleInterfaceFlowProbe natural modal departures; controlled initial EXP99",
+  "tickMillis": 65,
+  "logicTickUnits": 50,
+  "cases": [
+    {
+      "name": "normal",
+      "kind": "experience",
+      "before": 99,
+      "amount": 10,
+      "sourceUpdates": 13
+    },
+    {
+      "name": "normal",
+      "kind": "growth",
+      "before": [30, 7, 7, 7, 4, 6, 4, 5],
+      "after": [31, 7, 7, 7, 4, 6, 5, 5],
+      "increments": [1, 0, 0, 0, 0, 0, 1, 0],
+      "sourceUpdates": 31
+    },
+    {
+      "name": "broken",
+      "kind": "experience",
+      "before": 99,
+      "amount": 31,
+      "sourceUpdates": 18
+    },
+    {
+      "name": "broken",
+      "kind": "growth",
+      "before": [30, 7, 7, 7, 4, 6, 4, 5],
+      "after": [31, 7, 7, 7, 4, 6, 5, 5],
+      "increments": [1, 0, 0, 0, 0, 0, 1, 0],
+      "sourceUpdates": 31
+    }
+  ],
+  "messages": [
+    {
+      "kind": "message",
+      "durationUnits": 1200,
+      "sourceUpdates": 25
+    },
+    {
+      "kind": "message",
+      "durationUnits": 1500,
+      "sourceUpdates": 31
+    },
+    {
+      "kind": "message",
+      "durationUnits": 1200,
+      "sourceUpdates": 25
+    },
+    {
+      "kind": "message",
+      "durationUnits": 1200,
+      "sourceUpdates": 25
+    },
+    {
+      "kind": "message",
+      "durationUnits": 1500,
+      "sourceUpdates": 31
+    }
+  ]
+}
