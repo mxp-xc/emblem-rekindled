@@ -96,6 +96,8 @@ func run() -> void:
 	if scene.unit_information.page != 2:
 		fail("Wheel down in character information must select the next attribute page")
 		return
+	# The rebuilt equipment rows finish their deferred container layout after the page event.
+	await process_frame
 	var snapshot: Dictionary = scene.battle.snapshot()
 	var herb: Button = scene.unit_information.body.get_node("Item_60")
 	if herb.disabled:

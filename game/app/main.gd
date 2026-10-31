@@ -799,10 +799,17 @@ func _wheel_selection(direction: int) -> bool:
 func _step_menu_focus(screen: Control, direction: int) -> void:
 	var rows: Array[Control] = []
 	var focused: Control = get_viewport().gui_get_focus_owner()
-	# Stay in the focused list, including the active side of an exchange inventory.
-	var scope: Node = (
-		focused.get_parent() if focused != null and screen.is_ancestor_of(focused) else screen
-	)
+	var scope: Node = screen
+	# Only an exchange has independent lists; ordinary menus include nested controls.
+	if (
+		(
+			screen == exchange_screen
+			or (screen == world_inventory_screen and screen.page == "exchange")
+		)
+		and focused != null
+		and screen.is_ancestor_of(focused)
+	):
+		scope = focused.get_parent()
 	for control: Node in scope.find_children("*", "Button", true, false):
 		if (
 			control.is_visible_in_tree()

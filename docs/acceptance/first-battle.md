@@ -3,7 +3,7 @@
 本轮范围是初章第一战及其开场、结算、驻留世界、四档存读与物品整理。
 后续战斗关卡尚未开放，三章连续主线仍按[决策地图](https://github.com/mxp-xc/emblem-rekindled/issues/1)逐关推进。
 
-首关开发及本轮自测已完成，可集中验收。[第二轮12项反馈](https://github.com/mxp-xc/emblem-rekindled/issues/21)、[内部API与快速回归](https://github.com/mxp-xc/emblem-rekindled/issues/22)、[敌军掉落名称高亮](https://github.com/mxp-xc/emblem-rekindled/issues/23)均已完成对应验证。
+首关开发及本轮自测已完成，可集中验收。[第二轮12项反馈](https://github.com/mxp-xc/emblem-rekindled/issues/21)、[内部API与快速回归](https://github.com/mxp-xc/emblem-rekindled/issues/22)、[敌军掉落名称高亮](https://github.com/mxp-xc/emblem-rekindled/issues/23)均已完成对应验证。新增[滚轮导航与通关辅助](https://github.com/mxp-xc/emblem-rekindled/issues/24)已补齐相关自动与两端验证。
 
 ## 验收条件
 
@@ -24,6 +24,8 @@
 | 原地图、正式队伍与初始配置 | `test_new_battle.gd`、`test_content.gd`；导入器从本地来源生成内容，导出包只读取随包数据与素材。 |
 | 新游戏、世界入场、对白、配置、教学、部队显隐与等待 | `test_entry_ui.gd`、`test_story_timing.gd`、`test_opening_visibility.gd`、`test_world_intro.gd`；最新版两端实际新游戏开场通过，动画完成后才推进对白。 |
 | 单屏选人、移动、寻路、拖动、缩放、取消与人物资料 | `test_movement*.gd`、`test_battlefield_ui.gd`、`test_map_input.gd`、`test_unit_information_ui.gd`、`test_back_navigation.gd`；两端真实输入与系统 Back / Esc 分层验证通过。 |
+| 滚轮平移、菜单选项、人物属性翻页及行动优先项 | `test_battlefield_ui.gd`、`test_menu_wheel.gd`、`test_unit_menu_ui.gd`；Web真实滚轮确认地图仅垂直平移，菜单不穿透，资料页前后切换，设置嵌套控件可连续导航；行动默认优先可执行交互。 |
+| 设置辅助与确认式直接通关 | `test_assisted_victory.gd`、`test_assistance_ui.gd`；Web/APK真实确认/取消和Esc/系统Back逐层返回通过，路线0/6000金币，原队伍持有物品不变；正常胜利剧情与世界保存复用，不额外发击杀掉落。 |
 | 攻击公式、反击、命中、未中、必杀、成长与耐久 | `test_combat_forecast.gd`、`test_combat_round.gd`、`test_rewards.gd`、`test_combat_rewards.gd`、`test_experience_limits.gd`；独立原来源样本覆盖公式与关键分支。耗尽异常另由本页明确的批准差异处理。 |
 | 物品、装备、丢弃、治疗、交换与行动限制 | `test_item_operations.gd`、`test_equipment.gd`、`test_staff_ui.gd`、`test_exchange_ui.gd`、`test_trade_commit.gd`；真实 APK / Web 操作、当前次数与默认详情耐久均已核对。 |
 | 敌军掉落名称高亮 | `test_drop_highlight.gd`覆盖32单位、三个正常绿色名、同模板重复、零耐久、不可装备、阵营/标记变化与移除；两端三名敌军、选中详情和Web宽屏实际通过。仅名称为原#00DD00，图标和耐久不变，转移后按拥有者重算。 |
@@ -39,7 +41,7 @@
 | 地图内对白、菜单、资料与 HUD；宽屏、长屏和安全区 | `test_dialogue_layout.gd`、`test_desktop_layout.gd`、`test_map_hud_ui.gd`；540×960、1280×720、2048×1152、1080×2400、1440×3200布局回归通过，两端实际画面复核限定在中央游戏区域。 |
 | 音乐循环、切项/指针不重播、后台恢复 | `test_music_continuity.gd`、`test_title_music.gd`；Web 实际110秒、跨两循环与 PCM 信号通过，无长 Sample 重复分配；模拟器 AudioTrack 未静音且帧计数前进。 |
 | Android 前后台与战斗恢复不重复结算 | APK 实际 Home→恢复 PID 不变，稳定战局状态不变；战斗中切后台后返回，行动编号只增加一次，可继续保存。 |
-| 格式、lint、脚本解析、全部行为测试及审查 | 最终118份脚本解析、76项行为测试及lint/格式/工具/启动检查通过；Standards/Spec与后续修正复审零未解决发现。 |
+| 格式、lint、脚本解析、全部行为测试及审查 | 最终121份脚本解析、79项行为测试及lint/格式/工具/启动检查通过；Standards/Spec与后续修正复审零未解决发现。 |
 
 自动测试文件均位于 `game/tests/`，执行方式见[开发说明](../development.md)。
 受控位置、HP、随机源或时钟仅用于对应验证，不属于正式游戏运行路径。
@@ -58,7 +60,7 @@
 快速回归使用 `tools/playtest_first_battle.py --speed 32`：通过只读实时接口规划，仍走真实ADB输入，每轮保存一次。一次实际运行98.43秒、33动作、6次回合存档完成通关，记录在`temp/playtest/d0c490e1/`；正常速度完整通关是另一个独立验证，不混为同次运行。
 
 本地运行产物位于忽略的 `temp/first-battle/`、`temp/gameplay-feedback/`、
-`temp/save-slots/`、`temp/world-inventory/`、`temp/feedback-v2/`、`temp/playtest/` 和 `temp/playtest-api/`，具体入口由对应实施票记录。
+`temp/save-slots/`、`temp/world-inventory/`、`temp/feedback-v2/`、`temp/playtest/`、`temp/playtest-api/` 和 `temp/scroll-assistance/`，具体入口由对应实施票记录。
 本轮最终平台测试均备份原有 JSON，并在结束后核对恢复；模拟器批次结束即关闭。
 
 ## 产物与后续范围

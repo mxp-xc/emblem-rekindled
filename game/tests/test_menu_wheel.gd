@@ -54,6 +54,10 @@ func run() -> void:
 	if root.gui_get_focus_owner() == first or scene.map.view.center != center:
 		fail("Settings wheel must select a different enabled command without panning the map")
 		return
+	await wheel(MOUSE_BUTTON_WHEEL_DOWN)
+	if root.gui_get_focus_owner().text != "辅助功能":
+		fail("Settings wheel must leave nested map controls and reach assistance")
+		return
 	scene.menu_layer.show_page("assistance")
 	scene.menu_layer.go_back()
 	if root.gui_get_focus_owner() == first:
