@@ -1,5 +1,20 @@
 ## Agent skills
 
+### 本地记忆
+
+若项目根目录存在 `AGENTS.local.md`，读取 @AGENTS.local.md；不存在时继续。
+通用实施规则记在本文件或其条件文档中；当前电脑的工具路径、设备与可用能力记在
+`AGENTS.local.md`，该文件不进入版本控制。
+
+### 开发与交付
+
+- 定位源码或生成资源前，阅读 `docs/agents/navigation.md`。
+- 修改界面、交互或进行平台验收前，阅读 `docs/agents/verification.md`。
+- 对用户记录进行测试写入前，使用已验证的完整备份；备份枚举/读取失败时停止。
+  恢复先验证全部原文件，再清理新增文件；失败保留可恢复备份。
+- 交付通过 `tools/delivery.py` 导出并核对实际运行包的 buildId；Web 覆盖用户原地址，
+  Android 核对已安装包。检查通过与用户集中验收分开记录。
+
 ### Issue tracker
 
 任务和规格使用 GitHub Issues；编写 PRD、规格或读写 issue 前，阅读 `docs/agents/issue-tracker.md`。

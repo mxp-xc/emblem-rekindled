@@ -68,6 +68,7 @@ var _full_screen_menu: bool = false
 
 
 func _ready() -> void:
+	preload("res://app/build_identity.gd").publish()
 	theme = Theme.new()
 	theme.default_font = FONT
 	theme.default_font_size = 24

@@ -12,7 +12,7 @@
 
 | 输入 | 依据与使用方式 |
 | --- | --- |
-| 引擎及平台工具 | [基础工具安装记录](https://github.com/mxp-xc/emblem-rekindled/issues/10#issuecomment-6521760818)：Godot4.7.2标准版、指定Android SDK组件及现有JDK27；导出模板尚未安装。安装记录不是导出成功证据。 |
+| 引擎及平台工具 | [基础工具安装记录](https://github.com/mxp-xc/emblem-rekindled/issues/10#issuecomment-6521760818)：Godot4.7.2标准版；当前构建、模板与平台验证入口见 [开发文档](../development.md)。安装记录不替代导出成功证据。 |
 | 首关原始参考 | 本地reference/original-jars/chapter-1.jar，已核对的SHA-256为67d1c77e823816e203244a15428ba9fb635d40edba04efa3180b3334025989fe。处理前核对身份，不修改原包，不上传素材。 |
 | 地图与开局样本 | [首关地图与布局依据](https://github.com/mxp-xc/emblem-rekindled/issues/9#issuecomment-6520759064)：地图20×25，原地形格24像素；已有开局样本32条单位记录，其中29条可见。应按已核对的状态筛选可见单位，不能把隐藏单位强制画出。 |
 | 原版行为对照 | [首关运行记录](https://github.com/mxp-xc/emblem-rekindled/issues/7#issuecomment-6520177791)。正常流程与受控边界探针分开理解；不将探针视作自然完整通关。 |
@@ -67,7 +67,7 @@
 
 | 平台/检查 | 必须记录的结果 |
 | --- | --- |
-| Android真机 | 设备/系统、竖屏、安全区与中文、触摸定位/拖动、音频、设置重启恢复、后台恢复。没有真机结果就保持待验收。 |
+| Android平台 | 本轮按用户裁决以模拟器验收，真机及扬声器听感暂缓；当前门槛与结果见 [首关验收](../acceptance/first-battle.md)。 |
 | 电脑Web | 浏览器与本地HTTP入口、键鼠/缩放定位、音频解锁、设置刷新/重开恢复、标签页切换。 |
 | 布局样例 | 1080×2400、1440×3200及16:9的竖屏布局/像素缩放结果。模拟尺寸是显示检查，不替代实际手机。 |
 | 独立运行 | 核对包内资源并从导出产物启动；没有原包、开发服务或工具时仍可运行。 |

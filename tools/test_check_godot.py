@@ -27,7 +27,7 @@ class GodotGateTest(unittest.TestCase):
                 '\tmissing.call("invalid")\n'
             )
             with self.assertRaises(SystemExit) as failure, redirect_stderr(StringIO()):
-                godot("--script", str(script), timeout_seconds=1)
+                godot("--script", str(script), timeout_seconds=0.2, ready_file=pid_file)
             self.assertEqual(failure.exception.code, 1)
             process_id = int(pid_file.read_text())
             deadline = time.monotonic() + 1

@@ -1,6 +1,8 @@
 # Original J2ME games are local reference material.
 /reference/original-jars/
 temp/
+/AGENTS.local.md
+/game/content/build_info.json
 /game/.godot/
 /game/export_credentials.cfg
 /build/

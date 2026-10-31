@@ -9,60 +9,20 @@ import time
 import uuid
 from pathlib import Path
 
-from android_playtest import FILES, PACKAGE, Playtest
+from android_playtest import PACKAGE, AndroidInput, Playtest
+from delivery import verify_android
+from qa_records import backup_records, restore_records
 
 ROOT = Path(__file__).resolve().parents[1]
 LABELS = {"attack": "攻击", "heal": "杖", "wait": "待机", "use_herb": "物品"}
 
 
-class Run:
+class Run(AndroidInput):
     def __init__(self, client: Playtest, output: Path) -> None:
-        self.client = client
+        super().__init__(client)
         self.output = output
         self.journal: list[dict] = []
         self.saves = 0
-
-    def key(self, code: int) -> None:
-        self.client.adb("shell", "input", "keyevent", str(code))
-        # Distinct system Back presses must exceed the game's 100ms notification debounce.
-        time.sleep(0.12 if code == 4 else 0.04)
-
-    def tap(self, x: float, y: float) -> None:
-        self.client.adb("shell", "input", "tap", str(round(x)), str(round(y)))
-        time.sleep(0.04)
-
-    def click(self, text: str = "", *, name: str = "") -> None:
-        state = self.client.read()
-        item = next(
-            (
-                item
-                for item in state["controls"]
-                if item.get("enabled", True)
-                and (item.get("text") == text if text else item["name"] == name)
-            ),
-            None,
-        )
-        if item is None:
-            raise AssertionError(f"Visible control missing: {text or name}")
-        x, y, width, height = item["rect"]
-        self.tap(
-            (x + width / 2) * state["window"][0] / state["viewport"][0],
-            (y + height / 2) * state["window"][1] / state["viewport"][1],
-        )
-
-    def cell(self, x: int, y: int, *, double: bool = False) -> None:
-        state = self.client.read()
-        view = state["map"]
-        point = [
-            view["origin"][axis]
-            + view["size"][axis] / 2
-            + ((x if axis == 0 else y) + 0.5 - view["center"][axis]) * 24 * view["zoom"]
-            for axis in range(2)
-        ]
-        point = [point[i] * state["window"][i] / state["viewport"][i] for i in range(2)]
-        self.tap(*point)
-        if double:
-            self.tap(*point)
 
     def wait(self, predicate, timeout: float = 60) -> dict:
         deadline = time.monotonic() + timeout
@@ -258,37 +218,42 @@ def main() -> None:
     output = ROOT / "temp" / "playtest" / uuid.uuid4().hex[:8]
     output.mkdir(parents=True)
     print("OUTPUT", output, flush=True)
-    client.adb("wait-for-device")
-    client.adb("install", "-r", str(args.apk))
-    client.adb("shell", "am", "force-stop", PACKAGE)
-    client.adb("shell", "run-as", PACKAGE, "mkdir", "-p", "files")
-
-    def names() -> list[str]:
-        return [
-            name
-            for name in client.adb("exec-out", "run-as", PACKAGE, "ls", "-1", "files")
-            .decode()
-            .splitlines()
-            if name.endswith(".json") or name in FILES
-        ]
-
-    original = {
-        name: client.adb("exec-out", "run-as", PACKAGE, "cat", "files/" + name) for name in names()
-    }
-    (output / "original-json.json").write_text(
-        json.dumps({name: list(data) for name, data in original.items()})
-    )
-    started = time.monotonic()
-    run = Run(client, output)
     try:
-        client.enable(args.speed)
-        state = run.play()
-        progress = state["world"]
-        if progress["gold"] != 6000 or progress["route"] != 0:
-            raise AssertionError("Unexpected first-battle completion")
-        (output / "completed-progress.json").write_text(
-            json.dumps(progress, ensure_ascii=False, indent=2)
-        )
+        client.adb("wait-for-device")
+        client.adb("install", "-r", str(args.apk))
+        verify_android(args.serial, args.apk)
+        client.adb("shell", "am", "force-stop", PACKAGE)
+        client.adb("shell", "run-as", PACKAGE, "mkdir", "-p", "files")
+
+        backup = backup_records(client, output / "records")
+        started = time.monotonic()
+        run = Run(client, output)
+        try:
+            client.enable(args.speed)
+            state = run.play()
+            progress = state["world"]
+            if progress["gold"] != 6000 or progress["route"] != 0:
+                raise AssertionError("Unexpected first-battle completion")
+            (output / "completed-progress.json").write_text(
+                json.dumps(progress, ensure_ascii=False, indent=2)
+            )
+        except BaseException:
+            try:
+                (output / "failure.png").write_bytes(client.adb("exec-out", "screencap", "-p"))
+                (output / "failure-state.json").write_bytes(
+                    client.adb(
+                        "shell", "run-as", PACKAGE, "cat", "files/playtest_state.json", check=False
+                    )
+                )
+                pid = client.adb("shell", "pidof", PACKAGE).decode().strip()
+                (output / "process-log.txt").write_bytes(client.adb("logcat", "-d", "--pid=" + pid))
+            except Exception:
+                logging.exception("Could not capture playtest failure evidence")
+            raise
+        finally:
+            client.adb("shell", "am", "force-stop", PACKAGE)
+            restore_records(client, backup)
+            print("ORIGINAL_JSON_RESTORED", flush=True)
         (output / "result.json").write_text(
             json.dumps(
                 {
@@ -303,34 +268,9 @@ def main() -> None:
             )
         )
         print("PASS", len(run.journal), "actions;", run.saves, "round saves", flush=True)
-    except BaseException:
-        try:
-            (output / "failure.png").write_bytes(client.adb("exec-out", "screencap", "-p"))
-            (output / "failure-state.json").write_bytes(
-                client.adb(
-                    "shell", "run-as", PACKAGE, "cat", "files/playtest_state.json", check=False
-                )
-            )
-            pid = client.adb("shell", "pidof", PACKAGE).decode().strip()
-            (output / "process-log.txt").write_bytes(client.adb("logcat", "-d", "--pid=" + pid))
-        except Exception:
-            logging.exception("Could not capture playtest failure evidence")
-        raise
     finally:
-        client.adb("shell", "am", "force-stop", PACKAGE)
-        for name in names():
-            if name not in original:
-                client.adb("shell", "run-as", PACKAGE, "rm", "files/" + name)
-        for name, data in original.items():
-            client.adb("shell", "run-as", PACKAGE, "tee", "files/" + name, data=data)
-        assert {
-            name: client.adb("exec-out", "run-as", PACKAGE, "cat", "files/" + name)
-            for name in names()
-        } == original
-        (output / "restored.json").write_text(json.dumps({"allOriginalJsonBytesRestored": True}))
         if not args.keep_emulator:
             client.adb("emu", "kill")
-        print("ORIGINAL_JSON_RESTORED", flush=True)
 
 
 if __name__ == "__main__":

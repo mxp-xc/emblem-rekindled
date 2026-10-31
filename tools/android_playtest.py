@@ -5,6 +5,8 @@ import json
 import subprocess
 import time
 
+from qa_records import record_name
+
 PACKAGE = "io.github.mxpxc.emblemrekindled"
 FILES = (
     "playtest.json",
@@ -31,6 +33,45 @@ class Playtest:
         return result.stdout if result.returncode == 0 else b""
 
     def _write(self, name: str, value: dict) -> None:
+        self.write_record(name, json.dumps(value).encode())
+
+    def record_names(self) -> list[str]:
+        # Shell v2 preserves remote errors. Only an explicit missing directory is empty.
+        raw = self.adb("shell", "run-as", PACKAGE, "ls", "-1", "files", check=False)
+        return [
+            record_name(name)
+            for name in raw.decode().splitlines()
+            if name.endswith(".json") or name.endswith(".json.tmp")
+        ]
+
+    def record_exists(self, name: str) -> bool:
+        path = "files/" + record_name(name)
+        # stat reports errors distinctly from the sentinel used for missing files.
+        result = (
+            self.adb(
+                "shell",
+                "run-as",
+                PACKAGE,
+                "sh",
+                "-c",
+                f"'if [ -e {path} ]; then stat {path} >/dev/null && echo PRESENT; "
+                f"elif [ -d files ]; then echo ABSENT; else stat files; fi'",
+            )
+            .decode()
+            .strip()
+        )
+        if result not in ("PRESENT", "ABSENT"):
+            raise RuntimeError(f"Unexpected existence response for {name}: {result}")
+        return result == "PRESENT"
+
+    def read_record(self, name: str) -> bytes:
+        return self.adb("shell", "run-as", PACKAGE, "cat", "files/" + record_name(name))
+
+    def remove_record(self, name: str) -> None:
+        self.adb("shell", "run-as", PACKAGE, "rm", "files/" + record_name(name))
+
+    def write_record(self, name: str, data: bytes) -> None:
+        record_name(name)
         # tee receives stdin directly; no interpolated shell redirection or host temporary file.
         self.adb(
             "shell",
@@ -38,7 +79,7 @@ class Playtest:
             PACKAGE,
             "tee",
             "files/" + name + ".tmp",
-            data=json.dumps(value).encode(),
+            data=data,
         )
         self.adb("shell", "run-as", PACKAGE, "mv", "files/" + name + ".tmp", "files/" + name)
 
@@ -68,6 +109,55 @@ class Playtest:
                 time.sleep(0.03)
             time.sleep(0.03)
         raise TimeoutError("No ready playtest response; enable debug test mode and restart the app")
+
+
+class AndroidInput:
+    """Real input mapped from a fresh read-only response, shared by platform drivers."""
+
+    def __init__(self, client: Playtest) -> None:
+        self.client = client
+
+    def key(self, code: int) -> None:
+        self.client.adb("shell", "input", "keyevent", str(code))
+        # Distinct system Back presses must exceed the game's 100ms notification debounce.
+        time.sleep(0.12 if code == 4 else 0.04)
+
+    def tap(self, x: float, y: float) -> None:
+        self.client.adb("shell", "input", "tap", str(round(x)), str(round(y)))
+        time.sleep(0.04)
+
+    def click(self, text: str = "", *, name: str = "") -> None:
+        state = self.client.read()
+        item = next(
+            (
+                item
+                for item in state["controls"]
+                if item.get("enabled", True)
+                and (item.get("text") == text if text else item["name"] == name)
+            ),
+            None,
+        )
+        if item is None:
+            raise AssertionError(f"Visible control missing: {text or name}")
+        x, y, width, height = item["rect"]
+        self.tap(
+            (x + width / 2) * state["window"][0] / state["viewport"][0],
+            (y + height / 2) * state["window"][1] / state["viewport"][1],
+        )
+
+    def cell(self, x: int, y: int, *, double: bool = False) -> None:
+        state = self.client.read()
+        view = state["map"]
+        point = [
+            view["origin"][axis]
+            + view["size"][axis] / 2
+            + ((x if axis == 0 else y) + 0.5 - view["center"][axis]) * 24 * view["zoom"]
+            for axis in range(2)
+        ]
+        point = [point[i] * state["window"][i] / state["viewport"][i] for i in range(2)]
+        self.tap(*point)
+        if double:
+            self.tap(*point)
 
 
 def main() -> None:

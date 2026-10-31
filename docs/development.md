@@ -88,7 +88,10 @@ rtk bun run check
 
 - `format`：gdformat 格式化 GDScript，Ruff 整理 Python imports 并格式化，Prettier 格式化 Java 和 JSON。
 - `lint`：gdlint、gdformat 检查、Ruff 规则及格式检查、Prettier 检查；只检查，不改文件。
-- `check`：先 lint，再验证检查器的运行时错误退出、Godot 导入、全部脚本解析、行为测试和启动。
+- `check:quick`：lint 和工具测试；提交前自动运行。
+- `check:parse`：导入并在单个引擎中解析全部脚本。
+- `check`：完整检查，行为测试逐个隔离运行；推送前自动运行。
+- `setup:hooks`：仅为当前 checkout 安装检查 hooks，保留已有自定义配置。
 - `.editorconfig` 约定缩进、换行与尾随空白。gdlint 保留校验函数的提前返回，其他规则正常启用。
 
 日常单文件验证和脚本检查：
@@ -99,6 +102,8 @@ rtk uv run python tools/check_godot.py --parse-only
 ```
 
 检查器会识别 Godot 的错误输出，即使引擎返回 0 也判失败；每次引擎调用有 60 秒超时，中断时会清理其拥有的引擎进程组。
+`--test` 可重复指定；完整检查显示阶段和测试进度。故障清理测试分别计算启动等待与运行超时。
+平台交付与界面证据要求见 [验证与复核](agents/verification.md)。
 Godot 4.7.2 / Android 16 / targetSDK36 实测一次系统 Back 会重复发出返回通知，入口合并100ms内的重复系统请求；键盘 Esc 独立处理。
 故意产生运行时错误的检查器测试使用系统临时目录，不进入正式资源。
 
@@ -116,7 +121,9 @@ AVD Quick Boot可能恢复快照中的旧安装，不能以已有图标判断包
 只在每回合开始保存一次。默认32倍时钟，正常节奏与动画完整性另用1倍验证。
 结果、回合记录及逐步JSONL证据写入`temp/playtest/`，失败额外保留截图、状态和进程日志。
 普通随机结果保留；测试控制器保护必存活治疗者，不复用可牺牲NPC的前进策略，仍可能因战局失败而退出。
-结束后恢复全部原JSON并关闭模拟器。
+开始前完整备份并独立核对已有记录；失败则停止。结束后先恢复全部原JSON，再清理新增记录并逐字节验证。
+备份和恢复凭证在批次的 `records/` 中；恢复失败保留备份，可用 `tools/qa_records.py` 重试，详见验证文档。
+默认结束后关闭模拟器。
 同一验证批次需保留模拟器时显式使用`--keep-emulator`；多设备用`--serial`指定。
 
 独立读取入口：
@@ -155,7 +162,7 @@ rtk godot --headless --path game --import
 `9c59b74ae8e4fad205e5ff186940c24c53480918a3b180bb551559db9be3e7ff`。
 同名 nightlies 可能改变；不匹配时拒绝导入，不自动下载或静默换包。
 受控原包调用沿用 `-Dfile.encoding=ISO_8859_1`；已观察到改写该属性别名后，现有参考运行器在加载阶段直接退出，不能只凭进程返回0判断采样成功。
-本机现有副本可作为 `--emulator temp/runtime/tools/freej2me_plus.jar` 的参数，历史 RMS 快照不参与导入。
+历史 RMS 快照不参与导入；机器上的参考运行器路径记在可选 `AGENTS.local.md`。
 
 工具默认使用 PATH 中的 `java` / `javac`；其他位置通过 `--jdk /path/to/jdk/bin` 指定，还需现有 ffmpeg。
 工具在隔离临时目录中调用原始初始化器与绘图器，固定准备阶段随机源，并显式应用已核对的两条开场位置调整。
@@ -181,19 +188,19 @@ rtk godot --headless --path game --import
 
 ```sh
 rtk uv run tools/prepare_templates.py /path/to/Godot_v4.7.2-stable_export_templates.tpz
-rtk godot --headless --path game --export-debug Web
-rtk godot --headless --path game --export-debug Android
+rtk bun run build:web
+rtk bun run build:android
 rtk bun run serve
 ```
 
 模板放在忽略的 `build/templates/4.7.2.stable/`，不修改全局模板安装。
 预设引用同版 Android、单线程 Web 与 ICU 数据。中文明确包含 ICU；测试、来源记录和工具不进正式包。
 
-Android 需在 Godot 编辑器设置的 Export → Android 中指定已安装的 Java SDK 与 Android SDK，
-本机环境已使用 ARM64 OpenJDK 25 LTS（25.0.5.0.2）、Platform-Tools 37.0.1、Build-Tools 35.0.1。
-现有 `Emblem_API_36` 为 Android 16 / API 36 ARM64 模拟器，使用 ADB 验证；无需 Android Studio。
+Android 需在 Godot 编辑器设置的 Export → Android 中指定已安装的 Java SDK 与 Android SDK。
+机器上的路径、工具版本和 AVD 信息记在可选 `AGENTS.local.md`。
 Android验证批次结束且短期无需继续测试时关闭模拟器，避免持续占用宿主资源。
-模板默认 target SDK 为 36；标准 APK 导出使用现有 35.0.1 工具，可能提示版本回退，实际以签名/验证退出结果为准。
+导出命令临时注入 buildId，验证包内身份后发布到 build/；失败不发布未验证的包。
+源目录中的临时身份文件在导出结束后恢复，生成身份不进入版本控制。
 
 APK 写入 `build/android/`，Web 写入 `build/web/`；产物可在脱离仓库的位置启动。
 本地预览固定使用 `http://127.0.0.1:8765/`，重新导出后普通刷新即可，不加版本查询参数。

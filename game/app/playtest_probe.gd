@@ -102,6 +102,7 @@ func _snapshot() -> Dictionary:
 	return {
 		"ok": true,
 		"speed": Engine.time_scale,
+		"build": preload("res://app/build_identity.gd").current(),
 		"busy": _scene.busy,
 		"ready": not _scene.busy and _scene.map.visible and _scene.battle.can_save(),
 		"snapshot":

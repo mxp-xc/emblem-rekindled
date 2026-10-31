@@ -5,8 +5,17 @@
     "serve": "uv run python tools/serve_web.py",
     "format": "uv run gdformat --line-length 100 game tools && uv run ruff check --fix --select I tools && uv run ruff format tools && prettier --write 'tools/**/*.java' 'game/**/*.json' package.json .prettierrc.json",
     "lint": "uv run gdlint game tools && uv run gdformat --check --line-length 100 game tools && uv run ruff check tools && uv run ruff format --check tools && prettier --check 'tools/**/*.java' 'game/**/*.json' package.json .prettierrc.json",
-    "test": "uv run python -m unittest discover -s tools -p 'test_*.py' && uv run python tools/check_godot.py",
-    "check": "bun run lint && bun run test"
+    "test": "bun run test:tools && bun run test:game",
+    "check": "bun run lint && bun run test",
+    "test:tools": "uv run python -m unittest discover -s tools -p 'test_*.py'",
+    "test:game": "uv run python tools/check_godot.py",
+    "check:quick": "bun run lint && bun run test:tools",
+    "check:parse": "uv run python tools/check_godot.py --parse-only",
+    "setup:hooks": "uv run python tools/install_hooks.py",
+    "build:web": "uv run python tools/delivery.py web",
+    "build:android": "uv run python tools/delivery.py android",
+    "verify:web": "uv run python tools/delivery.py verify-web",
+    "verify:android": "uv run python tools/delivery.py verify-android"
   },
   "devDependencies": {
     "prettier": "3.9.10",
