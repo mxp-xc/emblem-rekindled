@@ -16,7 +16,13 @@ func run() -> void:
 			speech = candidate
 	scene.story_player.play([speech])
 	for overview: bool in [false, true]:
-		for dimensions: Vector2i in [Vector2i(1280, 720), Vector2i(2048, 1152), Vector2i(540, 960)]:
+		for dimensions: Vector2i in [
+			Vector2i(1280, 720),
+			Vector2i(2048, 1152),
+			Vector2i(540, 960),
+			Vector2i(1080, 2400),
+			Vector2i(1440, 3200)
+		]:
 			root.size = dimensions
 			await process_frame
 			await process_frame
