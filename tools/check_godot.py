@@ -53,9 +53,9 @@ def main() -> None:
         godot("--script", f"tests/{args.test}")
         return
     godot("--editor", "--import")
-    for script in sorted(GAME.rglob("*.gd")):
+    for script in sorted([*GAME.rglob("*.gd"), *(ROOT / "tools").glob("*.gd")]):
         if ".godot" not in script.parts:
-            godot("--check-only", "--script", str(script.relative_to(GAME)))
+            godot("--check-only", "--script", os.path.relpath(script, GAME))
     if args.parse_only:
         return
     for script in sorted((GAME / "tests").glob("test_*.gd")):

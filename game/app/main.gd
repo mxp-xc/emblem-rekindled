@@ -156,6 +156,13 @@ func _ready() -> void:
 	resized.connect(_layout)
 	_show_title()
 	_layout()
+	var probe := preload("res://app/playtest_probe.gd").new()
+	add_child(probe)
+	var diagnostic: Dictionary = probe.setup(self)
+	if not diagnostic["ok"]:
+		push_warning(diagnostic["error"])
+	if not diagnostic.get("enabled", false):
+		probe.queue_free()
 
 
 func _build_battlefield() -> void:

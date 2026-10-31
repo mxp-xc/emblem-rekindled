@@ -99,6 +99,41 @@ rtk uv run python tools/check_godot.py --parse-only
 Godot 4.7.2 / Android 16 / targetSDK36 实测一次系统 Back 会重复发出返回通知，入口合并100ms内的重复系统请求；键盘 Esc 独立处理。
 故意产生运行时错误的检查器测试使用系统临时目录，不进入正式资源。
 
+## 快速回归与内部状态读取
+
+最新debug APK已导出且模拟器已启动时，可运行完整首关的实际ADB回归：
+
+```sh
+rtk uv run python tools/playtest_first_battle.py --speed 32
+```
+
+驱动先安装当前`build/android/emblem-rekindled.apk`（也可用`--apk`指定），再从新游戏开始。
+AVD Quick Boot可能恢复快照中的旧安装，不能以已有图标判断包已更新。
+移动、装备、攻击、治疗和确认均走真实输入；通过内部只读接口规划下一步，
+只在每回合开始保存一次。默认32倍时钟，正常节奏与动画完整性另用1倍验证。
+结果、回合记录及逐步JSONL证据写入`temp/playtest/`，失败额外保留截图、状态和进程日志。
+普通随机结果保留；测试控制器保护必存活治疗者，不复用可牺牲NPC的前进策略，仍可能因战局失败而退出。
+结束后恢复全部原JSON并关闭模拟器。
+同一验证批次需保留模拟器时显式使用`--keep-emulator`；多设备用`--serial`指定。
+
+独立读取入口：
+
+```sh
+rtk uv run python tools/android_playtest.py enable --speed 32
+rtk adb shell am force-stop io.github.mxpxc.emblemrekindled
+rtk adb shell am start -n io.github.mxpxc.emblemrekindled/com.godot.game.GodotAppLauncher
+rtk uv run python tools/android_playtest.py read --ready
+rtk uv run python tools/android_playtest.py disable
+```
+
+启用/禁用在下次启动生效；禁用后重新启动恢复正常速度。
+仅debug原生/本地运行读取显式`user://playtest.json`配置；无配置、release或Web不启用。
+接口通过ADB可访问的应用私有文件交换请求与响应，不依赖网络权限或HTTP服务。
+请求与响应均原子发布，并用`requestId`关联；单个客户端串行读取。
+读取返回真实战局快照、世界进度、界面就绪状态和可见控件坐标；不执行业务命令，不保存进度、不推进RNG。
+`ready`表示玩家行动间隙；演出中的快照可以读取，但不能作为可恢复的稳定存档。
+倍速只用于测试时钟，不写入正式设置或战局；退出测试节点恢复原时钟。
+
 ## 原版资源整理
 
 正式运行只读取 `game/` 内已准备的数据、PNG、Ogg 和字体，不读取原 JAR、模拟器或提取工具。
