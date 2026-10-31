@@ -265,6 +265,23 @@ func _menu_intent(kind: String, details: Dictionary) -> void:
 			_show_overview()
 		"zoom":
 			map.set_zoom(details["value"])
+		"assisted_victory":
+			if (
+				busy
+				or title_screen.visible
+				or story_player.visible
+				or not map.visible
+				or not world_progress.is_empty()
+				or menu_layer.page != "confirm_victory"
+			):
+				return
+			var result: Dictionary = battle.win_with_assistance()
+			if not result["ok"]:
+				menu_layer.show_page("assistance")
+				menu_layer.set_notice("请完成当前行动后重试。")
+				return
+			_cancel_selection()
+			await _finish_outcome()
 		"commander_commit":
 			var policy: int = int(details["policy"])
 			var result: Dictionary = battle.configure_commander(
@@ -673,7 +690,14 @@ func _set_menu_visible(value: bool) -> void:
 
 
 func _input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel") and not event.is_echo():
+	if (
+		event is InputEventMouseButton
+		and event.pressed
+		and event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]
+		and _wheel_selection(-1 if event.button_index == MOUSE_BUTTON_WHEEL_UP else 1)
+	):
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("ui_cancel") and not event.is_echo():
 		_handle_back()
 		get_viewport().set_input_as_handled()
 	elif event is InputEventKey and save_slots != null and save_slots.visible:
@@ -725,6 +749,70 @@ func _input(event: InputEvent) -> void:
 		):
 			_show_information()
 			get_viewport().set_input_as_handled()
+
+
+func _wheel_selection(direction: int) -> bool:
+	var key := InputEventKey.new()
+	key.pressed = true
+	key.keycode = KEY_UP if direction < 0 else KEY_DOWN
+	for screen: Control in [
+		world_inventory_screen,
+		save_slots,
+		menu_layer,
+		unit_information,
+		title_screen,
+		story_player,
+		target_selection,
+		item_actions,
+		exchange_screen,
+		unit_panel
+	]:
+		if screen == null or not screen.is_visible_in_tree():
+			continue
+		if screen == unit_information:
+			if not unit_information.detail_visible:
+				unit_information.show_page(unit_information.page + direction)
+		elif screen == save_slots:
+			save_slots.change(direction)
+		elif screen == title_screen:
+			if not title_screen.prologue.visible and title_screen.options.visible:
+				key.keycode = KEY_LEFT if direction < 0 else KEY_RIGHT
+				title_screen.handle_key(key)
+		elif screen == story_player:
+			if story_player.choices.visible or story_player.commander.visible:
+				story_player.handle_key(key)
+		else:
+			if (
+				screen == world_inventory_screen
+				and (
+					world_inventory_screen.page in ["overview", "partner"]
+					or world_inventory_screen.stage == "tabs"
+				)
+			):
+				key.keycode = KEY_LEFT if direction < 0 else KEY_RIGHT
+			if not screen.has_method("handle_key") or not screen.handle_key(key):
+				_step_menu_focus(screen, direction)
+		return true
+	return busy
+
+
+func _step_menu_focus(screen: Control, direction: int) -> void:
+	var rows: Array[Control] = []
+	var focused: Control = get_viewport().gui_get_focus_owner()
+	# Stay in the focused list, including the active side of an exchange inventory.
+	var scope: Node = (
+		focused.get_parent() if focused != null and screen.is_ancestor_of(focused) else screen
+	)
+	for control: Node in scope.find_children("*", "Button", true, false):
+		if (
+			control.is_visible_in_tree()
+			and not control.disabled
+			and control.focus_mode != Control.FOCUS_NONE
+		):
+			rows.append(control)
+	if not rows.is_empty():
+		var index: int = rows.find(focused)
+		rows[posmod(index + direction, rows.size()) if index >= 0 else 0].grab_focus()
 
 
 func _show_information() -> void:

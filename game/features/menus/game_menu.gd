@@ -16,11 +16,13 @@ var _configuration: Dictionary = {}
 var _music: Button
 var _map_controls: VBoxContainer
 var _zoom: HSlider
+var _assisted_victory: Button
 var _notice: Label
 var _notice_remaining: float = 0
 var _title_context: bool = false
 var _safe: Rect2
 var _slider_touches: Dictionary = {}
+var _page_focus: Dictionary = {}
 
 
 func setup(data: Dictionary, settings: Dictionary) -> void:
@@ -72,7 +74,18 @@ func setup(data: Dictionary, settings: Dictionary) -> void:
 	_zoom.value_changed.connect(func(value: float) -> void: intent.emit("zoom", {"value": value}))
 	_map_controls.add_child(_zoom)
 	_map_controls.add_child(_button("查看全图", "overview"))
+	options.add_child(_button("辅助功能", "assistance"))
 	options.add_child(_button("返回", "back"))
+	var assistance: VBoxContainer = _page(column, "assistance")
+	assistance.add_child(_label("辅助功能", true))
+	_assisted_victory = _button("直接通关", "confirm_victory")
+	assistance.add_child(_assisted_victory)
+	assistance.add_child(_button("返回", "back"))
+	var confirmation: VBoxContainer = _page(column, "confirm_victory")
+	confirmation.add_child(_label("确定直接通关当前关卡？", true))
+	confirmation.add_child(_label("将进入胜利剧情与路线选择。"))
+	confirmation.add_child(_button("确认通关", "assisted_victory"))
+	confirmation.add_child(_button("取消", "back"))
 	var objective: VBoxContainer = _page(column, "objective")
 	objective.add_child(_label("胜利条件", true))
 	objective.add_child(_label(data["story"]["objective"]["text"]))
@@ -113,12 +126,15 @@ func present(
 	_return_title.disabled = not can_save
 	_end_turn.disabled = not can_save
 	_commander_button.disabled = not can_save
-	show_page("settings" if at_title else "main")
+	_assisted_victory.disabled = at_title or not can_save
 	show()
-	_layout()
+	show_page("settings" if at_title else "main")
 
 
 func show_page(value: String) -> void:
+	var focused: Control = get_viewport().gui_get_focus_owner()
+	if _pages.has(page) and focused != null and _pages[page].is_ancestor_of(focused):
+		_page_focus[page] = focused
 	page = value
 	_slider_touches.clear()
 	_notice.hide()
@@ -132,10 +148,26 @@ func show_page(value: String) -> void:
 	for key: String in _pages:
 		_pages[key].visible = key == value
 	_layout()
+	var previous: Control = _page_focus.get(value)
+	if (
+		previous != null
+		and previous.is_visible_in_tree()
+		and not (previous is BaseButton and previous.disabled)
+	):
+		previous.grab_focus()
+		return
+	for button: Node in _pages[value].get_children() if _pages.has(value) else []:
+		if button is Button and button.visible and not button.disabled:
+			button.grab_focus()
+			break
 
 
 func go_back() -> bool:
-	if page == "commander":
+	if page == "confirm_victory":
+		show_page("assistance")
+	elif page == "assistance":
+		show_page("settings")
+	elif page == "commander":
 		_commander.commit()
 	elif page != "main" and not _title_context:
 		show_page("main")
@@ -222,7 +254,7 @@ func _button(text: String, kind: String) -> Button:
 
 
 func _choose(kind: String) -> void:
-	if kind in ["settings", "objective", "help", "commander"]:
+	if kind in ["settings", "objective", "help", "commander", "assistance", "confirm_victory"]:
 		show_page(kind)
 	elif kind == "back":
 		if not go_back():

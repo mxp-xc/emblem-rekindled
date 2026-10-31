@@ -907,6 +907,13 @@ func begin_automatic_action(id: int) -> Dictionary:
 	}
 
 
+func win_with_assistance() -> Dictionary:
+	if not can_save():
+		return _failure("BATTLE_NOT_READY")
+	outcome = {"kind": "victory", "reason": "assistance"}
+	return {"ok": true, "kind": "assisted_victory"}
+
+
 func complete_victory(route: int) -> Dictionary:
 	if not _routes.has(route) or outcome.get("kind") != "victory":
 		return _failure("INVALID_COMPLETION")

@@ -46,14 +46,33 @@ func run() -> void:
 		return
 	var information: Button = scene.get_node("UnitStatus/Status/Actions/Information")
 	var trade: Button = scene.get_node("UnitStatus/Status/Actions/Trade")
+	if not trade.has_focus():
+		fail("A ready unit menu must prefer an available interaction over status")
+		return
+	var wheel := InputEventMouseButton.new()
+	wheel.button_index = MOUSE_BUTTON_WHEEL_DOWN
+	wheel.pressed = true
+	wheel.position = trade.get_global_rect().get_center()
+	var center: Vector2 = scene.map.view.center
+	Input.parse_input_event(wheel)
+	await process_frame
+	var backpack: Button = scene.get_node("UnitStatus/Status/Actions/Inventory")
+	if not backpack.has_focus() or backpack.icon == null or trade.icon != null:
+		fail("Wheel must move the menu selection and finger down one available row")
+		return
+	if scene.map.view.center != center or scene.battle.snapshot() != before_hover:
+		fail("Menu wheel must not pan or change battle state")
+		return
 	var hover := InputEventMouseMotion.new()
+	hover.position = Vector2(20, 20)
+	Input.parse_input_event(hover)
+	await process_frame
 	hover.position = trade.get_global_rect().get_center()
 	Input.parse_input_event(hover)
 	await process_frame
 	if not trade.has_focus() or trade.icon == null or information.icon != null:
 		fail("The white finger must follow the hovered row, with exactly one current selection")
 		return
-	var backpack: Button = scene.get_node("UnitStatus/Status/Actions/Inventory")
 	_tap(backpack.get_global_rect().get_center())
 	await process_frame
 	await process_frame
@@ -65,6 +84,18 @@ func run() -> void:
 	await process_frame
 	scene.unit_information.show_page(2)
 	await process_frame
+	wheel.button_index = MOUSE_BUTTON_WHEEL_UP
+	Input.parse_input_event(wheel)
+	await process_frame
+	if scene.unit_information.page != 1 or scene.map.view.center != center:
+		fail("Wheel up in character information must select the previous attribute page only")
+		return
+	wheel.button_index = MOUSE_BUTTON_WHEEL_DOWN
+	Input.parse_input_event(wheel)
+	await process_frame
+	if scene.unit_information.page != 2:
+		fail("Wheel down in character information must select the next attribute page")
+		return
 	var snapshot: Dictionary = scene.battle.snapshot()
 	var herb: Button = scene.unit_information.body.get_node("Item_60")
 	if herb.disabled:

@@ -66,9 +66,12 @@ func place_near(cell: Rect2, bounds: Rect2) -> void:
 func _focus_current() -> void:
 	if not visible:
 		return
-	for child: Node in _actions.get_children():
-		if child is Button and child.visible and not child.disabled:
-			child.grab_focus()
+	for kind: String in [
+		"attack", "heal", "trade", "inventory", "wait", "information", "cancel_move"
+	]:
+		var button: Button = _buttons[kind]
+		if button.visible and not button.disabled:
+			button.grab_focus()
 			return
 
 

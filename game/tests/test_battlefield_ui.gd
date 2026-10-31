@@ -44,13 +44,29 @@ func run() -> void:
 		fail("Two-finger gestures must neither zoom nor select a map cell")
 		return
 	var wheel := InputEventMouseButton.new()
+	map.view.focus_cell(Vector2i(8, 11))
+	var center_before_wheel: Vector2 = map.view.center
+	var battle_before_wheel: Dictionary = scene.battle.snapshot()
 	wheel.button_index = MOUSE_BUTTON_WHEEL_UP
 	wheel.pressed = true
 	wheel.position = Vector2(300, 500)
 	Input.parse_input_event(wheel)
 	await process_frame
-	if map.view.zoom != zoom_before:
-		fail("Mouse wheel must not change map zoom")
+	if (
+		map.view.center.y >= center_before_wheel.y
+		or map.view.center.x != center_before_wheel.x
+		or map.view.zoom != zoom_before
+		or map.selected != selected_before
+		or scene.battle.snapshot() != battle_before_wheel
+	):
+		fail("Wheel up must pan north without zooming, selecting or changing battle authority")
+		return
+	var center_after_up: Vector2 = map.view.center
+	wheel.button_index = MOUSE_BUTTON_WHEEL_DOWN
+	Input.parse_input_event(wheel)
+	await process_frame
+	if map.view.center.y <= center_after_up.y:
+		fail("Wheel down must pan south")
 		return
 	var center_before_menu: Vector2 = map.view.center
 	var menu_position: Vector2 = scene.menu_button.get_global_rect().get_center()
@@ -60,6 +76,8 @@ func run() -> void:
 	if not scene.menu_layer.visible:
 		fail("The in-game menu must open through touch input")
 		return
+	Input.parse_input_event(wheel)
+	await process_frame
 	_touch(Vector2(20, 400), 0, true)
 	_drag(Vector2(200, 500), 0)
 	_touch(Vector2(200, 500), 0, false)

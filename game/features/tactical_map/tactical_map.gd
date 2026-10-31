@@ -214,9 +214,14 @@ func _gui_input(event: InputEvent) -> void:
 			event.button_index == MOUSE_BUTTON_WHEEL_UP
 			or event.button_index == MOUSE_BUTTON_WHEEL_DOWN
 		):
-			accept_event()
-			return
-		if event.button_index == MOUSE_BUTTON_LEFT:
+			if event.pressed:
+				var direction: float = 1 if event.button_index == MOUSE_BUTTON_WHEEL_UP else -1
+				var amount: float = event.factor if event.factor > 0 else 1.0
+				view.cancel_pointer()
+				view.pan_by(Vector2(0, direction * 72 * amount))
+				hovered = view.cell_at(event.position)
+				cell_hovered.emit(hovered)
+		elif event.button_index == MOUSE_BUTTON_LEFT:
 			if event.pressed:
 				view.begin_pointer(event.position, 1000)
 			else:
