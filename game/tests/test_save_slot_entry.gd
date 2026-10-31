@@ -20,9 +20,11 @@ func run() -> void:
 		scene.title_screen.tick()
 	scene.title_screen.refresh_continue(false)
 	await _key(KEY_ENTER)
+	await _key(KEY_RIGHT)
+	await _key(KEY_RIGHT)
 	await _key(KEY_ENTER)
 	if not slots.visible or slots.slot != 0 or not scene.title_screen.visible:
-		fail("Without a temporary record, Read opens the four empty world slots over title")
+		fail("Without temporary progress, the selected named-read entry opens four empty slots")
 		return
 	await _key(KEY_ENTER)
 	if not slots.visible:

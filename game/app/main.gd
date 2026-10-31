@@ -93,6 +93,7 @@ func _ready() -> void:
 	map.setup(content)
 	map.set_units(battle.snapshot()["units"])
 	unit_panel.minimum_size_changed.connect(_layout)
+	map_hud.visibility_changed.connect(_layout)
 	title_screen = TitleScreen.new()
 	title_screen.name = "TitleScreen"
 	add_child(title_screen)
@@ -164,6 +165,7 @@ func _build_battlefield() -> void:
 	map.cell_selected.connect(_show_cell)
 	map.empty_clicked.connect(func() -> void: unit_panel.hide())
 	map.cell_double_clicked.connect(_show_unit_menu)
+	map.cell_hovered.connect(_hover_cell)
 	map.interacted.connect(_unlock_music)
 	map.view_changed.connect(_layout_overlays)
 	add_child(map)
@@ -172,19 +174,22 @@ func _build_battlefield() -> void:
 	add_child(map_hud)
 	map_hud.setup(content)
 	menu_button = Button.new()
-	menu_button.custom_minimum_size = Vector2(64, 64)
 	menu_button.pressed.connect(func() -> void: _set_menu_visible(true))
-	menu_button.tooltip_text = "菜单"
-	var menu_icon: String = content["interface"]["mapHud"]["icons"]["menu"]
-	menu_button.icon = load(
-		content["entry"]["interface"].get_base_dir().path_join(
-			content["interface"]["textures"][menu_icon]["texture"]
-		)
-	)
+	menu_button.tooltip_text = "菜单与设置"
+	menu_button.focus_mode = Control.FOCUS_NONE
+	menu_button.icon = load("res://ui/icons/settings.svg")
 	menu_button.expand_icon = true
-	menu_button.icon_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	menu_button.add_theme_constant_override("icon_max_width", 32)
-	menu_button.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
+	for state: String in ["normal", "hover", "pressed", "focus", "disabled"]:
+		var style: StyleBox = (
+			StyleBoxEmpty.new()
+			if state == "normal"
+			else get_theme_stylebox(state, "Button").duplicate()
+		)
+		style.content_margin_left = 4
+		style.content_margin_right = 4
+		style.content_margin_top = 4
+		style.content_margin_bottom = 4
+		menu_button.add_theme_stylebox_override(state, style)
 	add_child(menu_button)
 	unit_panel = UnitMenu.new()
 	unit_panel.name = "UnitStatus"
@@ -251,6 +256,8 @@ func _menu_intent(kind: String, details: Dictionary) -> void:
 			_save_settings()
 		"overview":
 			_show_overview()
+		"zoom":
+			map.set_zoom(details["value"])
 		"commander_commit":
 			var policy: int = int(details["policy"])
 			var result: Dictionary = battle.configure_commander(
@@ -277,9 +284,11 @@ func _layout() -> void:
 		world_inventory_screen.size = safe.size
 	map_hud.size = Vector2(safe.size.x, 45 * minf(safe.size.x / 240.0, safe.size.y / 320.0))
 	map_hud.position = Vector2(safe.position.x, safe.end.y - map_hud.size.y)
-	map.set_play_area(Rect2(safe.position, Vector2(safe.size.x, safe.size.y - map_hud.size.y)))
-	menu_button.position = Vector2(safe.position.x, safe.end.y - 64)
-	menu_button.add_theme_constant_override("icon_max_width", roundi(10 * map_hud.size.y / 45))
+	var footer: float = map_hud.size.y if map_hud.visible else 0
+	map.set_play_area(Rect2(safe.position, Vector2(safe.size.x, safe.size.y - footer)))
+	menu_button.add_theme_constant_override("icon_max_width", roundi(minf(40, map_hud.size.y / 2)))
+	menu_button.size = Vector2.ONE * minf(64, map_hud.size.y - 4)
+	menu_button.position.y = safe.end.y - menu_button.size.y - 2
 	_layout_overlays(true)
 
 
@@ -292,15 +301,22 @@ func _layout_overlays(force: bool = false) -> void:
 		return
 	var area := Rect2(rendered.position.x, safe.position.y, rendered.size.x, safe.size.y)
 	var full_screen: bool = title_screen.visible or story_player.background != null
+	if selected_unit >= 0:
+		var actor: Dictionary = battle.unit(selected_unit)
+		unit_panel.place_near(
+			Rect2(
+				map.view.screen_at(Vector2(actor["x"], actor["y"])),
+				Vector2.ONE * 24 * map.view.zoom
+			),
+			rendered.grow(-8)
+		)
 	if not force and area == _overlay_area and full_screen == _full_screen_menu:
 		return
 	_overlay_area = area
 	_full_screen_menu = full_screen
 	map_hud.position.x = area.position.x
 	map_hud.size.x = area.size.x
-	menu_button.position.x = area.position.x
-	unit_panel.size = Vector2(minf(220, area.size.x - 32), unit_panel.get_combined_minimum_size().y)
-	unit_panel.position = area.get_center() - unit_panel.size / 2.0
+	menu_button.position.x = area.end.x - menu_button.size.x - 4
 	for screen: Control in [
 		unit_information, item_actions, exchange_screen, target_selection, battle_view
 	]:
@@ -316,6 +332,21 @@ func _unit_at_cell(cell: Vector2i) -> int:
 		if actor["hp"] > 0 and Vector2i(actor["x"], actor["y"]) == cell:
 			return actor["id"]
 	return -1
+
+
+func _hover_cell(cell: Vector2i) -> void:
+	if (
+		cell.x < 0
+		or busy
+		or story_player.visible
+		or menu_layer.visible
+		or unit_panel.visible
+		or unit_information.visible
+		or item_actions.visible
+		or exchange_screen.visible
+	):
+		return
+	map_hud.present(cell, battle.unit(_unit_at_cell(cell)))
 
 
 func _show_cell(cell: Vector2i) -> void:
@@ -616,8 +647,17 @@ func _set_menu_visible(value: bool) -> void:
 	map.cancel_gesture()
 	unit_panel.hide()
 	if value:
+		var view_settings: Dictionary = {}
+		if map.visible and not title_screen.visible:
+			var minimum: float = map.view.minimum_zoom()
+			view_settings = {
+				"minimum": minimum, "maximum": maxf(6, minimum), "value": map.view.zoom
+			}
 		menu_layer.present(
-			not busy and battle.can_save(), title_screen.visible, battle.command_configuration()
+			not busy and battle.can_save(),
+			title_screen.visible,
+			battle.command_configuration(),
+			view_settings
 		)
 	else:
 		menu_layer.hide()
@@ -684,8 +724,6 @@ func _show_information() -> void:
 	map.cancel_gesture()
 	var actor: Dictionary = battle.unit(selected_unit)
 	var portrait: Dictionary = content["interface"]["portraitByUnitId"][str(selected_unit)]
-	if portrait["usesCommanderPortrait"]:
-		portrait = content["interface"]["portraitByUnitId"][str(battle.commander_id)]
 	var texture: Texture2D
 	if portrait["texture"] != null:
 		texture = load(
@@ -694,7 +732,9 @@ func _show_information() -> void:
 			)
 		)
 	else:
-		texture = load(content["entry"]["spriteDirectory"].path_join(actor["sprite"]))
+		texture = PixelTheme.sprite_icon(
+			load(content["entry"]["spriteDirectory"].path_join(actor["sprite"]))
+		)
 	unit_information.present(actor, battle.unit_information(selected_unit), texture)
 
 
@@ -852,6 +892,8 @@ func start_new_game() -> void:
 	map.clear_presentation()
 	map.prepare_opening(content["story"]["initialBattlePresentation"])
 	map.show()
+	var fill_height: float = map.view.viewport_size.y / (24.0 * map.view.grid_size.y)
+	map.set_zoom(maxf(3.0, fill_height))
 	busy = true
 	await story_player.play(content["story"]["sequences"]["newGame"])
 	await story_player.play(content["story"]["sequences"]["opening"])
@@ -921,7 +963,7 @@ func _save_battle() -> bool:
 		push_error(result["error"])
 		menu_layer.set_notice("当前进度无法保存，请完成行动后重试。")
 		return false
-	menu_layer.set_notice("进度已保存。")
+	menu_layer.set_notice("进度已保存。", true)
 	return true
 
 

@@ -40,8 +40,17 @@ func run() -> void:
 	_touch(Vector2(560, 640), 2, false)
 	_touch(Vector2(260, 640), 1, false)
 	await process_frame
-	if map.view.zoom <= zoom_before or map.selected != selected_before:
-		fail("Pinch must zoom without selecting when either finger lifts")
+	if map.view.zoom != zoom_before or map.selected != selected_before:
+		fail("Two-finger gestures must neither zoom nor select a map cell")
+		return
+	var wheel := InputEventMouseButton.new()
+	wheel.button_index = MOUSE_BUTTON_WHEEL_UP
+	wheel.pressed = true
+	wheel.position = Vector2(300, 500)
+	Input.parse_input_event(wheel)
+	await process_frame
+	if map.view.zoom != zoom_before:
+		fail("Mouse wheel must not change map zoom")
 		return
 	var center_before_menu: Vector2 = map.view.center
 	var menu_position: Vector2 = scene.menu_button.get_global_rect().get_center()

@@ -49,7 +49,10 @@ func run() -> void:
 		fail("Closing narration must leave update zero empty before the first reveal")
 		return
 	var frame: Texture2D = load("res://content/chapter_1/generated/map_units/unit_0/active_0.png")
-	if story.get("_world_actor") != frame or story.get("_world_actor_offset") != Vector2(-24, -24):
+	if (
+		story.get("_world_actor_frames")[0] != frame
+		or story.get("_world_actor_offset") != Vector2(-24, -24)
+	):
 		fail("World Alm must reuse his original fixed frame and padded-canvas offset")
 		return
 	var phases: Array[int] = []
@@ -59,7 +62,7 @@ func run() -> void:
 		if not story.visible or story.background == null or not story.world_revealed:
 			fail("Alm and the world node must remain visible through update twenty")
 			return
-		if story.get("_world_actor") != frame:
+		if story.world_actor_frame != 0:
 			fail("The entrance must keep Alm's fixed source frame rather than cycle map idle")
 			return
 	if phases.slice(0, 7) != [0, 0, 1, 1, 2, 2, -1] or phases.slice(7).any(func(p): return p != -1):

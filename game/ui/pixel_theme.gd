@@ -8,6 +8,17 @@ static func portrait_area(viewport_size: Vector2) -> Rect2:
 	return Rect2(Vector2((viewport_size.x - width) / 2, 0), Vector2(width, viewport_size.y))
 
 
+static func sprite_icon(texture: Texture2D) -> Texture2D:
+	var used: Rect2i = texture.get_image().get_used_rect()
+	if not used.has_area():
+		return texture
+	var icon := AtlasTexture.new()
+	icon.atlas = texture
+	icon.region = Rect2(used)
+	icon.filter_clip = true
+	return icon
+
+
 static func wrap_text(text: String, width: int, font_size: int) -> PackedStringArray:
 	var lines: PackedStringArray = []
 	for paragraph: String in text.split("\n"):

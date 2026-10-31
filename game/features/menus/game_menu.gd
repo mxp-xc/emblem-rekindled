@@ -5,7 +5,6 @@ signal intent(kind: String, details: Dictionary)
 const CommanderScreen = preload("res://features/menus/commander_screen.gd")
 
 var page: String = "main"
-var license_view: VBoxContainer
 var panel: PanelContainer
 var _pages: Dictionary = {}
 var _save: Button
@@ -15,9 +14,13 @@ var _commander_button: Button
 var _commander: Control
 var _configuration: Dictionary = {}
 var _music: Button
+var _map_controls: VBoxContainer
+var _zoom: HSlider
 var _notice: Label
+var _notice_remaining: float = 0
 var _title_context: bool = false
 var _safe: Rect2
+var _slider_touches: Dictionary = {}
 
 
 func setup(data: Dictionary, settings: Dictionary) -> void:
@@ -52,12 +55,23 @@ func setup(data: Dictionary, settings: Dictionary) -> void:
 	volume.step = 0.05
 	volume.value = settings["volume"]
 	volume.custom_minimum_size.y = 48
+	volume.gui_input.connect(_touch_slider.bind(volume))
 	volume.value_changed.connect(
 		func(value: float) -> void: intent.emit("volume", {"value": value})
 	)
 	options.add_child(volume)
-	options.add_child(_button("查看全图", "overview"))
-	options.add_child(_button("字体许可", "license"))
+	_map_controls = VBoxContainer.new()
+	options.add_child(_map_controls)
+	_map_controls.add_child(_label("地图缩放"))
+	_zoom = HSlider.new()
+	_zoom.name = "MapZoom"
+	_zoom.step = 0.1
+	_zoom.scrollable = false
+	_zoom.custom_minimum_size.y = 48
+	_zoom.gui_input.connect(_touch_slider.bind(_zoom))
+	_zoom.value_changed.connect(func(value: float) -> void: intent.emit("zoom", {"value": value}))
+	_map_controls.add_child(_zoom)
+	_map_controls.add_child(_button("查看全图", "overview"))
 	options.add_child(_button("返回", "back"))
 	var objective: VBoxContainer = _page(column, "objective")
 	objective.add_child(_label("胜利条件", true))
@@ -67,16 +81,6 @@ func setup(data: Dictionary, settings: Dictionary) -> void:
 	help.add_child(_label("游戏帮助", true))
 	help.add_child(_label("\n\n".join(data["controls"]["opening"])))
 	help.add_child(_button("返回", "back"))
-	license_view = _page(column, "license")
-	license_view.add_child(_label("字体许可", true))
-	var license_text := TextEdit.new()
-	license_text.text = FileAccess.get_file_as_string("res://ui/fonts/OFL.txt")
-	license_text.editable = false
-	license_text.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
-	license_text.custom_minimum_size = Vector2(0, 500)
-	license_text.add_theme_font_size_override("font_size", 18)
-	license_view.add_child(license_text)
-	license_view.add_child(_button("返回", "back"))
 	_notice = _label("")
 	_notice.hide()
 	column.add_child(_notice)
@@ -93,8 +97,17 @@ func setup(data: Dictionary, settings: Dictionary) -> void:
 	hide()
 
 
-func present(can_save: bool, at_title: bool, configuration: Dictionary) -> void:
+func present(
+	can_save: bool, at_title: bool, configuration: Dictionary, view_settings: Dictionary = {}
+) -> void:
 	_title_context = at_title
+	_map_controls.visible = not at_title and not view_settings.is_empty()
+	if _map_controls.visible:
+		_zoom.set_block_signals(true)
+		_zoom.min_value = view_settings["minimum"]
+		_zoom.max_value = view_settings["maximum"]
+		_zoom.value = view_settings["value"]
+		_zoom.set_block_signals(false)
 	_configuration = configuration
 	_save.disabled = not can_save
 	_return_title.disabled = not can_save
@@ -107,6 +120,9 @@ func present(can_save: bool, at_title: bool, configuration: Dictionary) -> void:
 
 func show_page(value: String) -> void:
 	page = value
+	_slider_touches.clear()
+	_notice.hide()
+	_notice_remaining = 0
 	if _commander != null:
 		if page == "commander":
 			_commander.present(_configuration)
@@ -121,8 +137,6 @@ func show_page(value: String) -> void:
 func go_back() -> bool:
 	if page == "commander":
 		_commander.commit()
-	elif page == "license":
-		show_page("settings")
 	elif page != "main" and not _title_context:
 		show_page("main")
 	else:
@@ -138,10 +152,37 @@ func set_music_state(enabled: bool, started: bool) -> void:
 	_music.text = ("音乐 · 开" if started else "音乐 · 点按播放") if enabled else "音乐 · 关"
 
 
-func set_notice(message: String) -> void:
+func set_notice(message: String, transient: bool = false) -> void:
 	_notice.text = message
 	_notice.visible = not message.is_empty()
+	_notice_remaining = 2.0 if transient and not message.is_empty() else 0
 	_layout()
+
+
+func _process(delta: float) -> void:
+	if _notice_remaining <= 0:
+		return
+	_notice_remaining -= delta
+	if _notice_remaining <= 0:
+		set_notice("")
+
+
+func _touch_slider(event: InputEvent, slider: HSlider) -> void:
+	# Map touch gestures are independent of mouse emulation; native sliders need touch input.
+	if event is InputEventScreenTouch:
+		if not event.pressed:
+			if _slider_touches.get(slider, -1) == event.index:
+				_slider_touches.erase(slider)
+			return
+		if not _slider_touches.has(slider):
+			_slider_touches[slider] = event.index
+	elif not event is InputEventScreenDrag:
+		return
+	if _slider_touches.get(slider, -1) != event.index:
+		return
+	var inset: float = slider.get_theme_icon("grabber").get_width() / 2.0
+	slider.ratio = clampf((event.position.x - inset) / maxf(1, slider.size.x - inset * 2), 0, 1)
+	slider.accept_event()
 
 
 func set_safe_rect(value: Rect2) -> void:
@@ -181,7 +222,7 @@ func _button(text: String, kind: String) -> Button:
 
 
 func _choose(kind: String) -> void:
-	if kind in ["settings", "objective", "help", "license", "commander"]:
+	if kind in ["settings", "objective", "help", "commander"]:
 		show_page(kind)
 	elif kind == "back":
 		if not go_back():

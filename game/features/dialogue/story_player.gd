@@ -22,6 +22,7 @@ var world_revealed: bool = false
 var world_circle_phase: int = -1
 var world_active: bool = false
 var world_ready: bool = false
+var world_actor_frame: int = 0
 var visible_world_nodes: Array[int] = []
 var selected_world_node: int = 0
 var data: Dictionary
@@ -36,7 +37,9 @@ var _confirm: Button
 var _route_panel: PanelContainer
 var _finger: Texture2D
 var _choice_index: int = 0
-var _world_actor: Texture2D
+var _world_actor_frames: Array[Texture2D] = []
+var _world_idle_updates: int = 0
+var _world_idle_interval: int
 var _world_actor_offset: Vector2
 var _world_circle: Control
 var _world_hud: Control
@@ -96,9 +99,15 @@ func setup(content: Dictionary, tactical_map: Control) -> void:
 		)
 	)
 	var actor: Dictionary = data["mapAnimations"]["units"]["0"]
-	_world_actor = load(
-		data["entry"]["mapAnimations"].get_base_dir().path_join(actor["frames"][0]["texture"])
-	)
+	for index: Variant in actor["idleSequence"]:
+		_world_actor_frames.append(
+			load(
+				data["entry"]["mapAnimations"].get_base_dir().path_join(
+					actor["frames"][int(index)]["texture"]
+				)
+			)
+		)
+	_world_idle_interval = maxi(1, roundi(float(actor["idleStepSeconds"]) / _tick_seconds))
 	_world_actor_offset = Vector2(actor["spriteOffsetX"], actor["spriteOffsetY"])
 	for key: String in ["b0", "b1"]:
 		_world_markers.append(load(_directory.path_join(data["story"]["images"][key]["texture"])))
@@ -191,8 +200,9 @@ func _step(step: Dictionary) -> void:
 				map.queue_redraw()
 			else:
 				await _focus_battle(cell)
-			if step.get("sourceWaitTicks", 0) > 0:
-				await get_tree().create_timer(step["sourceWaitTicks"] * _tick_seconds).timeout
+			var hold: int = int(step.get("sourceWaitTicks", 0)) + int(step.get("holdTicksAfter", 0))
+			if hold > 0:
+				await get_tree().create_timer(hold * _tick_seconds).timeout
 		"dialogue":
 			await _speak(step["text"])
 		"instruction":
@@ -441,6 +451,12 @@ func _process(delta: float) -> void:
 
 
 func tick() -> void:
+	if world_active and world_ready and not dialogue.visible and not choices.visible:
+		_world_idle_updates += 1
+		if _world_idle_updates >= _world_idle_interval:
+			_world_idle_updates = 0
+			world_actor_frame = (world_actor_frame + 1) % _world_actor_frames.size()
+			_world_layer.queue_redraw()
 	if dialogue.visible:
 		dialogue.tick()
 	elif world_update >= 0 and world_update < _world_wait_updates:
@@ -598,10 +614,9 @@ func _draw_world() -> void:
 					false
 				)
 		var origin: Vector2 = _world_node_origin(_world_current_node)
+		var actor: Texture2D = _world_actor_frames[world_actor_frame if world_active else 0]
 		_world_layer.draw_texture_rect(
-			_world_actor,
-			Rect2(origin + _world_actor_offset * factor, _world_actor.get_size() * factor),
-			false
+			actor, Rect2(origin + _world_actor_offset * factor, actor.get_size() * factor), false
 		)
 		if world_active and world_ready:
 			var center: Vector2 = _world_node_origin(selected_world_node) + Vector2(0, 12) * factor
@@ -630,6 +645,8 @@ func show_world(progress: Dictionary, guidance: bool = false) -> void:
 	show()
 	world_active = true
 	world_ready = false
+	world_actor_frame = 0
+	_world_idle_updates = 0
 	dialogue.hide()
 	choices.hide()
 	_route_panel.hide()

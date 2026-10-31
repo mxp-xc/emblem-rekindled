@@ -33,6 +33,17 @@ func run() -> void:
 	):
 		fail("Double tap must open an on-screen contextual menu")
 		return
+	var actor_rect := Rect2(
+		scene.map.view.screen_at(Vector2(8, 11)), Vector2.ONE * 24 * scene.map.view.zoom
+	)
+	if scene.unit_panel.get_global_rect().intersects(actor_rect):
+		fail(
+			"The contextual action menu must sit beside its unit rather than cover it at screen center"
+		)
+		return
+	if not scene.map.content_rect().grow(0.1).encloses(scene.unit_panel.get_global_rect()):
+		fail("The nearby action menu must remain inside the visible map")
+		return
 	var information: Button = scene.get_node("UnitStatus/Status/Actions/Information")
 	var trade: Button = scene.get_node("UnitStatus/Status/Actions/Trade")
 	var hover := InputEventMouseMotion.new()

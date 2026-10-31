@@ -44,6 +44,25 @@ func present(available: Array) -> void:
 	_actions.show()
 
 
+func place_near(cell: Rect2, bounds: Rect2) -> void:
+	var minimum: Vector2 = get_combined_minimum_size()
+	var factor: float = minf(1, minf(bounds.size.y / minimum.y, bounds.size.x / minimum.x))
+	scale = Vector2.ONE * factor
+	size = Vector2(minf(220, bounds.size.x / factor), minimum.y)
+	var extent: Vector2 = size * factor
+	var point := Vector2(cell.end.x + 8, cell.get_center().y - extent.y / 2)
+	if point.x + extent.x > bounds.end.x:
+		point.x = cell.position.x - extent.x - 8
+	if point.x < bounds.position.x:
+		point = Vector2(cell.get_center().x - extent.x / 2, cell.end.y + 8)
+		if point.y + extent.y > bounds.end.y:
+			point.y = cell.position.y - extent.y - 8
+	position = Vector2(
+		clampf(point.x, bounds.position.x, bounds.end.x - extent.x),
+		clampf(point.y, bounds.position.y, bounds.end.y - extent.y)
+	)
+
+
 func _focus_current() -> void:
 	if not visible:
 		return

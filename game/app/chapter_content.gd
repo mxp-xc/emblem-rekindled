@@ -754,7 +754,9 @@ func _story_valid(
 
 
 func _story_step_valid(step: Dictionary, ids: Dictionary, width: int, height: int) -> bool:
-	for timing: String in ["sourceWaitTicks", "sourceWaitTicksAfter", "sourceHoldTicksAfter"]:
+	for timing: String in [
+		"sourceWaitTicks", "sourceWaitTicksAfter", "sourceHoldTicksAfter", "holdTicksAfter"
+	]:
 		if step.has(timing) and (not _integer(step[timing]) or step[timing] < 0):
 			return false
 	if step.has("instant") and not step["instant"] is bool:

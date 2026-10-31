@@ -144,8 +144,8 @@ func present(progress: Dictionary) -> void:
 		button.name = "Party_" + str(int(member["id"]))
 		button.tooltip_text = member["name"]
 		var frame: Dictionary = _content["mapAnimations"]["units"][str(int(member["id"]))]["frames"][0]
-		button.icon = load(
-			_content["entry"]["mapAnimations"].get_base_dir().path_join(frame["texture"])
+		button.icon = PixelTheme.sprite_icon(
+			load(_content["entry"]["mapAnimations"].get_base_dir().path_join(frame["texture"]))
 		)
 		button.pressed.connect(_party_pressed.bind(index))
 		button.focus_entered.connect(_preview_actor.bind(index))

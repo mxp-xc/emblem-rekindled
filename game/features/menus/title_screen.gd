@@ -36,7 +36,7 @@ func setup(data: Dictionary, has_temporary_progress: bool) -> void:
 	options = Control.new()
 	options.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(options)
-	for label: String in ["读取进度", "读取存档", "开始游戏", "游戏帮助", "游戏设置"]:
+	for label: String in ["开始游戏", "读取进度", "读取存档", "游戏设置", "游戏帮助"]:
 		var button := Button.new()
 		button.text = label
 		button.focus_mode = Control.FOCUS_NONE
@@ -45,7 +45,7 @@ func setup(data: Dictionary, has_temporary_progress: bool) -> void:
 		button.pressed.connect(_activate)
 		options.add_child(button)
 		_buttons.append(button)
-	load_button = _buttons[1]
+	load_button = _buttons[2]
 	for direction: int in [-1, 1]:
 		var arrow := Button.new()
 		var key: String = "side_arrow_0" if direction < 0 else "side_arrow_1"
@@ -82,7 +82,8 @@ func setup(data: Dictionary, has_temporary_progress: bool) -> void:
 
 func refresh_continue(has_temporary_progress: bool) -> void:
 	_has_temporary_progress = has_temporary_progress
-	_selected = 0 if _has_temporary_progress else 1
+	_selected = 1 if _has_temporary_progress else 0
+	_buttons[1].disabled = not _has_temporary_progress
 	options.hide()
 	message.text = "点击或按键开始"
 	_refresh()
@@ -90,8 +91,6 @@ func refresh_continue(has_temporary_progress: bool) -> void:
 
 func _change(direction: int) -> void:
 	_selected = posmod(_selected + direction, _buttons.size())
-	if _selected == 0 and not _has_temporary_progress:
-		_selected = 1 if direction > 0 else _buttons.size() - 1
 	_refresh()
 	interacted.emit()
 
@@ -107,23 +106,25 @@ func _refresh() -> void:
 
 func _activate() -> void:
 	interacted.emit()
+	if _buttons[_selected].disabled:
+		return
 	match _selected:
 		0:
-			continue_game.emit()
-		1:
-			load_game.emit()
-		2:
 			new_game.emit()
+		1:
+			continue_game.emit()
+		2:
+			load_game.emit()
 		3:
-			help_requested.emit()
-		4:
 			settings_requested.emit()
+		4:
+			help_requested.emit()
 
 
 func go_back() -> void:
 	if not prologue.visible:
 		if not options.visible:
-			_selected = 0 if _has_temporary_progress else 1
+			_selected = 1 if _has_temporary_progress else 0
 		options.visible = not options.visible
 		_refresh()
 
@@ -136,7 +137,7 @@ func handle_key(event: InputEventKey) -> bool:
 			prologue.skip()
 			interacted.emit()
 	elif not options.visible:
-		_selected = 0 if _has_temporary_progress else 1
+		_selected = 1 if _has_temporary_progress else 0
 		options.show()
 		_refresh()
 		interacted.emit()
@@ -160,7 +161,7 @@ func _handle_touch(event: InputEvent) -> void:
 			prologue.skip()
 			interacted.emit()
 		elif not options.visible:
-			_selected = 0 if _has_temporary_progress else 1
+			_selected = 1 if _has_temporary_progress else 0
 			options.show()
 			_refresh()
 			interacted.emit()

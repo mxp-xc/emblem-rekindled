@@ -27,8 +27,11 @@ func run() -> void:
 	if not scene.unit_panel.visible:
 		fail("Movement must automatically open available actions")
 		return
-	if scene.unit_panel.get_global_rect().get_center().distance_to(Vector2(360, 640)) > 1:
-		fail("Action menu must be centered in the viewport")
+	var actor_rect := Rect2(
+		scene.map.view.screen_at(Vector2(8, 15)), Vector2.ONE * 24 * scene.map.view.zoom
+	)
+	if scene.unit_panel.get_global_rect().intersects(actor_rect):
+		fail("The automatic action menu must sit beside the destination unit")
 		return
 	var cancel: Button = scene.get_node("UnitStatus/Status/Actions/Cancel")
 	_tap(cancel.get_global_rect().get_center())

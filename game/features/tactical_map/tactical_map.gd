@@ -2,6 +2,7 @@ extends Control
 
 signal cell_selected(cell: Vector2i)
 signal cell_double_clicked(cell: Vector2i)
+signal cell_hovered(cell: Vector2i)
 signal empty_clicked
 signal interacted
 signal view_changed
@@ -26,8 +27,6 @@ var last_ticks: Dictionary = {}
 var animation_clock: float = 0.0
 var touches: Dictionary = {}
 var was_multitouch: bool = false
-var pinch_distance: float = 0.0
-var pinch_midpoint := Vector2.ZERO
 var movement: Dictionary = {}
 var range_kind: String = "move"
 var target_cells: Array[Vector2i] = []
@@ -126,8 +125,8 @@ func set_play_area(area: Rect2) -> void:
 	_resize()
 
 
-func change_zoom(direction: int) -> void:
-	view.zoom_at(view.zoom + direction, view.viewport_origin + view.viewport_size / 2.0)
+func set_zoom(value: float) -> void:
+	view.zoom_at(value, view.viewport_origin + view.viewport_size / 2.0)
 	view_changed.emit()
 	queue_redraw()
 
@@ -155,7 +154,6 @@ func cancel_gesture() -> void:
 	view.cancel_pointer()
 	touches.clear()
 	was_multitouch = false
-	pinch_distance = 0.0
 	last_tap_cell = Vector2i(-1, -1)
 	hovered = Vector2i(-1, -1)
 
@@ -216,12 +214,9 @@ func _gui_input(event: InputEvent) -> void:
 			event.button_index == MOUSE_BUTTON_WHEEL_UP
 			or event.button_index == MOUSE_BUTTON_WHEEL_DOWN
 		):
-			if event.pressed:
-				view.zoom_at(
-					view.zoom + (1 if event.button_index == MOUSE_BUTTON_WHEEL_UP else -1),
-					event.position
-				)
-		elif event.button_index == MOUSE_BUTTON_LEFT:
+			accept_event()
+			return
+		if event.button_index == MOUSE_BUTTON_LEFT:
 			if event.pressed:
 				view.begin_pointer(event.position, 1000)
 			else:
@@ -229,6 +224,7 @@ func _gui_input(event: InputEvent) -> void:
 	elif event is InputEventMouseMotion:
 		view.drag_pointer(event.position, 1000)
 		hovered = view.cell_at(event.position) if not view.dragging else Vector2i(-1, -1)
+		cell_hovered.emit(hovered)
 	elif event is InputEventScreenTouch:
 		if event.pressed and not event.canceled:
 			touches[event.index] = event.position
@@ -238,7 +234,6 @@ func _gui_input(event: InputEvent) -> void:
 				view.cancel_pointer()
 				was_multitouch = true
 				last_tap_cell = Vector2i(-1, -1)
-				_capture_pinch()
 		else:
 			touches.erase(event.index)
 			if event.canceled:
@@ -248,22 +243,11 @@ func _gui_input(event: InputEvent) -> void:
 			if touches.is_empty():
 				view.cancel_pointer()
 				was_multitouch = false
-				pinch_distance = 0.0
-			else:
-				_capture_pinch()
 	elif event is InputEventScreenDrag:
 		if not touches.has(event.index):
 			return
 		touches[event.index] = event.position
-		if touches.size() == 2:
-			var points: Array = touches.values()
-			var midpoint: Vector2 = (points[0] + points[1]) / 2.0
-			var distance: float = points[0].distance_to(points[1])
-			view.pan_by(midpoint - pinch_midpoint)
-			if pinch_distance > 1.0:
-				view.zoom_at(view.zoom * distance / pinch_distance, midpoint)
-			_capture_pinch()
-		elif not was_multitouch:
+		if not was_multitouch:
 			view.drag_pointer(event.position, event.index)
 	else:
 		return
@@ -271,15 +255,6 @@ func _gui_input(event: InputEvent) -> void:
 	view_changed.emit()
 	accept_event()
 	queue_redraw()
-
-
-func _capture_pinch() -> void:
-	if touches.size() != 2:
-		pinch_distance = 0.0
-		return
-	var points: Array = touches.values()
-	pinch_midpoint = (points[0] + points[1]) / 2.0
-	pinch_distance = points[0].distance_to(points[1])
 
 
 func _select(cell: Vector2i) -> void:

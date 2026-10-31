@@ -52,9 +52,16 @@ func present(held: Dictionary, derived: Dictionary = {}, description_first: bool
 	_derived = derived
 	_description_page = 0
 	var template: int = int(held["templateId"])
-	description_mode = description_first or (derived.is_empty() and template >= 53)
-	_arrow.visible = not derived.is_empty() or template < 53
 	var definition: Dictionary = _definitions[template]
+	var description: String = _interface["items"][str(template)]["description"]["text"]
+	var durability: String = (
+		"-" if definition["defaultDurability"] == 0 else str(int(definition["defaultDurability"]))
+	)
+	_full_description = (("耐久%s\n" % durability if template >= 53 else "") + description)
+	description_mode = (
+		not _full_description.is_empty()
+		and (description_first or (derived.is_empty() and template >= 53))
+	)
 	var values: Array
 	if not derived.is_empty():
 		values = [
@@ -75,20 +82,18 @@ func present(held: Dictionary, derived: Dictionary = {}, description_first: bool
 			"命中%d" % definition["hit"],
 			"必杀%d" % definition["critical"],
 			"射程" + reach,
-			"耐久%d" % definition["defaultDurability"]
+			"耐久" + durability
 		]
 	for index: int in range(values.size()):
 		_stats.get_child(index).text = values[index]
-	var description: String = _interface["items"][str(template)]["description"]["text"]
 	_description.set_meta("source_description", description)
-	_full_description = (
-		("耐久%d\n" % definition["defaultDurability"] if template >= 53 else "") + description
-	)
 	_render_mode()
 	show()
 
 
 func cycle() -> void:
+	if _full_description.is_empty():
+		return
 	if _derived.is_empty() and int(_held["templateId"]) >= 53:
 		_description_page = posmod(_description_page + 1, maxi(1, _description_pages.size()))
 	elif description_mode and _description_page + 1 < _description_pages.size():
@@ -138,9 +143,12 @@ func _layout() -> void:
 		_description_page = mini(_description_page, maxi(0, _description_pages.size() - 1))
 		_description.text = _description_pages[_description_page]
 		_arrow.visible = (
-			not _derived.is_empty()
-			or int(_held["templateId"]) < 53
-			or _description_pages.size() > 1
+			not _full_description.is_empty()
+			and (
+				not _derived.is_empty()
+				or int(_held["templateId"]) < 53
+				or _description_pages.size() > 1
+			)
 		)
 	for label: Label in _stats.get_children():
 		label.add_theme_font_size_override("font_size", roundi(11 * factor))

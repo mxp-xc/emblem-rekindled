@@ -33,7 +33,7 @@ func run() -> void:
 	for update: int in range(7):
 		scene.title_screen.tick()
 	scene.title_screen.refresh_continue(false)
-	for code: int in [KEY_ENTER, KEY_ENTER, KEY_ENTER]:
+	for code: int in [KEY_ENTER, KEY_RIGHT, KEY_RIGHT, KEY_ENTER, KEY_ENTER]:
 		await key(code)
 	var world: Control = scene.story_player
 	if (

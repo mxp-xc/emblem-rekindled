@@ -65,7 +65,11 @@ func run() -> void:
 	for unit: Dictionary in units:
 		ids[int(unit["id"])] = true
 	for key: String in [
-		"sourceWaitTicks", "sourceWaitTicksAfter", "sourceHoldTicksAfter", "instant"
+		"sourceWaitTicks",
+		"sourceWaitTicksAfter",
+		"sourceHoldTicksAfter",
+		"holdTicksAfter",
+		"instant"
 	]:
 		var broken_timing: Dictionary = result["story"].duplicate(true)
 		broken_timing["sequences"]["opening"][0][key] = "invalid"

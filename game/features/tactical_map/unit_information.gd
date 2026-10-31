@@ -23,7 +23,7 @@ var _combat: Dictionary
 var _interface: Dictionary
 var _directory: String
 var _textures: Dictionary = {}
-var _portrait: Texture2D
+var _portrait: TextureRect
 var _items: Dictionary = {}
 var _selected_item: Dictionary = {}
 var _pointer: int = -2
@@ -49,6 +49,12 @@ func setup(data: Dictionary) -> void:
 	_heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	for label: Label in [_identity, _health, _level, _experience, _heading]:
 		add_child(label)
+	_portrait = TextureRect.new()
+	_portrait.name = "Portrait"
+	_portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_portrait)
 	_left = _button("◀", func() -> void: show_page(page - 1))
 	_right = _button("▶", func() -> void: show_page(page + 1))
 	_left.icon = _textures["side_arrow_0"]
@@ -81,7 +87,7 @@ func setup(data: Dictionary) -> void:
 func present(actor: Dictionary, combat: Dictionary, portrait: Texture2D) -> void:
 	_actor = actor
 	_combat = combat
-	_portrait = portrait
+	_portrait.texture = portrait
 	_identity.text = actor["name"] + " " + actor["className"]
 	_health.text = "体力%d/%d" % [actor["hp"], actor["maxHp"]]
 	_level.text = "Lv.%d" % actor["level"]
@@ -223,6 +229,8 @@ func _layout() -> void:
 	var area: Rect2 = PixelTheme.portrait_area(size)
 	var scale_factor: float = area.size.x / 240.0
 	var header_height: float = 50 * scale_factor
+	_portrait.position = area.position
+	_portrait.size = Vector2(48, 48) * scale_factor
 	var title_height: float = 19 * scale_factor
 	var footer_height: float = 0
 	var detail_height: float = 43 * scale_factor if detail_visible else 0
@@ -264,8 +272,6 @@ func _draw() -> void:
 		Rect2(area.position + Vector2(0, 50 * factor), Vector2(area.size.x, 19 * factor)),
 		Color("213482")
 	)
-	if _portrait != null:
-		draw_texture_rect(_portrait, Rect2(area.position, Vector2(48 * factor, 48 * factor)), false)
 	draw_texture_rect(
 		_textures["experience"],
 		Rect2(area.position + Vector2(112, 19) * factor, Vector2(14, 9) * factor),

@@ -59,6 +59,8 @@ func run() -> void:
 			)
 		)
 		return
+	await _key(KEY_RIGHT)
+	await _key(KEY_RIGHT)
 	await _key(KEY_ENTER)
 	if not title.visible or not scene.save_slots.visible or scene.save_slots.slot != 0:
 		fail("Reading without named records must open the original four empty world slots")
@@ -70,22 +72,22 @@ func run() -> void:
 		fail("Back closes the title selector to its press-any-key state")
 		return
 	await _key(KEY_ESCAPE)
-	if not title.options.visible or not title.load_button.visible:
-		fail("Back on press-any-key opens a new selector at its original first entry")
+	if not title.options.visible or title.get("_selected") != 0:
+		fail("Back on press-any-key opens the new-game default when no progress exists")
 		return
-	for key: int in [KEY_RIGHT, KEY_RIGHT, KEY_ENTER]:
+	for key: int in [KEY_RIGHT, KEY_RIGHT, KEY_RIGHT, KEY_RIGHT, KEY_ENTER]:
 		await _key(key)
 	if not scene.menu_layer.visible or scene.menu_layer.page != "help":
 		fail("The title help entry must open its own child layer")
 		return
 	await _key(KEY_ESCAPE)
-	if scene.menu_layer.visible or not title.options.visible or title.get("_selected") != 3:
+	if scene.menu_layer.visible or not title.options.visible or title.get("_selected") != 4:
 		fail("Back from help returns to the same title selector and keeps its entry selected")
 		return
-	await _key(KEY_RIGHT)
+	await _key(KEY_LEFT)
 	await _key(KEY_ENTER)
 	await _key(KEY_ESCAPE)
-	if scene.menu_layer.visible or not title.options.visible or title.get("_selected") != 4:
+	if scene.menu_layer.visible or not title.options.visible or title.get("_selected") != 3:
 		fail("Back from settings returns to the same title selector and keeps its entry selected")
 		return
 	var skipped: Control = load("res://features/dialogue/prologue.gd").new()

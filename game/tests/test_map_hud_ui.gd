@@ -19,9 +19,9 @@ func run() -> void:
 	if (
 		not scene.menu_button.text.is_empty()
 		or scene.menu_button.icon == null
-		or scene.menu_button.position.x > 10
+		or not hud.get_global_rect().encloses(scene.menu_button.get_global_rect())
 	):
-		fail("The menu entry must use the original softkey icon at bottom left")
+		fail("The icon menu entry must remain inside the HUD without blocking battlefield cells")
 		return
 	scene._show_cell(Vector2i(8, 11))
 	scene._show_cell(Vector2i(8, 15))
@@ -44,6 +44,18 @@ func run() -> void:
 			break
 	if empty.x < 0:
 		fail("A real unoccupied defensive terrain cell must be available")
+		return
+	var before: Dictionary = scene.battle.snapshot()
+	scene.map.view.focus_cell(empty)
+	var motion := InputEventMouseMotion.new()
+	motion.position = scene.map.view.screen_at(Vector2(empty) + Vector2.ONE / 2)
+	Input.parse_input_event(motion)
+	await process_frame
+	if not hud.actor.is_empty() or hud.terrain_values != {"defense": 1, "avoid": 20}:
+		fail("Mouse hover alone must show the terrain under its highlighted cell")
+		return
+	if scene.selected_unit != -1 or scene.battle.snapshot() != before:
+		fail("Hover preview must not select a unit, move or change battle state")
 		return
 	scene._show_cell(empty)
 	if not hud.actor.is_empty() or hud.terrain_values != {"defense": 1, "avoid": 20}:

@@ -25,12 +25,23 @@ func run() -> void:
 	skip.pressed = true
 	Input.parse_input_event(skip)
 	await create_timer(0.6).timeout
+	scene.map.show_overview()
 	scene.start_new_game()
 	var seen: Array[int] = [458]
 	var deadline: int = Time.get_ticks_msec() + 35000
 	while scene.busy and Time.get_ticks_msec() < deadline:
 		await process_frame
 		var story: Control = scene.story_player
+		if scene.map.visible and not scene.map_hud.visible and story.background == null:
+			var rendered: Rect2 = scene.map.content_rect()
+			if (
+				not is_equal_approx(rendered.position.y, 0)
+				or not is_equal_approx(rendered.end.y, scene.size.y)
+			):
+				fail(
+					"New-game cinematics must fill the screen height even after a previous overview zoom"
+				)
+				return
 		if story.visible:
 			if story.current_text_index >= 0 and story.current_text_index not in seen:
 				seen.append(story.current_text_index)

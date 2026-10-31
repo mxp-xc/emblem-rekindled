@@ -53,11 +53,6 @@ func run() -> void:
 		fail("A shortcut must not open a hidden information layer under the system menu")
 		return
 	scene.menu_layer.show_page("settings")
-	scene.menu_layer.show_page("license")
-	await _press_escape()
-	if not scene.menu_layer.visible or scene.menu_layer.license_view.visible:
-		fail("Back from a nested settings page must return one level")
-		return
 	await _press_escape()
 	if not scene.menu_layer.visible or scene.menu_layer.page != "main":
 		fail("Back from settings must return to the system menu first")

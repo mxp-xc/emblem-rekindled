@@ -46,6 +46,18 @@ func run() -> void:
 	if details.get_node("Description").get_meta("source_description") != "给予邻接的同伴自身魔力+10的体力回复":
 		fail("Paging must preserve the complete source description")
 		return
+	# All 22 empty descriptions were observed through the original detail UI.
+	for template: int in [
+		1, 2, 4, 13, 15, 17, 21, 22, 23, 29, 30, 31, 32, 33, 34, 40, 41, 42, 43, 44, 45, 52
+	]:
+		details.present({"id": "weapon", "templateId": template, "durability": 1}, {}, true)
+		if details.description_mode:
+			fail("A weapon without source description must open its numeric page: " + str(template))
+			return
+		details.cycle()
+		if details.description_mode:
+			fail("Empty descriptions must not create a blank second page: " + str(template))
+			return
 	details.queue_free()
 	await process_frame
 	print("PASS item details: default durability, original description, consumable fields")

@@ -218,6 +218,12 @@ public final class Chapter1Story {
         step("unitEntrance", "unitId", id, "from", List.of(x, y - 3), "to", List.of(x, y))
       );
     }
+    // Show both northern flanks before leaving this view; only the original six move.
+    for (int id : new int[] { 48, 49, 51, 57 }) {
+      Object unit = units.get(id);
+      List<Integer> cell = List.of(number(unit, "D"), number(unit, "E"));
+      northern.add(step("unitEntrance", "unitId", id, "from", cell, "to", cell));
+    }
     opening.add(
       step(
         "parallelEntrances",
@@ -228,7 +234,29 @@ public final class Chapter1Story {
         "sourceHoldTicksAfter",
         9,
         "source",
-        "i.z:m0/dc3"
+        "i.z:m0/dc3; presentation:northern-flanks"
+      )
+    );
+    opening.add(
+      step(
+        "focus",
+        "cell",
+        List.of(2, 3),
+        "holdTicksAfter",
+        6,
+        "source",
+        "presentation:northern-left-flank"
+      )
+    );
+    opening.add(
+      step(
+        "focus",
+        "cell",
+        List.of(16, 3),
+        "holdTicksAfter",
+        6,
+        "source",
+        "presentation:northern-right-flank"
       )
     );
     opening.add(
