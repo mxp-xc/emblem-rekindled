@@ -137,7 +137,12 @@ func show_page(index: int) -> void:
 			icon.custom_minimum_size.x = 36
 			icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			row.add_child(icon)
-			var label: Label = _label(_items[int(held["templateId"])]["name"])
+			var drop: bool = (
+				_actor["faction"] == 2 and held["templateId"] == _actor["dropTemplateId"]
+			)
+			var label: Label = _label(
+				_items[int(held["templateId"])]["name"], Color("00dd00") if drop else Color.WHITE
+			)
 			label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			row.add_child(label)
 			var durability: Label = _label(

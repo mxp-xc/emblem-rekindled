@@ -24,7 +24,8 @@ class Run:
 
     def key(self, code: int) -> None:
         self.client.adb("shell", "input", "keyevent", str(code))
-        time.sleep(0.04)
+        # Distinct system Back presses must exceed the game's 100ms notification debounce.
+        time.sleep(0.12 if code == 4 else 0.04)
 
     def tap(self, x: float, y: float) -> None:
         self.client.adb("shell", "input", "tap", str(round(x)), str(round(y)))

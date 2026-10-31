@@ -28,6 +28,7 @@
 ## 开发与验证
 
 入口位于 `game/project.godot`，命令和资源准备见[开发说明](docs/development.md)。
+首关的验收条件、逐项证据和平台范围见[首关验收](docs/acceptance/first-battle.md)。
 
 ```sh
 bun install --frozen-lockfile
