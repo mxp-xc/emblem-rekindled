@@ -195,6 +195,7 @@ func _handle_touch(event: InputEvent) -> void:
 		or (
 			event is InputEventMouseButton
 			and not event.pressed
+			and not event.canceled
 			and event.button_index == MOUSE_BUTTON_LEFT
 		)
 	):

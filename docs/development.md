@@ -5,6 +5,12 @@
 使用 Godot 4.7.2 标准版、Compatibility 和 typed GDScript。
 同一工程用于 Android 原生 App 与 Web；Web 为调试入口，无网页业务逻辑。
 
+Android 随系统方向切换横竖屏，Web 随窗口比例适配；逻辑画布短边为720，默认桌面窗口仍为竖屏。
+战场使用可用宽度，世界图在安全区内展开，贴图以外保留底色；不重排原地图坐标。
+人物资料、档槽和独立战斗保留原版纵向信息结构，宽屏居中并按高度限制缩放。
+方向或安全区变化时取消旧触点、拖动和原生按钮按压；当前页面、所选人物及未提交确认保持，需新输入才提交。
+横屏验收入口见 [横屏布局与旋转验收](acceptance/landscape.md)。
+
 ```sh
 rtk godot --path game --editor
 rtk godot --path game

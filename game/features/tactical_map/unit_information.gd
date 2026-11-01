@@ -80,7 +80,12 @@ func setup(data: Dictionary) -> void:
 	_back.expand_icon = true
 	_back.add_theme_constant_override("icon_max_width", 30)
 	add_child(_back)
-	resized.connect(_layout)
+	resized.connect(
+		func() -> void:
+			_pointer = -2
+			_swiped = false
+			_layout()
+	)
 	hide()
 
 
@@ -209,6 +214,10 @@ func handle_wheel(direction: int) -> void:
 
 func _input(event: InputEvent) -> void:
 	if not visible:
+		return
+	if (event is InputEventScreenTouch or event is InputEventMouseButton) and event.canceled:
+		_pointer = -2
+		_swiped = false
 		return
 	if event is InputEventScreenTouch:
 		if event.pressed and _pointer == -2:

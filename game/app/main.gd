@@ -66,6 +66,8 @@ var _slot_operation: String
 var _played_seconds: float = -1
 var _application_paused: bool = false
 var _safe_area: Rect2
+var _pressed_pointers: Dictionary = {}
+var _canceled_pointers: Dictionary = {}
 var _overlay_area: Rect2
 var _full_screen_menu: bool = false
 var _wheel_owner: Control
@@ -311,6 +313,16 @@ func _layout() -> void:
 		var screen := Vector2(DisplayServer.screen_get_size())
 		if screen.x > 0 and screen.y > 0:
 			safe = Rect2(Vector2(area.position) * size / screen, Vector2(area.size) * size / screen)
+	if _safe_area != safe:
+		var pressed: Dictionary = _pressed_pointers.duplicate()
+		_pressed_pointers.clear()
+		for pointer: int in pressed:
+			var release: Variant = pressed[pointer].duplicate()
+			release.pressed = false
+			release.canceled = true
+			# Release native Button capture as well as the map's own gesture state.
+			Input.parse_input_event(release)
+			_canceled_pointers[pointer] = true
 	_safe_area = safe
 	if world_inventory_screen != null:
 		world_inventory_screen.position = safe.position
@@ -355,7 +367,7 @@ func _layout_overlays(force: bool = false) -> void:
 	]:
 		screen.position = area.position
 		screen.size = area.size
-	story_player.set_battle_area(area)
+	story_player.set_battle_area(area, safe)
 	action_feedback.set_content_area(area)
 	menu_layer.set_safe_rect(safe if full_screen else area)
 
@@ -715,6 +727,22 @@ func _active_navigation_target() -> Control:
 
 
 func _input(event: InputEvent) -> void:
+	if (
+		event is InputEventScreenTouch
+		or (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT)
+	):
+		var pointer: int = event.index if event is InputEventScreenTouch else -1
+		if event.pressed:
+			_pressed_pointers[pointer] = event.duplicate()
+			_canceled_pointers.erase(pointer)
+		elif event.canceled:
+			_pressed_pointers.erase(pointer)
+		elif _canceled_pointers.has(pointer):
+			_canceled_pointers.erase(pointer)
+			get_viewport().set_input_as_handled()
+			return
+		else:
+			_pressed_pointers.erase(pointer)
 	if (
 		event is InputEventMouseButton
 		and event.pressed

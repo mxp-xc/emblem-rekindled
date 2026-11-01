@@ -47,7 +47,7 @@ var _world_layer: Control
 var _world_back: Button
 var _world_markers: Array[Texture2D] = []
 var _world_view: RefCounted = MapView.new()
-var _world_size: Vector2
+var _world_rect: Rect2
 var _world_focus_target: Vector2
 var _world_focus_pending: bool = false
 var _world_current_node: int = 0
@@ -55,6 +55,7 @@ var _world_next_node: int = -1
 var _world_effect_node: int = 0
 var _world_wait_updates: int = 21
 var _battle_area: Rect2
+var _safe_area: Rect2
 var _world_touches: Dictionary = {}
 
 
@@ -429,6 +430,7 @@ func _handle_touch(event: InputEvent) -> void:
 		or (
 			event is InputEventMouseButton
 			and not event.pressed
+			and not event.canceled
 			and event.button_index == MOUSE_BUTTON_LEFT
 		)
 	):
@@ -525,16 +527,17 @@ func _choose(options: Array) -> int:
 	return result
 
 
-func set_battle_area(area: Rect2) -> void:
-	if _battle_area == area:
+func set_battle_area(area: Rect2, safe_area: Rect2 = Rect2()) -> void:
+	if _battle_area == area and _safe_area == safe_area:
 		return
 	_battle_area = area
+	_safe_area = safe_area
 	_layout()
 
 
 func _layout() -> void:
 	if _confirm != null:
-		var area: Rect2 = PixelTheme.portrait_area(size)
+		var area: Rect2 = _safe_area if _safe_area.has_area() else Rect2(Vector2.ZERO, size)
 		var battle_area: Rect2 = (
 			_battle_area if _battle_area.has_area() else Rect2(Vector2.ZERO, size)
 		)
@@ -543,15 +546,15 @@ func _layout() -> void:
 		commander.position = battle_area.position
 		commander.size = battle_area.size
 		var factor: float = minf(controls.size.x / 240.0, controls.size.y / 320.0)
-		_world_hud.position = Vector2(area.position.x, size.y - 45 * factor)
+		_world_hud.position = Vector2(area.position.x, area.end.y - 45 * factor)
 		_world_hud.size = Vector2(area.size.x, 45 * factor)
 		_world_layer.position = area.position
-		_world_layer.size = Vector2(area.size.x, size.y - 45 * factor)
-		if background != null and _world_size != size:
+		_world_layer.size = Vector2(area.size.x, area.size.y - 45 * factor)
+		if background != null and _world_rect != Rect2(_world_layer.position, _world_layer.size):
 			_configure_world_view()
 		_confirm.position = Vector2(controls.position.x, controls.end.y - 22 * factor)
 		_confirm.add_theme_constant_override("icon_max_width", roundi(10 * factor))
-		_world_back.position = Vector2(area.end.x - 24 * factor, size.y - 22 * factor)
+		_world_back.position = area.end - Vector2(24, 22) * factor
 		_world_back.add_theme_constant_override("icon_max_width", roundi(10 * factor))
 		var style := StyleBoxEmpty.new()
 		style.content_margin_top = 14 * factor
@@ -593,11 +596,13 @@ func _draw_world() -> void:
 	if background == null:
 		return
 	var factor: float = _world_view.zoom
-	var source_origin: Vector2 = _world_view.world_at(_world_layer.position) * 24
-	_world_layer.draw_texture_rect_region(
+	_world_layer.draw_texture_rect(
 		background,
-		Rect2(Vector2.ZERO, _world_layer.size),
-		Rect2(source_origin, _world_layer.size / factor)
+		Rect2(
+			_world_view.screen_at(Vector2.ZERO) - _world_layer.position,
+			background.get_size() * factor
+		),
+		false
 	)
 	if world_revealed:
 		if world_active and _world_next_node in visible_world_nodes:
@@ -736,9 +741,11 @@ func leave_world() -> void:
 
 
 func _configure_world_view() -> void:
-	var area: Rect2 = PixelTheme.portrait_area(size)
-	var height: float = size.y - 45 * area.size.x / 240.0
-	_world_view.zoom = maxf(area.size.x / 240.0, height / 275.0)
+	_cancel_world_gesture()
+	var area: Rect2 = _safe_area if _safe_area.has_area() else Rect2(Vector2.ZERO, size)
+	var factor: float = minf(area.size.x / 240.0, area.size.y / 320.0)
+	var height: float = area.size.y - 45 * factor
+	_world_view.zoom = maxf(factor, height / 275.0)
 	_world_view.configure(
 		Vector2i(int(data["story"]["world"]["width"]), int(data["story"]["world"]["height"])),
 		Vector2(area.size.x, height),
@@ -747,7 +754,7 @@ func _configure_world_view() -> void:
 	var cell: Array = data["story"]["world"]["nodes"][selected_world_node]["position"]
 	_world_view.focus_cell(Vector2i(int(cell[0]), int(cell[1])))
 	_world_focus_target = _world_view.center
-	_world_size = size
+	_world_rect = Rect2(area.position, Vector2(area.size.x, height))
 	if _world_focus_pending:
 		_world_focus_pending = false
 		world_focus_completed.emit()
@@ -828,17 +835,21 @@ func _handle_world_pointer(event: InputEvent) -> void:
 		return
 	if choices.visible:
 		if (
-			(
-				event is InputEventMouseButton
-				and not event.pressed
-				and event.button_index == MOUSE_BUTTON_LEFT
-			)
-			or (event is InputEventScreenTouch and not event.pressed and not event.canceled)
+			event is InputEventScreenTouch
+			or (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT)
 		):
-			go_back()
+			var pointer: int = event.index if event is InputEventScreenTouch else 1000
+			if event.pressed and not event.canceled:
+				_world_view.begin_pointer(event.position, pointer)
+			elif _world_view.pointer_id == pointer:
+				_world_view.cancel_pointer()
+				if not event.canceled:
+					go_back()
 		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		if event.pressed:
+		if event.canceled:
+			_world_view.cancel_pointer()
+		elif event.pressed:
 			if Rect2(_world_view.viewport_origin, _world_view.viewport_size).has_point(
 				event.position
 			):

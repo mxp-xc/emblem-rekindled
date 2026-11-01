@@ -115,6 +115,8 @@ func _resize() -> void:
 	if not content.is_empty():
 		grid = Vector2i(content["map"]["width"], content["map"]["height"])
 	var area: Rect2 = play_area if play_area.has_area() else Rect2(Vector2.ZERO, size)
+	if area != Rect2(view.viewport_origin, view.viewport_size):
+		cancel_gesture()
 	view.configure(grid, area.size, area.position)
 	view_changed.emit()
 	queue_redraw()
@@ -222,9 +224,11 @@ func _gui_input(event: InputEvent) -> void:
 				hovered = view.cell_at(event.position)
 				cell_hovered.emit(hovered)
 		elif event.button_index == MOUSE_BUTTON_LEFT:
-			if event.pressed:
+			if event.canceled:
+				view.cancel_pointer()
+			elif event.pressed:
 				view.begin_pointer(event.position, 1000)
-			else:
+			elif view.pointer_id == 1000:
 				_select(view.end_pointer(event.position, 1000))
 	elif event is InputEventMouseMotion:
 		view.drag_pointer(event.position, 1000)
@@ -243,7 +247,7 @@ func _gui_input(event: InputEvent) -> void:
 			touches.erase(event.index)
 			if event.canceled:
 				view.cancel_pointer()
-			elif not was_multitouch:
+			elif not was_multitouch and view.pointer_id == event.index:
 				_select(view.end_pointer(event.position, event.index))
 			if touches.is_empty():
 				view.cancel_pointer()
