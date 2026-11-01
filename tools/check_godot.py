@@ -7,10 +7,12 @@ import signal
 import subprocess
 import sys
 import time
+from contextlib import suppress
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 GAME = ROOT / "game"
+ENGINE_ERROR = re.compile(r"(?:SCRIPT ERROR|ERROR):")
 
 
 def godot(
@@ -41,21 +43,39 @@ def godot(
                 try:
                     output, _ = process.communicate(timeout=min(0.1, remaining))
                     break
-                except subprocess.TimeoutExpired:
-                    continue
+                except subprocess.TimeoutExpired as error:
+                    partial_output = error.output or ""
+                    if isinstance(partial_output, bytes):
+                        partial_output = partial_output.decode(errors="replace")
+                    if not ENGINE_ERROR.search(partial_output):
+                        continue
+                    # Stack frames can follow the first error line in later writes.
+                    drain_seconds = min(0.2, max(0, deadline - time.monotonic()))
+                    try:
+                        output, _ = process.communicate(timeout=drain_seconds)
+                    except subprocess.TimeoutExpired:
+                        pass
+                    failure_code = process.returncode or 1
+                    with suppress(ProcessLookupError):
+                        os.killpg(process.pid, signal.SIGKILL)
+                    output, _ = process.communicate()
+                    print(output, file=sys.stderr)
+                    raise SystemExit(failure_code) from None
         except subprocess.TimeoutExpired as error:
             # Terminate the whole owned group, including engine subprocesses.
-            os.killpg(process.pid, signal.SIGKILL)
+            with suppress(ProcessLookupError):
+                os.killpg(process.pid, signal.SIGKILL)
             output, _ = process.communicate()
             print(output, file=sys.stderr)
             phase = "runtime" if started else "startup"
             print(f"Godot {phase} timed out: {' '.join(args)}", file=sys.stderr)
             raise SystemExit(1) from error
         except KeyboardInterrupt:
-            os.killpg(process.pid, signal.SIGKILL)
+            with suppress(ProcessLookupError):
+                os.killpg(process.pid, signal.SIGKILL)
             process.communicate()
             raise
-        if process.returncode or re.search(r"(?:SCRIPT ERROR|ERROR):", output):
+        if process.returncode or ENGINE_ERROR.search(output):
             print(output, file=sys.stderr)
             raise SystemExit(process.returncode or 1)
     passes = [line for line in output.splitlines() if line.startswith("PASS ")]

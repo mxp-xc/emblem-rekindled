@@ -50,9 +50,7 @@ func run() -> void:
 		return
 	var actor: Dictionary = scene.content["mapAnimations"]["units"]["0"]
 	var frame: Texture2D = load(
-		scene.content["entry"]["mapAnimations"].get_base_dir().path_join(
-			actor["frames"][0]["texture"]
-		)
+		scene.content["entry"]["resourceDirectory"].path_join(actor["frames"][0]["texture"])
 	)
 	if (
 		story.get("_world_actor_frames")[0] != frame

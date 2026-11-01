@@ -19,7 +19,7 @@ func setup(content: Dictionary) -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	var directory: String = content["entry"]["story"].get_base_dir()
+	var directory: String = content["entry"]["resourceDirectory"]
 	for key: String in ["intro0", "scene0", "scene1", "scene2"]:
 		_images[key] = load(directory.path_join(content["story"]["images"][key]["texture"]))
 	_lines = PixelTheme.wrap_text(content["story"]["sequences"]["boot"][0]["text"]["text"], 240, 13)

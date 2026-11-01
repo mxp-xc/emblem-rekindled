@@ -1,0 +1,258 @@
+{
+  "battleId": "m2",
+  "worldNode": 2,
+  "battleName": {
+    "sourceTextIndex": 141
+  },
+  "objective": {
+    "sourceTextIndex": 158
+  },
+  "initialBattlePresentation": {
+    "hiddenUnitIds": [],
+    "hiddenFactions": [],
+    "unitPositionOverrides": {}
+  },
+  "turnEvents": [
+    {
+      "id": "party_arrival",
+      "afterEnemyPhaseOfRound": 1,
+      "deploymentSlots": [0, 1, 2, 3, 4, 5, 6],
+      "sequence": "party_arrival",
+      "source": "i.k:368..408; f(slot) excludes current recruit 7"
+    },
+    {
+      "id": "western_reinforcements",
+      "afterEnemyPhaseOfRound": 3,
+      "unitIds": [63, 64, 65, 66, 68, 69, 30, 31],
+      "sequence": "western_reinforcements",
+      "source": "i.k:417..561"
+    },
+    {
+      "id": "priests_reveal",
+      "afterEnemyPhaseOfRound": 11,
+      "unitIds": [67, 35],
+      "source": "i.k:571..594; reveal in place without focus or dialogue"
+    }
+  ],
+  "aiChanges": [
+    {
+      "beforeEnemyPhaseOfRound": 9,
+      "unitIds": [82, 57, 69, 68, 31, 58, 32, 30],
+      "flagsSet": 16,
+      "policyClear": 2,
+      "source": "i.b(Vector):175..283; preserve hidden flags"
+    }
+  ],
+  "routeChoices": [],
+  "speakers": {
+    "0": {
+      "id": 0,
+      "name": "雅木",
+      "faction": 0,
+      "portraitId": 0
+    },
+    "7": {
+      "id": 7,
+      "name": "鲁卡",
+      "faction": 0,
+      "portraitId": 7
+    },
+    "9": {
+      "id": 9,
+      "name": "赛丽卡",
+      "faction": 0,
+      "portraitId": 9
+    },
+    "82": {
+      "id": 82,
+      "name": "扎古桑",
+      "faction": 2,
+      "portraitId": 13
+    }
+  },
+  "sequences": {
+    "opening": [
+      {
+        "kind": "battleTitle",
+        "text": {
+          "sourceTextIndex": 141
+        },
+        "sourceDurationUnits": 2000,
+        "source": "i.y:m2; battle number is bound from current worldStep"
+      },
+      {
+        "kind": "focus",
+        "cell": [17, 9],
+        "instant": true,
+        "sourceWaitTicks": 12,
+        "source": "i.z:m2/dc0"
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 499,
+          "speakerId": 82
+        },
+        "source": "i.z:m2/dc1"
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 500,
+          "speakerId": 7
+        },
+        "sourceWaitTicksAfter": 10,
+        "source": "i.z:m2/dc1"
+      },
+      {
+        "kind": "objective",
+        "text": {
+          "sourceTextIndex": 158
+        },
+        "source": "i.z:m2/dc2 -> i.o"
+      },
+      {
+        "kind": "commanderSetup",
+        "candidates": [7],
+        "defaultCommanderId": 7,
+        "defaultMode": "automatic",
+        "defaultStance": "attack",
+        "source": "i.z:m2/dc3; original m2 entry commander 7"
+      }
+    ],
+    "party_arrival": [
+      {
+        "kind": "parallelEntrances",
+        "focus": [10, 2],
+        "deploymentSlots": [0, 1, 2, 3, 4, 5, 6],
+        "offset": [0, -3],
+        "source": "i.k:m2/bo1; from offset to actual deployment cell"
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 501,
+          "speakerId": 0
+        },
+        "source": "i.k:m2/bo1"
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 502,
+          "speakerId": 7
+        },
+        "source": "i.k:m2/bo1"
+      }
+    ],
+    "western_reinforcements": [
+      {
+        "kind": "parallelEntrances",
+        "focus": [3, 10],
+        "unitIds": [63, 64, 65, 66, 68, 69, 30, 31],
+        "offset": [-3, 0],
+        "source": "i.k:m2/bo3; from offset to actual deployment cell"
+      }
+    ],
+    "boss_first_combat": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 503,
+          "speakerId": 82
+        },
+        "source": "i.b(b,b):37..48; original once flag mask 4"
+      }
+    ],
+    "boss_death": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 504,
+          "speakerId": 82
+        },
+        "source": "i.d:3288..3302; aa82 ab0 before retirement/hide, ordinary death path"
+      }
+    ],
+    "victory": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 505,
+          "speakerId": 7
+        },
+        "source": "i.z:m2/dc5"
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 506,
+          "speakerId": 0
+        },
+        "source": "i.z:m2/dc5"
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 507,
+          "speakerId": 7
+        },
+        "source": "i.z:m2/dc5"
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 488,
+          "speakerId": 0
+        },
+        "whenWorldStep": 2,
+        "source": "i.z:m2/dc5; dD == 2"
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 508,
+          "speakerId": 0
+        },
+        "unlessWorldStep": 2,
+        "source": "i.z:m2/dc5; dD != 2"
+      },
+      {
+        "kind": "missionComplete",
+        "text": {
+          "sourceTextIndex": 34
+        },
+        "goldReward": 1000,
+        "source": "i.z:m2/dc6 -> i.t; keep current route"
+      }
+    ]
+  },
+  "combatEvents": [
+    {
+      "id": "boss_first_combat",
+      "trigger": "firstCombat",
+      "unitId": 82,
+      "sequence": "boss_first_combat"
+    },
+    {
+      "id": "boss_death",
+      "trigger": "unitDeath",
+      "unitId": 82,
+      "beforeRetirement": "boss_death"
+    }
+  ],
+  "outcomeRules": {
+    "checks": [
+      {
+        "kind": "victory",
+        "condition": "unitRetired",
+        "unitId": 82
+      },
+      {
+        "kind": "defeat",
+        "condition": "requiredUnitFallen",
+        "unitIds": [0, 7]
+      }
+    ]
+  }
+}

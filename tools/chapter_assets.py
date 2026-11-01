@@ -3,6 +3,7 @@
 import json
 import os
 import re
+import shutil
 from pathlib import Path
 
 
@@ -241,3 +242,52 @@ def share_textures(chapter: Path, *, dry_run: bool = False) -> dict[str, int]:
         for path in sorted(deletes):
             path.unlink()
     return result
+
+
+def publish_generated(output: Path, target: Path, chapter: Path) -> dict[str, int]:
+    """Publish only this owner's files, preserving per-source texture import settings."""
+    output, target, chapter = output.resolve(), target.resolve(), chapter.resolve()
+    provenance = json.loads((output / "provenance.json").read_text())
+    previous = (
+        json.loads((target / "provenance.json").read_text())
+        if (target / "provenance.json").exists()
+        else {"outputs": [], "textureSources": {}}
+    )
+    before = owned_output_paths(target, previous["outputs"])
+    incoming = owned_output_paths(target, provenance["outputs"])
+    source_paths = owned_output_paths(output, provenance["outputs"])
+    actual_files = {p.resolve() for p in output.rglob("*") if p.is_file()}
+    allowed_files = {output / "provenance.json", *source_paths}
+    allowed_files.update(Path(str(p) + ".import") for p in source_paths if p.suffix != ".json")
+    if not set(source_paths).issubset(actual_files) or not actual_files.issubset(allowed_files):
+        raise ValueError("Incoming files disagree with the ownership list")
+    sources = {
+        name: value
+        for name, value in previous.get("textureSources", {}).items()
+        if name in provenance["outputs"]
+    }
+    for name, value in sources.items():
+        texture = (chapter / value).resolve()
+        if (
+            not texture.is_relative_to((chapter / "generated/shared").resolve())
+            or not texture.is_file()
+        ):
+            raise ValueError(f"Invalid shared source texture: {value}")
+        owned_output_paths(target, [name])
+    # Check the existing chapter before overwriting or removing another owner's files.
+    share_textures(chapter, dry_run=True)
+    for name, value in sources.items():
+        sidecar = Path(str(output / name) + ".import")
+        if not sidecar.exists():
+            sidecar.write_bytes(
+                texture_import_settings(texture_import_parameters(chapter / value, {}))
+            )
+    provenance["textureSources"] = sources
+    (output / "provenance.json").write_text(
+        json.dumps(provenance, ensure_ascii=False, indent=2) + "\n"
+    )
+    shutil.copytree(output, target, dirs_exist_ok=True)
+    for path in set(before) - set(incoming):
+        path.unlink(missing_ok=True)
+        Path(str(path) + ".import").unlink(missing_ok=True)
+    return share_textures(chapter)

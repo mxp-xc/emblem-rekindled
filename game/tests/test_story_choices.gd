@@ -15,7 +15,7 @@ func run() -> void:
 	for step: Dictionary in scene.content["story"]["sequences"]["opening"]:
 		if step["kind"] == "commanderSetup":
 			setup = step
-	scene.story_player.play([setup])
+	scene.story_player.play([setup], scene.battle.command_configuration())
 	await process_frame
 	var commander: Control = scene.story_player.get("commander")
 	if commander == null or not commander.visible:

@@ -6,7 +6,7 @@ func _initialize() -> void:
 		"res://content/chapter_1/chapter.json"
 	)
 	var library: Script = load("res://app/battle_clip_library.gd")
-	var directory: String = content["entry"]["battleArt"].get_base_dir()
+	var directory: String = content["entry"]["resourceDirectory"]
 	var cases: Array[Dictionary] = []
 	var broken: Dictionary = content["battleArt"].duplicate(true)
 	broken["terrainBackgrounds"].erase("0")
@@ -31,7 +31,7 @@ func _initialize() -> void:
 	broken = content["battleArt"].duplicate(true)
 	broken["appearances"]["0:9"]["frames"].resize(1)
 	if library.validate_catalog(
-		content["battleClips"], content["entry"]["battleClips"].get_base_dir(), broken
+		content["battleClips"], content["entry"]["resourceDirectory"], broken
 	):
 		fail("Clip geometry must not reference frames removed from a participant appearance")
 		return

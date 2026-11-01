@@ -34,7 +34,7 @@ func setup(content: Dictionary, tactical_map: Control, hud: Control) -> void:
 	_map = tactical_map
 	_hud = hud
 	_tick_seconds = float(content["battleClips"]["tickMillis"]) / 1000
-	var directory: String = content["entry"]["interface"].get_base_dir()
+	var directory: String = content["entry"]["resourceDirectory"]
 	for key: String in content["interface"]["textures"]:
 		_textures[key] = load(directory.path_join(content["interface"]["textures"][key]["texture"]))
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)

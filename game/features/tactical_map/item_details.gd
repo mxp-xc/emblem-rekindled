@@ -21,7 +21,7 @@ func setup(content: Dictionary) -> void:
 	_interface = content["interface"]
 	for definition: Dictionary in content["rules"]["itemTemplates"]:
 		_definitions[int(definition["id"])] = definition
-	var directory: String = content["entry"]["interface"].get_base_dir()
+	var directory: String = content["entry"]["resourceDirectory"]
 	_background = load(directory.path_join(_interface["textures"]["item_detail_sample"]["texture"]))
 	_stats = GridContainer.new()
 	_stats.columns = 3

@@ -70,13 +70,21 @@ func decode(value: Dictionary, held_ids: Dictionary) -> Dictionary:
 		"classGroup",
 		"flags",
 		"equipMask",
-		"dropTemplateId",
 		"policy",
 		"growthTemplateId"
 	]:
 		if not _integer_in(current.get(key), 0, 255):
 			return _failure("INVALID_SAVE_UNIT_FIELD")
 		current[key] = int(current[key])
+	if not _nonnegative_integer(current.get("dropTemplateId")):
+		return _failure("INVALID_SAVE_DROP")
+	var drop_id: int = int(current["dropTemplateId"])
+	if drop_id != 0 and _combat.item_definition(drop_id).is_empty():
+		return _failure("INVALID_SAVE_DROP")
+	current["dropTemplateId"] = drop_id
+	# The player's deployment slot is independent of autonomous enemy policy.
+	if current["faction"] == 0:
+		current["policy"] = 0
 	if (
 		current["sourceId"] != _blueprints[id]["sourceId"]
 		or current["faction"] != _blueprints[id]["faction"]

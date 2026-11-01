@@ -7,7 +7,7 @@ func _initialize() -> void:
 	if not content["ok"]:
 		fail("The original interface content must remain valid")
 		return
-	var directory: String = content["entry"]["interface"].get_base_dir()
+	var directory: String = content["entry"]["resourceDirectory"]
 	var ids: Array = []
 	for unit: Dictionary in content["units"]:
 		ids.append(unit["id"])

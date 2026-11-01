@@ -150,6 +150,7 @@ func run() -> void:
 		return
 	for code: int in [KEY_ENTER, KEY_RIGHT, KEY_ENTER, KEY_ENTER]:
 		await key(code)
+	world = scene.story_player
 	if not world.visible or scene.world_progress["gold"] != 6000 or scene.title_screen.visible:
 		fail(
 			"Reading the old named slot restores its saved results without duplicating the victory reward"

@@ -126,8 +126,8 @@ func open_hero(scene: Control, progress: Dictionary) -> void:
 	await scene._show_completed_progress(progress)
 	scene.story_player.advance()
 	scene.story_player.find_child("World_inventory", true, false).pressed.emit()
-	await key(KEY_RIGHT)
-	await key(KEY_ENTER)
+	scene.world_inventory_screen.find_child("Party_0", true, false).pressed.emit()
+	await process_frame
 
 
 func key(code: int) -> void:

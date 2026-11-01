@@ -10,9 +10,11 @@ func run() -> void:
 	var scene: Control = load("res://app/main.tscn").instantiate()
 	root.add_child(scene)
 	await process_frame
-	scene.resume_battle(scene.battle)
 	var directory: String = "user://test_playtest_%d" % Time.get_ticks_usec()
-	DirAccess.make_dir_recursive_absolute(directory)
+	if DirAccess.dir_exists_absolute(directory) or DirAccess.make_dir_absolute(directory) != OK:
+		fail("The probe test must own a newly created record directory")
+		return
+	scene.store.path = directory.path_join("settings.json")
 	var configuration: String = directory.path_join("playtest.json")
 	var probe_script: Script = load("res://app/playtest_probe.gd")
 	if probe_script == null:
@@ -27,6 +29,7 @@ func run() -> void:
 		return
 	var save_path: String = directory.path_join("battle_save.json")
 	scene.battle_store = load("res://persistence/battle_store.gd").new(scene.content, save_path)
+	scene.resume_battle(scene.battle)
 	var before: Dictionary = scene.battle.snapshot()
 	var expected: Dictionary = JSON.parse_string(JSON.stringify(before))
 	# RNG purity is part of this diagnostic interface's contract.
@@ -67,6 +70,50 @@ func run() -> void:
 		if not response["ready"] or response["controls"].is_empty() or response["speed"] != 32:
 			fail("Runtime reads must expose real readiness, visible controls and test speed")
 			return
+		if not FileAccess.file_exists(request_path):
+			fail(
+				"A consumed request must remain readable while filesystem synchronization is pending"
+			)
+			return
+	probe._timer.stop()
+	var sentinel: Dictionary = {"duplicateResponseSentinel": true}
+	_write(response_path, sentinel)
+	for repetition: int in range(20):
+		probe._read_request()
+	if JSON.parse_string(FileAccess.get_file_as_string(response_path)) != sentinel:
+		fail("An unchanged request must not rewrite its response on subsequent polls")
+		return
+	_write_text(request_path, '{ "requestId" : "second" }')
+	probe._read_request()
+	if JSON.parse_string(FileAccess.get_file_as_string(response_path)) != sentinel:
+		fail("A repeated request ID must not run again when its JSON formatting changes")
+		return
+	for invalid: String in ["", "{", "[]", '{"requestId":""}', '{"requestId":42}']:
+		_write_text(request_path, invalid)
+		probe._read_request()
+		var rejected: Variant = JSON.parse_string(FileAccess.get_file_as_string(response_path))
+		if not rejected is Dictionary or rejected.get("error") != "INVALID_PLAYTEST_REQUEST":
+			fail("Invalid request payloads must produce a bounded protocol error")
+			return
+		_write(response_path, sentinel)
+		for repetition: int in range(20):
+			probe._read_request()
+		if (
+			FileAccess.get_file_as_string(request_path) != invalid
+			or JSON.parse_string(FileAccess.get_file_as_string(response_path)) != sentinel
+		):
+			fail("Invalid requests must remain on disk without regenerating errors on every poll")
+			return
+	_write(request_path, {"requestId": "after-invalid"})
+	probe._read_request()
+	var recovered: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(response_path))
+	if (
+		recovered.get("requestId") != "after-invalid"
+		or recovered.get("snapshot", {}).get("state") != expected
+		or not FileAccess.file_exists(request_path)
+	):
+		fail("Overwriting an invalid request with a new unique ID must return the live snapshot")
+		return
 	if (
 		scene.battle.snapshot() != before
 		or scene.battle._rng.state != random_state
@@ -87,14 +134,18 @@ func run() -> void:
 	await process_frame
 	Engine.time_scale = 1
 	print(
-		"PASS playtest API: explicit requests, session speed observation, no progress/RNG mutation"
+		"PASS playtest API: retained requests, deduplication, invalid recovery, no save/RNG mutation"
 	)
 	quit(0)
 
 
 func _write(path: String, value: Dictionary) -> void:
+	_write_text(path, JSON.stringify(value))
+
+
+func _write_text(path: String, value: String) -> void:
 	var file := FileAccess.open(path, FileAccess.WRITE)
-	file.store_string(JSON.stringify(value))
+	file.store_string(value)
 	file.close()
 
 

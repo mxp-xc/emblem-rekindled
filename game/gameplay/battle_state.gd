@@ -6,6 +6,7 @@ const MAX_GOLD: int = 9999999
 
 const NEIGHBORS: Array[Vector2i] = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
 const AI = preload("res://gameplay/tactical_ai.gd")
+const Deployment = preload("res://gameplay/battle_deployment.gd")
 const Campaign = preload("res://gameplay/campaign_rules.gd")
 const Events = preload("res://gameplay/battle_events.gd")
 const Resolution = preload("res://gameplay/combat_resolution.gd")
@@ -13,10 +14,10 @@ const UnitRecord = preload("res://gameplay/unit_record.gd")
 const MapRules = preload("res://gameplay/map_rules.gd")
 const Inventory = preload("res://gameplay/unit_inventory.gd")
 const Combat = preload("res://gameplay/combat_rules.gd")
+const MapAttack = preload("res://gameplay/map_attack.gd")
 const STAT_ORDER: Array[String] = [
 	"strength", "skill", "speed", "defense", "magic", "luck", "maxHp", "move"
 ]
-const INITIAL_NOISE: Array[int] = [3, 2, 2, 2, 2, 5, 2, 0]
 
 var phase: int = 0
 var round_number: int = 1
@@ -45,7 +46,6 @@ var _movement: RefCounted
 var _random_source: Callable
 var _rng := RandomNumberGenerator.new()
 var _next_action_id: int = 1
-var _base_stats: Dictionary = {}
 var _growth_rates: Dictionary = {}
 var _stat_caps: Dictionary
 var _unit_records: RefCounted
@@ -53,9 +53,16 @@ var _warehouse: Array = []
 var _events: Dictionary = {}
 var _units: Dictionary = {}
 var _pending_move: Dictionary = {}
+var _definitions: Dictionary = {}
+var _required_ids: Array[int] = []
+var _deployment_bindings: Dictionary = {}
+var _deployment_order: Array[int] = []
+var _map_attack: RefCounted
 
 
-func _init(content: Dictionary, random_source: Callable = Callable()) -> void:
+func _init(
+	content: Dictionary, random_source: Callable = Callable(), initialize: bool = true
+) -> void:
 	_chapter_id = content["entry"]["id"]
 	battle_id = content["entry"]["battleId"]
 	for step: Dictionary in content["story"]["sequences"]["opening"]:
@@ -75,107 +82,79 @@ func _init(content: Dictionary, random_source: Callable = Callable()) -> void:
 	_random_source = random_source
 	_inventory = Inventory.new(_combat, _roll)
 	_resolution = Resolution.new(_combat, _inventory, _roll)
+	_map_attack = MapAttack.new(
+		_combat, _inventory, _resolution, _map, _alliances, content.get("mapEffects")
+	)
 	_chapter_events = Events.new(content)
 	_ai = AI.new(content)
 	_rng.randomize()
 	_stat_caps = content["rules"]["statCaps"].duplicate(true)
-	for row: Dictionary in content["rules"]["baseStats"]:
-		_base_stats[int(row["id"])] = row.duplicate(true)
 	for row: Dictionary in content["rules"]["growthRates"]:
 		_growth_rates[int(row["id"])] = row.duplicate(true)
+	for definition: Dictionary in content["units"]:
+		_definitions[int(definition["id"])] = definition.duplicate(true)
+		if int(definition["id"]) not in content.get("optionalIds", []):
+			_required_ids.append(int(definition["id"]))
+	if initialize:
+		var initial: Dictionary = Deployment.new(content, _combat, _inventory, _roll).create()
+		_units = initial["units"]
+		_definitions = initial["definitions"]
+		_required_ids = initial["requiredIds"]
+		_deployment_bindings = initial["bindings"]
+	_adopt_unit_order(content)
+	var records_content: Dictionary = content.duplicate()
+	records_content["units"] = _definitions.values()
+	_unit_records = UnitRecord.new(records_content, _combat)
+	_campaign_rules = Campaign.new(records_content, _unit_records, MAX_GOLD)
+
+
+func deployment_bindings() -> Dictionary:
+	return _deployment_bindings.duplicate()
+
+
+# Rebind presentation identities after optional deployments have been resolved.
+# This replaces no battle result and performs no initialization or random draw.
+func adopt_content(content: Dictionary) -> void:
+	_definitions.clear()
+	_required_ids.clear()
+	_map_attack = MapAttack.new(
+		_combat, _inventory, _resolution, _map, _alliances, content.get("mapEffects")
+	)
+	for definition: Dictionary in content["units"]:
+		var identity: int = int(definition["id"])
+		_definitions[identity] = definition.duplicate(true)
+		if identity not in content.get("optionalIds", []):
+			_required_ids.append(identity)
+	_adopt_unit_order(content)
+	_commander_candidates.clear()
+	for step: Dictionary in content["story"]["sequences"]["opening"]:
+		if step["kind"] == "commanderSetup":
+			for identity: Variant in step["candidates"]:
+				_commander_candidates.append(int(identity))
+			break
+	_routes.clear()
+	for route: Dictionary in content["story"]["routeChoices"]:
+		_routes[int(route["routeIndex"])] = route
 	_unit_records = UnitRecord.new(content, _combat)
 	_campaign_rules = Campaign.new(content, _unit_records, MAX_GOLD)
-	var spawns: Dictionary = {}
-	for spawn: Dictionary in content["spawns"]:
-		spawns[int(spawn["id"])] = spawn
-	for definition: Dictionary in content["units"]:
-		var current: Dictionary = definition.duplicate(true)
-		for key: String in [
-			"id",
-			"faction",
-			"x",
-			"y",
-			"classId",
-			"classGroup",
-			"move",
-			"hp",
-			"maxHp",
-			"level",
-			"flags",
-			"equipMask",
-			"sourceId",
-			"dropTemplateId",
-			"proficiency",
-			"experience"
-		]:
-			current[key] = int(current[key])
-		current["action"] = 0
-		_initialize_unit(current, spawns[current["id"]])
-		_units[current["id"]] = current
+	_chapter_events = Events.new(content)
+	_ai = AI.new(content)
 
 
-func _initialize_unit(current: Dictionary, spawn: Dictionary) -> void:
-	current["sourceId"] = int(spawn["sourceId"])
-	current["formal"] = spawn["formal"]
-	current["flags"] = int(spawn["flags"])
-	current["policy"] = int(spawn["policy"])
-	current["visible"] = spawn["visible"]
-	current["level"] = int(spawn["level"])
-	current["growthTemplateId"] = int(spawn["growthTemplateId"])
-	current["experience"] = 0
-	current["proficiency"] = 0
-	current["x"] = int(spawn["position"][0])
-	current["y"] = int(spawn["position"][1])
-	current["inventory"] = []
-	current["equippedInstanceId"] = ""
-	var choices: Array = spawn["itemChoices"].duplicate()
-	if spawn["randomEquipment"]:
-		var selected: int = _roll(choices.size())
-		for index: int in range(choices.size()):
-			if index != selected:
-				choices[index] = 0
-	for template_id: Variant in choices:
-		_add_initial_item(current, int(template_id))
-	_add_initial_item(current, int(spawn["dropTemplateId"]))
-	var values: Dictionary
-	if spawn.has("explicitStats"):
-		values = spawn["explicitStats"].duplicate(true)
-	else:
-		values = {}
-		var base: Dictionary = _base_stats[int(spawn["baseTemplateId"])]
-		var growth: Dictionary = _growth_rates[int(spawn["initialGrowthTemplateId"])]
-		for index: int in range(STAT_ORDER.size()):
-			var stat: String = STAT_ORDER[index]
-			var value: int = int(base[stat]) + int(float(growth[stat]) * current["level"] / 100.0)
-			if current["faction"] != 0:
-				value += _roll(INITIAL_NOISE[index] + 1)
-			if value < 0 or value > int(_stat_caps[stat]):
-				value = int(_stat_caps[stat])
-			values[stat] = value
-	current["attributes"] = {}
-	for stat: String in STAT_ORDER:
-		if stat in ["maxHp", "move"]:
-			current[stat] = int(values[stat])
-		else:
-			current["attributes"][stat] = int(values[stat])
-	current["hp"] = current["maxHp"]
-	_inventory.auto_equip(current)
+# Content supplies native as order independently from initialization's raw p order.
+func _adopt_unit_order(content: Dictionary) -> void:
+	_deployment_order.clear()
+	for identity: Variant in content["unitOrder"]:
+		_deployment_order.append(int(identity))
+	_reorder_units()
 
 
-func _add_initial_item(current: Dictionary, template_id: int) -> void:
-	if template_id <= 0:
-		return
-	current["inventory"].append(
-		{
-			"id":
-			(
-				"%s:%s:unit_%d:item_%d"
-				% [_chapter_id, battle_id, current["id"], current["inventory"].size()]
-			),
-			"templateId": template_id,
-			"durability": int(_combat.item_definition(template_id)["defaultDurability"])
-		}
-	)
+func _reorder_units() -> void:
+	var ordered: Dictionary = {}
+	for identity: int in _deployment_order:
+		if _units.has(identity):
+			ordered[identity] = _units[identity]
+	_units = ordered
 
 
 func unit(id: int) -> Dictionary:
@@ -262,7 +241,7 @@ func restore_snapshot(state: Dictionary) -> Dictionary:
 		not state.get("pending_move") is Dictionary
 		or not state["pending_move"].is_empty()
 		or not state.get("units") is Array
-		or state["units"].size() != _units.size()
+		or state["units"].size() > _definitions.size()
 		or not state.get("warehouse") is Array
 		or state["warehouse"].size() > Inventory.WAREHOUSE_CAPACITY
 	):
@@ -278,7 +257,7 @@ func restore_snapshot(state: Dictionary) -> Dictionary:
 		if not value is Dictionary or not _declared_unit_id(value.get("id")):
 			return _failure("INVALID_SAVE_UNIT")
 		var id: int = int(value["id"])
-		if not _units.has(id) or candidate.has(id):
+		if not _definitions.has(id) or candidate.has(id):
 			return _failure("INVALID_SAVE_IDENTITY")
 		var decoded: Dictionary = _unit_records.decode(value, held_ids)
 		if not decoded["ok"]:
@@ -290,6 +269,9 @@ func restore_snapshot(state: Dictionary) -> Dictionary:
 				return _failure("INVALID_SAVE_OCCUPANCY")
 			occupied[cell] = id
 		candidate[id] = current
+	for identity: int in _required_ids:
+		if not candidate.has(identity):
+			return _failure("INVALID_SAVE_IDENTITY")
 	var warehouse: Array = state["warehouse"].duplicate(true)
 	if not _unit_records.validate_inventory(warehouse, held_ids):
 		return _failure("INVALID_SAVE_WAREHOUSE")
@@ -298,23 +280,25 @@ func restore_snapshot(state: Dictionary) -> Dictionary:
 		or int(state.get("commandPolicy", 0)) not in [0, 1, 4, 5]
 	):
 		return _failure("INVALID_SAVE_COMMAND")
+	# A saved selection remains historical after death; new selections require _alive.
 	var commander: int = int(state["commander"])
 	if (
 		commander >= 0
 		and (
 			not candidate.has(commander)
 			or not candidate[commander]["formal"]
-			or not _alive(candidate[commander])
+			or candidate[commander]["faction"] != 0
 		)
 	):
 		return _failure("INVALID_SAVE_COMMANDER")
-	if not _chapter_events.outcome(candidate.values()).is_empty():
+	if not _chapter_events.outcome(candidate.values(), int(state["round"])).is_empty():
 		return _failure("SAVE_NOT_STABLE")
 	outcome.clear()
 	_completion.clear()
 	_automatic_queue.clear()
 	_assignments.clear()
 	_units = candidate
+	_reorder_units()
 	_campaign = state.get("campaign", {}).duplicate(true)
 	for field: String in ["route", "worldStep"]:
 		if _campaign.has(field):
@@ -337,7 +321,7 @@ func _declared_unit_id(value: Variant) -> bool:
 		and is_finite(float(value))
 		and float(value) == floorf(float(value))
 		and value >= 0
-		and _units.has(int(value))
+		and _definitions.has(int(value))
 	)
 
 
@@ -471,16 +455,50 @@ func discard_item(id: int, instance_id: String) -> Dictionary:
 
 
 func attack_weapons(id: int) -> Array[Dictionary]:
-	var weapons: Array[Dictionary] = []
 	if not _can_act(id) or (not _pending_move.is_empty() and _pending_move["id"] != id):
-		return weapons
-	for held: Dictionary in _units[id]["inventory"]:
-		var targets: Array[int] = attack_targets(id, held["id"])
-		if not targets.is_empty():
-			weapons.append(
-				{"item": held.duplicate(true), "information": unit_information(id, held["id"])}
-			)
-	return weapons
+		return []
+	return _map_attack.weapons(_units[id], _units.values(), round_number, _commander())
+
+
+func attack_options(id: int, instance_id: String) -> Dictionary:
+	if not _can_act(id):
+		return _failure("UNIT_NOT_READY")
+	if not _pending_move.is_empty() and _pending_move["id"] != id:
+		return _failure("ACTION_PENDING")
+	return _map_attack.options(_units[id], instance_id, _units.values(), round_number)
+
+
+func map_attack_preview(id: int, instance_id: String, primary_id: int = -1) -> Dictionary:
+	if not _can_act(id):
+		return _failure("UNIT_NOT_READY")
+	if not _pending_move.is_empty() and _pending_move["id"] != id:
+		return _failure("ACTION_PENDING")
+	return _map_attack.prepare(
+		_units[id], instance_id, _units.values(), round_number, _commander(), primary_id
+	)
+
+
+func cast_map_attack(id: int, instance_id: String, primary_id: int = -1) -> Dictionary:
+	var preview: Dictionary = map_attack_preview(id, instance_id, primary_id)
+	if not preview["ok"]:
+		return preview
+	var result: Dictionary = _map_attack.resolve(preview, _commander())
+	for current: Dictionary in result["changes"]:
+		_units[int(current["id"])] = current
+	result.erase("changes")
+	_pending_move.clear()
+	var actor: Dictionary = _units[id]
+	var last: Dictionary = _units[int(result["targetIds"][-1])]
+	result["rewards"] = {"experience": {}, "loot": []}
+	if actor["faction"] != 2:
+		result["rewards"]["experience"] = _award_experience(
+			actor,
+			_combat.experience_gain(actor, last, result["anyKill"], true, false, _commander())
+		)
+	result["id"] = _next_action_id
+	_next_action_id += 1
+	_check_outcome()
+	return result
 
 
 func attack_targets(id: int, instance_id: String = "") -> Array[int]:
@@ -490,10 +508,7 @@ func attack_targets(id: int, instance_id: String = "") -> Array[int]:
 	var actor: Dictionary = _units[id].duplicate(true)
 	if not instance_id.is_empty() and not _inventory.equip(actor, instance_id)["ok"]:
 		return targets
-	for candidate: Dictionary in _units.values():
-		if _attack_target_valid(actor, candidate):
-			targets.append(candidate["id"])
-	return targets
+	return _map_attack.targets(actor, _units.values(), round_number)
 
 
 func attack_field(id: int, instance_id: String = "") -> Dictionary:
@@ -502,7 +517,7 @@ func attack_field(id: int, instance_id: String = "") -> Dictionary:
 	var actor: Dictionary = _units[id].duplicate(true)
 	if not instance_id.is_empty() and not _inventory.equip(actor, instance_id)["ok"]:
 		return {}
-	return _item_field(actor, _combat.weapon_id(actor))
+	return _map_attack.field(actor, _combat.weapon_id(actor))
 
 
 func trade_field(id: int) -> Dictionary:
@@ -521,7 +536,7 @@ func combat_forecast(id: int, target_id: int) -> Dictionary:
 	if (
 		not _units.has(id)
 		or not _units.has(target_id)
-		or not _attack_target_valid(_units[id], _units[target_id])
+		or not _map_attack.target_valid(_units[id], _units[target_id])
 	):
 		return _failure("INVALID_ATTACK_TARGET")
 	var result: Dictionary = _combat.forecast(_units[id], _units[target_id], _commander())
@@ -534,7 +549,9 @@ func attack_unit(id: int, target_id: int) -> Dictionary:
 		return _failure("UNIT_NOT_READY")
 	if not _pending_move.is_empty() and _pending_move["id"] != id:
 		return _failure("ACTION_PENDING")
-	if not _units.has(target_id) or not _attack_target_valid(_units[id], _units[target_id]):
+	if _combat.action_mode(_combat.weapon_id(_units[id])) != "battle_clip":
+		return _failure("INVALID_ACTION_MODE")
+	if not _units.has(target_id) or not _map_attack.target_valid(_units[id], _units[target_id]):
 		return _failure("INVALID_ATTACK_TARGET")
 	var actor: Dictionary = _units[id]
 	var target: Dictionary = _units[target_id]
@@ -543,20 +560,9 @@ func attack_unit(id: int, target_id: int) -> Dictionary:
 	var resolved_weapons: Dictionary = {
 		str(id): _combat.weapon_id(actor), str(target_id): _combat.weapon_id(target)
 	}
-	var broken_items: Array[Dictionary] = []
-	for participant: Dictionary in resolution["participants"]:
-		for held: Dictionary in participant["inventory"]:
-			var remaining: Dictionary = _inventory.held_item(
-				_units[int(participant["id"])], held["id"]
-			)
-			if held["durability"] > 0 and (remaining.is_empty() or remaining["durability"] <= 0):
-				broken_items.append(
-					{
-						"unit": participant["id"],
-						"item": held["id"],
-						"templateId": held["templateId"]
-					}
-				)
+	var broken_items: Array[Dictionary] = _inventory.broken_items(
+		resolution["participants"], _units
+	)
 	var strikes: Array[Dictionary] = resolution["strikes"]
 	actor["action"] = 2
 	_pending_move.clear()
@@ -566,6 +572,13 @@ func attack_unit(id: int, target_id: int) -> Dictionary:
 			unit_state["visible"] = false
 			unit_state["flags"] |= 1
 	var rewards: Dictionary = _settle_combat(actor, target, strikes)
+	var story_events: Dictionary = _chapter_events.combat_events(
+		resolution["participants"], _units.values(), _events
+	)
+	for event_id: String in story_events["completed"]:
+		_events[event_id] = true
+	for identity: int in story_events["flags"]:
+		_units[identity]["flags"] |= int(story_events["flags"][identity])
 	var result := {
 		"ok": true,
 		"kind": "combat",
@@ -577,7 +590,9 @@ func attack_unit(id: int, target_id: int) -> Dictionary:
 		"resolvedWeapons": resolved_weapons,
 		"brokenItems": broken_items,
 		"strikes": strikes,
-		"rewards": rewards
+		"rewards": rewards,
+		"storyBefore": story_events["before"],
+		"retirements": story_events["retirements"]
 	}
 	_next_action_id += 1
 	_check_outcome()
@@ -598,18 +613,6 @@ func attack_preview(id: int, target_id: int) -> Dictionary:
 		"participants": [actor.duplicate(true), target.duplicate(true)],
 		"forecasts": {str(id): forecast, str(target_id): counter}
 	}
-
-
-func _attack_target_valid(actor: Dictionary, target: Dictionary) -> bool:
-	var weapon: int = _combat.weapon_id(actor)
-	return (
-		_alive(actor)
-		and _alive(target)
-		and _alliances[actor["faction"]] != _alliances[target["faction"]]
-		and weapon > 0
-		and _combat.item_definition(weapon)["damageKind"] in ["physical", "magic"]
-		and _combat.in_range(actor, target, weapon)
-	)
 
 
 func _commander() -> Dictionary:
@@ -652,8 +655,9 @@ func configure_commander(id: int, follow: bool, defend: bool) -> Dictionary:
 		not outcome.is_empty()
 		or phase != 0
 		or not _pending_move.is_empty()
-		or id not in _commander_candidates
-		or not _alive(_units[id])
+		or not command_configuration()["candidates"].any(
+			func(candidate: Dictionary) -> bool: return candidate["id"] == id
+		)
 	):
 		return _failure("INVALID_COMMANDER")
 	commander_id = id
@@ -663,9 +667,11 @@ func configure_commander(id: int, follow: bool, defend: bool) -> Dictionary:
 
 func command_configuration() -> Dictionary:
 	var candidates: Array[Dictionary] = []
-	for id: int in _commander_candidates:
-		if _alive(_units.get(id, {})):
-			candidates.append({"id": id, "name": _units[id]["name"]})
+	var ids: Array = _units.keys() if event_completed("opening") else _commander_candidates
+	for id: int in ids:
+		var actor: Dictionary = _units.get(id, {})
+		if actor.get("formal", false) and actor["faction"] == 0 and _alive(actor):
+			candidates.append({"id": id, "name": actor["name"]})
 	return {"commander": commander_id, "policy": command_policy, "candidates": candidates}
 
 
@@ -875,7 +881,7 @@ func trade_item(
 
 func _check_outcome() -> void:
 	if outcome.is_empty():
-		outcome = _chapter_events.outcome(_units.values())
+		outcome = _chapter_events.outcome(_units.values(), round_number)
 
 
 func end_phase() -> Dictionary:
@@ -899,7 +905,11 @@ func end_phase() -> Dictionary:
 				)
 				complete_event(event["id"])
 				events.append(
-					{"kind": "reinforcements", "sequence": event["sequence"], "arrivals": arrivals}
+					{
+						"kind": "reinforcements",
+						"sequence": event.get("sequence", ""),
+						"arrivals": arrivals
+					}
 				)
 			round_number += 1
 		phase = (phase + 1) % 3

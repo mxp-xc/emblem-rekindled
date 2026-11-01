@@ -2,11 +2,18 @@ extends SceneTree
 
 
 func _initialize() -> void:
-	var content: Dictionary = load("res://app/chapter_content.gd").new().load_chapter(
-		"res://content/chapter_1/chapter.json"
+	var opened: Dictionary = load("res://app/chapter_session.gd").new().open(
+		"res://content/chapter_1/chapter.json",
+		"",
+		{"new": true},
+		func(_limit: int) -> int: return 0
 	)
+	if not opened["ok"]:
+		fail(str(opened))
+		return
+	var content: Dictionary = opened["content"]
 	var event_rules: RefCounted = load("res://gameplay/battle_events.gd").new(content)
-	var units: Array = content["units"].duplicate(true)
+	var units: Array = opened["battle"].snapshot()["units"]
 	for unit: Dictionary in units:
 		unit["action"] = 0
 	var alm: Dictionary

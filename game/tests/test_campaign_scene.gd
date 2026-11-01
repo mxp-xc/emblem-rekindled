@@ -22,8 +22,12 @@ func run() -> void:
 	scene = load("res://app/main.tscn").instantiate()
 	root.add_child(scene)
 	await process_frame
-	_directory = "user://test_campaign_scene_%d" % Time.get_ticks_usec()
-	DirAccess.make_dir_absolute(_directory)
+	var owned: String = "user://test_campaign_scene_%d" % Time.get_ticks_usec()
+	if DirAccess.dir_exists_absolute(owned) or DirAccess.make_dir_absolute(owned) != OK:
+		fail("Campaign scene tests require a new owned record directory")
+		return
+	_directory = owned
+	scene.store.path = _directory.path_join("settings.json")
 	scene.battle_store = SlowContinueStore.new(scene.content)
 	scene.battle_store.path = _directory.path_join("continue.json")
 	scene.battle.win_with_assistance()
@@ -140,8 +144,9 @@ func run() -> void:
 	if scene.content["entry"]["battleId"] != "m0" or scene.world_progress != progress:
 		fail("Loading an older world record must restore its map, menus and route context")
 		return
-	DirAccess.remove_absolute(scene.battle_store.path)
-	DirAccess.remove_absolute(_directory)
+	if not _cleanup():
+		quit(1)
+		return
 	scene.queue_free()
 	await process_frame
 	print(
@@ -165,4 +170,17 @@ func key(code: Key) -> void:
 func fail(message: String) -> void:
 	Engine.time_scale = 1
 	push_error(message)
+	_cleanup()
 	quit(1)
+
+
+func _cleanup() -> bool:
+	if _directory.is_empty():
+		return true
+	for name: String in DirAccess.get_files_at(_directory):
+		if DirAccess.remove_absolute(_directory.path_join(name)) != OK:
+			return false
+	if DirAccess.remove_absolute(_directory) != OK:
+		return false
+	_directory = ""
+	return true

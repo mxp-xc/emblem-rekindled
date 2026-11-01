@@ -66,7 +66,15 @@ func run() -> void:
 		fail("Title and battle menus must retain the same session rate")
 		return
 	var second: Dictionary = load("res://app/chapter_content.gd").new().load_chapter(
-		"res://content/chapter_1/chapter.json", "m1"
+		"res://content/chapter_1/chapter.json",
+		"m1",
+		{
+			"party":
+			[{"id": 0, "sourceId": 0, "classId": 0}, {"id": 9, "sourceId": 9, "classId": 4}],
+			"worldStep": 1,
+			"partyOrder": [9, 0],
+			"route": 0
+		}
 	)
 	scene._adopt_content(second)
 	scene._set_menu_visible(true)

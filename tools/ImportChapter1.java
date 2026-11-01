@@ -14,13 +14,17 @@ public final class ImportChapter1 {
     "67d1c77e823816e203244a15428ba9fb635d40edba04efa3180b3334025989fe";
   private static MobilePlatform platform;
   private static int battleIndex;
+  private static int routeIndex;
+  private static Path motionReusePlan;
 
   public static void main(String[] args) {
     try {
       battleIndex = args.length > 3 ? Integer.parseInt(args[3]) : 0;
-      if (battleIndex < 0 || battleIndex > 1) throw new IllegalArgumentException(
-        "Unverified chapter-1 battle: m" + battleIndex
-      );
+      routeIndex = args.length > 4 ? Integer.parseInt(args[4]) : 0;
+      motionReusePlan = args.length > 5 ? Path.of(args[5]) : null;
+      if (
+        battleIndex < 0 || battleIndex > 7 || routeIndex < 0 || routeIndex > 7
+      ) throw new IllegalArgumentException("Unverified chapter-1 battle: m" + battleIndex);
       run(
         Path.of(args[0]).toAbsolutePath(),
         Path.of(args[1]).toAbsolutePath(),
@@ -132,12 +136,10 @@ public final class ImportChapter1 {
       .getMethod("a", int.class, boolean.class, boolean.class)
       .invoke(game, 0, true, true);
     game.getClass().getMethod("E").invoke(game);
-    if (battleIndex == 1) prepareSecondBattle(source, canvas, game);
+    if (battleIndex != 0) prepareBattle(canvas, game);
     int width = number(game, "cf"),
       height = number(game, "ce");
-    int expectedWidth = battleIndex == 0 ? 20 : 22;
-    int expectedHeight = battleIndex == 0 ? 25 : 22;
-    if (width != expectedWidth || height != expectedHeight) throw new IOException(
+    if (width < 1 || height < 1) throw new IOException(
       "Unexpected m" + battleIndex + " map size: " + width + "x" + height
     );
     byte[][] grid = (byte[][]) field(game.getClass(), "cd").get(game);
@@ -170,7 +172,8 @@ public final class ImportChapter1 {
     }
     Vector<?> units = (Vector<?>) field(game.getClass(), "as").get(game);
     Set<Integer> groups = new TreeSet<>();
-    for (Object unit : units) groups.add(number(unit, "R"));
+    // Later route prefixes can bring a different class to the same map.
+    for (int group = 0; group <= 10; group++) groups.add(group);
     Object originalCache = field(game.getClass(), "cB").get(game);
     map.append("],\"movementCosts\":{");
     // Unit blocking belongs to live gameplay, not the generated terrain data.
@@ -207,7 +210,7 @@ public final class ImportChapter1 {
     map.append("}}\n");
     Files.writeString(output.resolve("map.json"), map);
     ImageIO.write(mapImage.getCanvas(), "png", output.resolve("map.png").toFile());
-    if (units.size() != 32) throw new IOException("Unexpected deployment count: " + units.size());
+    if (units.isEmpty()) throw new IOException("Native deployment is empty");
     StringBuilder json = new StringBuilder("[");
     int visibleCount = 0;
     for (int index = 0; index < units.size(); index++) {
@@ -233,6 +236,7 @@ public final class ImportChapter1 {
       ImageIO.write(sprite.getCanvas(), "png", output.resolve("unit_" + id + ".png").toFile());
       if (index > 0) json.append(',');
       Map<String, Object> unitData = Chapter1Rules.describeUnit(unit);
+      unitData.put("nativePolicy", number(unit, "Y"));
       unitData.put("x", x);
       unitData.put("y", y);
       unitData.put("visible", visible);
@@ -251,10 +255,19 @@ public final class ImportChapter1 {
     for (Object unit : units) unitIndex.put(number(unit, "y"), unit);
     Method category = Class.forName("b", true, platform.loader).getMethod("n", byte.class);
     StringBuilder variants = new StringBuilder();
+    List<String> requests = new ArrayList<>();
     for (String line : Files.readAllLines(variantsFile)) {
+      String[] columns = line.split("\t");
+      if (columns[0].equals("allies")) {
+        for (Object unit : units)
+          if (number(unit, "C") != 2) requests.add(number(unit, "y") + "\t" + columns[1]);
+      } else requests.add(line);
+    }
+    for (String line : requests) {
       String[] columns = line.split("\t");
       int id = Integer.parseInt(columns[0]);
       Object unit = unitIndex.get(id);
+      if (unit == null) throw new IOException("Requested battle variant for missing unit: " + id);
       Set<Integer> legal = new TreeSet<>();
       legal.add(0);
       for (String candidate : columns[1].split(",")) {
@@ -277,9 +290,9 @@ public final class ImportChapter1 {
     Path legalVariants = variantsFile.resolveSibling("legal_battle_variants.tsv");
     Files.writeString(legalVariants, variants);
     Chapter1BattleAssets.export(game, platform.loader, output, legalVariants);
-    Chapter1BattleClips.export(game, platform.loader, output, legalVariants);
-    if (battleIndex == 0) Chapter1Story.export(game, platform.loader, output);
-    else Chapter1Story.exportSecondBattle(game, platform.loader, output);
+    Chapter1BattleClips.export(game, platform.loader, output, legalVariants, motionReusePlan);
+    if (battleIndex == 0) Chapter1Story.exportCommon(game, platform.loader, output);
+    else Chapter1Story.exportResources(game, platform.loader, output);
     Chapter1Interface.export(game, platform.loader, output);
     if (battleIndex == 0) {
       try (
@@ -331,14 +344,18 @@ public final class ImportChapter1 {
         ",\"map\":\"1.pak:m" +
         battleIndex +
         "\",\"deployment\":" +
-        quote(battleIndex == 0 ? "1.pak:p0" : "p1") +
-        ",\"preparationSeed\":0,\"unitCount\":32,\"visibleUnitCount\":" +
+        quote("p" + battleIndex + " via native resource resolver") +
+        ",\"preparationSeed\":0,\"route\":" +
+        routeIndex +
+        ",\"unitCount\":" +
+        units.size() +
+        ",\"visibleUnitCount\":" +
         visibleCount +
         ",\"method\":" +
         quote(
           battleIndex == 0
             ? "offline original initializer and frame renderer; opening positions applied explicitly; map sprites are first-frame stills"
-            : "controlled native m0 cleanup then m1 initializer; matched to separately replayed original entry; verified default commander6; map sprites are first-frame stills"
+            : "controlled native route-prefix settlement and map initializer; no natural battle; map sprites are first-frame stills"
         ) +
         "}\n"
     );
@@ -356,9 +373,41 @@ public final class ImportChapter1 {
     );
   }
 
-  /** Controlled native preparation, matched against the separately replayed m0-to-m1 entry. */
-  private static void prepareSecondBattle(Path source, Object canvas, Object game)
-    throws Exception {
+  /** Run the native settlement/initializer for the selected route prefix, without combat. */
+  private static void prepareBattle(Object canvas, Object game) throws Exception {
+    Class<?> type = game.getClass();
+    byte[][] routes = (byte[][]) field(type, "dq").get(null);
+    int targetStep = -1;
+    for (int index = 1; index < routes[routeIndex].length; index++) {
+      if (routes[routeIndex][index] == battleIndex) {
+        targetStep = index;
+        break;
+      }
+    }
+    if (targetStep < 0) throw new IllegalArgumentException("Route does not reach m" + battleIndex);
+    for (int step = 1; step <= targetStep; step++) {
+      settle(canvas, game);
+      int node = routes[routeIndex][step];
+      field(type, "bh").setByte(game, (byte) node);
+      field(type, "dr").setByte(game, (byte) routeIndex);
+      field(type, "dD").setByte(game, (byte) step);
+      field(type, "du").setByte(game, (byte) node);
+      field(type, "dt").setByte(game, (byte) node);
+      try (
+        InputStream input = (InputStream) Class.forName("h", true, platform.loader)
+          .getMethod("c", String.class)
+          .invoke(null, "p" + node)
+      ) {
+        if (input == null) throw new IOException("Missing native deployment p" + node);
+        field(Class.forName("a", false, platform.loader), "B").set(null, input.readAllBytes());
+      }
+      type.getMethod("D").invoke(game);
+      type.getMethod("a", int.class, boolean.class, boolean.class).invoke(game, node, false, true);
+      type.getMethod("E").invoke(game);
+    }
+  }
+
+  private static void settle(Object canvas, Object game) throws Exception {
     Class<?> type = game.getClass();
     for (String name : List.of("aw", "ay", "aA", "aB", "aC")) {
       field(type, name).set(game, new Vector<>());
@@ -378,24 +427,5 @@ public final class ImportChapter1 {
     field(type, "bJ").setInt(game, 1);
     type.getMethod("d").invoke(game);
     type.getMethod("d").invoke(game);
-    field(type, "bh").setByte(game, (byte) 1);
-    field(type, "dr").setByte(game, (byte) 0);
-    for (String name : List.of("dD", "du", "dt")) field(type, name).setByte(game, (byte) 1);
-    try (var archive = new java.util.zip.ZipFile(source.toFile())) {
-      try (InputStream input = archive.getInputStream(archive.getEntry("p1"))) {
-        field(Class.forName("a", false, platform.loader), "B").set(null, input.readAllBytes());
-      }
-    }
-    type.getMethod("D").invoke(game);
-    type.getMethod("a", int.class, boolean.class, boolean.class).invoke(game, 1, false, true);
-    type.getMethod("E").invoke(game);
-    // The original opening chooses the only visible formal commander before player control.
-    for (Object unit : (List<?>) field(type, "as").get(game)) {
-      if (number(unit, "y") == 6) {
-        field(Class.forName("b", false, platform.loader), "b").set(null, unit);
-        return;
-      }
-    }
-    throw new IOException("Verified m1 default commander6 is missing");
   }
 }

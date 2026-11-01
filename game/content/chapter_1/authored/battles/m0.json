@@ -1,0 +1,573 @@
+{
+  "battleId": "m0",
+  "worldNode": 0,
+  "battleName": {
+    "sourceTextIndex": 139,
+    "rawText": "皇都荒野",
+    "text": "皇都荒野",
+    "paragraphs": ["皇都荒野"],
+    "requiresInputRewrite": false,
+    "legacyInputTokens": [],
+    "speakerId": null
+  },
+  "objective": {
+    "sourceTextIndex": 156,
+    "rawText": "敌全灭或雅木从南方撤退,雅木、赛丽卡必须生还",
+    "text": "敌全灭或雅木从南方撤退,雅木、赛丽卡必须生还",
+    "paragraphs": ["敌全灭或雅木从南方撤退,雅木、赛丽卡必须生还"],
+    "requiresInputRewrite": false,
+    "legacyInputTokens": [],
+    "speakerId": null
+  },
+  "initialBattlePresentation": {
+    "hiddenUnitIds": [13, 14, 15],
+    "unitPositionOverrides": {
+      "10": [7, 10],
+      "11": [10, 12]
+    },
+    "hiddenFactions": [2]
+  },
+  "turnEvents": [
+    {
+      "id": "reinforcements",
+      "afterEnemyPhaseOfRound": 1,
+      "unitIds": [13, 14, 15],
+      "sequence": "reinforcements"
+    }
+  ],
+  "aiChanges": [],
+  "routeChoices": [
+    {
+      "kind": "route",
+      "nodeId": 1,
+      "characterId": 6,
+      "name": "福尔斯",
+      "nameTextIndex": 180,
+      "className": "神射手",
+      "classTextIndex": 226,
+      "label": "福尔斯(神射手)",
+      "portraitId": 6,
+      "routeIndex": 0
+    },
+    {
+      "kind": "route",
+      "nodeId": 3,
+      "characterId": 3,
+      "name": "派森",
+      "nameTextIndex": 177,
+      "className": "圣骑士",
+      "classTextIndex": 222,
+      "label": "派森(圣骑士)",
+      "portraitId": 3,
+      "routeIndex": 2
+    },
+    {
+      "kind": "route",
+      "nodeId": 5,
+      "characterId": 2,
+      "name": "格雷",
+      "nameTextIndex": 176,
+      "className": "狂战士",
+      "classTextIndex": 214,
+      "label": "格雷(狂战士)",
+      "portraitId": 2,
+      "routeIndex": 4
+    },
+    {
+      "kind": "route",
+      "nodeId": 7,
+      "characterId": 5,
+      "name": "克蕾雅",
+      "nameTextIndex": 179,
+      "className": "圣骑士",
+      "classTextIndex": 222,
+      "label": "克蕾雅(圣骑士)",
+      "portraitId": 5,
+      "routeIndex": 6
+    }
+  ],
+  "speakers": {
+    "0": {
+      "id": 0,
+      "name": "雅木",
+      "faction": 0,
+      "portraitId": 0
+    },
+    "9": {
+      "id": 9,
+      "name": "赛丽卡",
+      "faction": 0,
+      "portraitId": 9
+    },
+    "10": {
+      "id": 10,
+      "name": "索菲亚军",
+      "faction": 1,
+      "portraitId": null
+    },
+    "11": {
+      "id": 11,
+      "name": "索菲亚军",
+      "faction": 1,
+      "portraitId": null
+    },
+    "13": {
+      "id": 13,
+      "name": "索菲亚军",
+      "faction": 1,
+      "portraitId": null
+    },
+    "14": {
+      "id": 14,
+      "name": "索菲亚军",
+      "faction": 1,
+      "portraitId": null
+    },
+    "15": {
+      "id": 15,
+      "name": "索菲亚军",
+      "faction": 1,
+      "portraitId": null
+    }
+  },
+  "sequences": {
+    "opening": [
+      {
+        "kind": "focus",
+        "cell": [8, 11],
+        "instant": true,
+        "sourceWaitTicks": 26,
+        "source": "i.z:m0/dc0"
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 477,
+          "rawText": "陛下，您身上有伤，不要太勉强。",
+          "text": "陛下，您身上有伤，不要太勉强。",
+          "paragraphs": ["陛下，您身上有伤，不要太勉强。"],
+          "requiresInputRewrite": false,
+          "legacyInputTokens": [],
+          "speakerId": 9
+        },
+        "source": "i.z:m0/dc1"
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 478,
+          "rawText": "不，还不能松懈。虽然冒险把兵力分成几股突围已经奏效，保存了半数军力。如果不尽快完成分散兵力的集结，一盘散沙的局面撑不了多久。",
+          "text": "不，还不能松懈。虽然冒险把兵力分成几股突围已经奏效，保存了半数军力。如果不尽快完成分散兵力的集结，一盘散沙的局面撑不了多久。",
+          "paragraphs": [
+            "不，还不能松懈。虽然冒险把兵力分成几股突围已经奏效，保存了半数军力。如果不尽快完成分散兵力的集结，一盘散沙的局面撑不了多久。"
+          ],
+          "requiresInputRewrite": false,
+          "legacyInputTokens": [],
+          "speakerId": 0
+        },
+        "source": "i.z:m0/dc1"
+      },
+      {
+        "kind": "unitEntrance",
+        "unitId": 10,
+        "from": [7, 10],
+        "to": [7, 9],
+        "source": "i.z:m0/dc1"
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 479,
+          "rawText": "陛下！北方涌入大批魔物！",
+          "text": "陛下！北方涌入大批魔物！",
+          "paragraphs": ["陛下！北方涌入大批魔物！"],
+          "requiresInputRewrite": false,
+          "legacyInputTokens": [],
+          "speakerId": 10
+        },
+        "sourceWaitTicksAfter": 15,
+        "source": "i.z:m0/dc1..2"
+      },
+      {
+        "kind": "parallelEntrances",
+        "focus": [9, 1],
+        "units": [
+          {
+            "kind": "unitEntrance",
+            "unitId": 52,
+            "from": [6, -3],
+            "to": [6, 0]
+          },
+          {
+            "kind": "unitEntrance",
+            "unitId": 53,
+            "from": [7, -2],
+            "to": [7, 1]
+          },
+          {
+            "kind": "unitEntrance",
+            "unitId": 55,
+            "from": [8, -1],
+            "to": [8, 2]
+          },
+          {
+            "kind": "unitEntrance",
+            "unitId": 56,
+            "from": [9, -2],
+            "to": [9, 1]
+          },
+          {
+            "kind": "unitEntrance",
+            "unitId": 50,
+            "from": [10, -3],
+            "to": [10, 0]
+          },
+          {
+            "kind": "unitEntrance",
+            "unitId": 54,
+            "from": [12, -2],
+            "to": [12, 1]
+          },
+          {
+            "kind": "unitEntrance",
+            "unitId": 48,
+            "from": [3, 2],
+            "to": [3, 2]
+          },
+          {
+            "kind": "unitEntrance",
+            "unitId": 49,
+            "from": [16, 5],
+            "to": [16, 5]
+          },
+          {
+            "kind": "unitEntrance",
+            "unitId": 51,
+            "from": [15, 0],
+            "to": [15, 0]
+          },
+          {
+            "kind": "unitEntrance",
+            "unitId": 57,
+            "from": [1, 5],
+            "to": [1, 5]
+          }
+        ],
+        "sourceHoldTicksAfter": 9,
+        "source": "i.z:m0/dc3; presentation:northern-flanks"
+      },
+      {
+        "kind": "focus",
+        "cell": [2, 3],
+        "holdTicksAfter": 6,
+        "source": "presentation:northern-left-flank"
+      },
+      {
+        "kind": "focus",
+        "cell": [16, 3],
+        "holdTicksAfter": 6,
+        "source": "presentation:northern-right-flank"
+      },
+      {
+        "kind": "unitEntrance",
+        "unitId": 11,
+        "from": [10, 12],
+        "to": [10, 13],
+        "source": "i.z:m0/dc4"
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 480,
+          "rawText": "陛下！南方发现利盖鲁军前锋部队！",
+          "text": "陛下！南方发现利盖鲁军前锋部队！",
+          "paragraphs": ["陛下！南方发现利盖鲁军前锋部队！"],
+          "requiresInputRewrite": false,
+          "legacyInputTokens": [],
+          "speakerId": 11
+        },
+        "source": "i.z:m0/dc4"
+      },
+      {
+        "kind": "focus",
+        "cell": [9, 22],
+        "source": "i.z:m0/dc5"
+      },
+      {
+        "kind": "revealFaction",
+        "faction": 2,
+        "sourceWaitTicks": 10,
+        "source": "i.z:m0/dc6"
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 481,
+          "rawText": "先击退他们再说。",
+          "text": "先击退他们再说。",
+          "paragraphs": ["先击退他们再说。"],
+          "requiresInputRewrite": false,
+          "legacyInputTokens": [],
+          "speakerId": 0
+        },
+        "sourceWaitTicksAfter": 20,
+        "source": "i.z:m0/dc7..8"
+      },
+      {
+        "kind": "objective",
+        "text": {
+          "sourceTextIndex": 156,
+          "rawText": "敌全灭或雅木从南方撤退,雅木、赛丽卡必须生还",
+          "text": "敌全灭或雅木从南方撤退,雅木、赛丽卡必须生还",
+          "paragraphs": ["敌全灭或雅木从南方撤退,雅木、赛丽卡必须生还"],
+          "requiresInputRewrite": false,
+          "legacyInputTokens": [],
+          "speakerId": null
+        },
+        "source": "i.z:m0/dc11 -> i.o"
+      },
+      {
+        "kind": "instruction",
+        "text": {
+          "sourceTextIndex": 455,
+          "rawText": "指挥官配置：\n 指定角色作为关卡中的绿色部队的指挥官，控制部队的行动指令，指挥官获得全部该部队攻击后的经验值与物品；蓝色索菲亚部队可以由玩家直接控制，但其经验等级和身上装备将会在过关后消失。",
+          "text": "指挥官配置：\n 指定角色作为关卡中的绿色部队的指挥官，控制部队的行动指令，指挥官获得全部该部队攻击后的经验值与物品；蓝色索菲亚部队可以由玩家直接控制，但其经验等级和身上装备将会在过关后消失。",
+          "paragraphs": [
+            "指挥官配置：",
+            " 指定角色作为关卡中的绿色部队的指挥官，控制部队的行动指令，指挥官获得全部该部队攻击后的经验值与物品；蓝色索菲亚部队可以由玩家直接控制，但其经验等级和身上装备将会在过关后消失。"
+          ],
+          "requiresInputRewrite": false,
+          "legacyInputTokens": [],
+          "speakerId": null
+        },
+        "source": "i.z:m0/dc12"
+      },
+      {
+        "kind": "commanderSetup",
+        "candidates": [9, 0],
+        "defaultCommanderId": 9,
+        "defaultMode": "automatic",
+        "defaultStance": "attack",
+        "source": "i.z:m0/dc13 -> i.a(e,1)"
+      },
+      {
+        "kind": "tutorial",
+        "tutorialId": 0,
+        "source": "i.z:m0/dc14 -> i.e(0,0)"
+      }
+    ],
+    "reinforcements": [
+      {
+        "kind": "parallelEntrances",
+        "focus": [16, 21],
+        "units": [
+          {
+            "kind": "unitEntrance",
+            "unitId": 13,
+            "from": [15, 22],
+            "to": [15, 22]
+          },
+          {
+            "kind": "unitEntrance",
+            "unitId": 14,
+            "from": [16, 21],
+            "to": [16, 21]
+          },
+          {
+            "kind": "unitEntrance",
+            "unitId": 15,
+            "from": [17, 21],
+            "to": [17, 21]
+          }
+        ],
+        "source": "i.k:m0/bo1"
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 482,
+          "rawText": "那不是雅木陛下！陛下有危险！",
+          "text": "那不是雅木陛下！陛下有危险！",
+          "paragraphs": ["那不是雅木陛下！陛下有危险！"],
+          "requiresInputRewrite": false,
+          "legacyInputTokens": [],
+          "speakerId": 15
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 483,
+          "rawText": "你们这帮利盖鲁的垃圾，给我滚出村子。",
+          "text": "你们这帮利盖鲁的垃圾，给我滚出村子。",
+          "paragraphs": ["你们这帮利盖鲁的垃圾，给我滚出村子。"],
+          "requiresInputRewrite": false,
+          "legacyInputTokens": [],
+          "speakerId": 14
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 484,
+          "rawText": "陛下往这边走！",
+          "text": "陛下往这边走！",
+          "paragraphs": ["陛下往这边走！"],
+          "requiresInputRewrite": false,
+          "legacyInputTokens": [],
+          "speakerId": 13
+        }
+      }
+    ],
+    "victory": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 485,
+          "rawText": "陛下，我军损失了6成的兵力，很难应付下一波的攻势。必须先离开这里。",
+          "text": "陛下，我军损失了6成的兵力，很难应付下一波的攻势。必须先离开这里。",
+          "paragraphs": ["陛下，我军损失了6成的兵力，很难应付下一波的攻势。必须先离开这里。"],
+          "requiresInputRewrite": false,
+          "legacyInputTokens": [],
+          "speakerId": 9
+        },
+        "source": "i.z:m0/dc16"
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 486,
+          "rawText": "可恶！身体不听使唤！福尔斯他们有消息吗？",
+          "text": "可恶！身体不听使唤！福尔斯他们有消息吗？",
+          "paragraphs": ["可恶！身体不听使唤！福尔斯他们有消息吗？"],
+          "requiresInputRewrite": false,
+          "legacyInputTokens": [],
+          "speakerId": 0
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 487,
+          "rawText": "刚得到消息，他们都遭到了敌人的围击，陷入苦战。",
+          "text": "刚得到消息，他们都遭到了敌人的围击，陷入苦战。",
+          "paragraphs": ["刚得到消息，他们都遭到了敌人的围击，陷入苦战。"],
+          "requiresInputRewrite": false,
+          "legacyInputTokens": [],
+          "speakerId": 9
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 488,
+          "rawText": "立刻出发！先汇合其他人。",
+          "text": "立刻出发！先汇合其他人。",
+          "paragraphs": ["立刻出发！先汇合其他人。"],
+          "requiresInputRewrite": false,
+          "legacyInputTokens": [],
+          "speakerId": 0
+        }
+      },
+      {
+        "kind": "routeChoice",
+        "options": [
+          {
+            "kind": "route",
+            "nodeId": 1,
+            "characterId": 6,
+            "name": "福尔斯",
+            "nameTextIndex": 180,
+            "className": "神射手",
+            "classTextIndex": 226,
+            "label": "福尔斯(神射手)",
+            "portraitId": 6,
+            "routeIndex": 0
+          },
+          {
+            "kind": "route",
+            "nodeId": 3,
+            "characterId": 3,
+            "name": "派森",
+            "nameTextIndex": 177,
+            "className": "圣骑士",
+            "classTextIndex": 222,
+            "label": "派森(圣骑士)",
+            "portraitId": 3,
+            "routeIndex": 2
+          },
+          {
+            "kind": "route",
+            "nodeId": 5,
+            "characterId": 2,
+            "name": "格雷",
+            "nameTextIndex": 176,
+            "className": "狂战士",
+            "classTextIndex": 214,
+            "label": "格雷(狂战士)",
+            "portraitId": 2,
+            "routeIndex": 4
+          },
+          {
+            "kind": "route",
+            "nodeId": 7,
+            "characterId": 5,
+            "name": "克蕾雅",
+            "nameTextIndex": 179,
+            "className": "圣骑士",
+            "classTextIndex": 222,
+            "label": "克蕾雅(圣骑士)",
+            "portraitId": 5,
+            "routeIndex": 6
+          }
+        ],
+        "source": "i.z:m0/dc17; i.a(e,String[],byte[])"
+      },
+      {
+        "kind": "missionComplete",
+        "text": {
+          "sourceTextIndex": 34,
+          "rawText": "任务完成",
+          "text": "任务完成",
+          "paragraphs": ["任务完成"],
+          "requiresInputRewrite": false,
+          "legacyInputTokens": [],
+          "speakerId": null
+        },
+        "goldReward": 1000,
+        "source": "i.z:m0/dc18 -> i.t"
+      }
+    ]
+  },
+  "outcomeRules": {
+    "checks": [
+      {
+        "kind": "victory",
+        "condition": "allEnemiesDefeated",
+        "faction": 2
+      },
+      {
+        "kind": "victory",
+        "condition": "escaped",
+        "unitId": 0,
+        "row": 24
+      },
+      {
+        "kind": "defeat",
+        "condition": "requiredUnitFallen",
+        "unitIds": [0, 9]
+      }
+    ]
+  },
+  "deploymentAdjustments": [
+    {
+      "sourceId": 10,
+      "position": [7, 9]
+    },
+    {
+      "sourceId": 11,
+      "position": [10, 13]
+    }
+  ],
+  "deploymentRevealFactions": [2]
+}

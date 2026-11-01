@@ -31,6 +31,7 @@ var selected_commander: int = 9
 var selected_policy: int = 0
 var selected_route: int = -1
 var _directory: String
+var _commander_configuration: Dictionary = {}
 var _elapsed: float = 0
 var _tick_seconds: float
 var _confirm: Button
@@ -64,7 +65,7 @@ var _world_travel_position := Vector2(-1, -1)
 func setup(content: Dictionary, tactical_map: Control) -> void:
 	data = content
 	map = tactical_map
-	_directory = data["entry"]["story"].get_base_dir()
+	_directory = data["entry"]["resourceDirectory"]
 	_tick_seconds = float(data["battleClips"]["tickMillis"]) / 1000
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -97,7 +98,7 @@ func setup(content: Dictionary, tactical_map: Control) -> void:
 	add_child(_route_panel)
 	_route_panel.hide()
 	_finger = load(
-		content["entry"]["interface"].get_base_dir().path_join(
+		content["entry"]["resourceDirectory"].path_join(
 			content["interface"]["textures"]["finger"]["texture"]
 		)
 	)
@@ -105,9 +106,7 @@ func setup(content: Dictionary, tactical_map: Control) -> void:
 	for index: Variant in actor["idleSequence"]:
 		_world_actor_frames.append(
 			load(
-				data["entry"]["mapAnimations"].get_base_dir().path_join(
-					actor["frames"][int(index)]["texture"]
-				)
+				data["entry"]["resourceDirectory"].path_join(actor["frames"][int(index)]["texture"])
 			)
 		)
 	_world_idle_interval = maxi(1, roundi(float(actor["idleStepSeconds"]) / _tick_seconds))
@@ -120,7 +119,7 @@ func setup(content: Dictionary, tactical_map: Control) -> void:
 	_confirm = Button.new()
 	_confirm.name = "Confirm"
 	_confirm.icon = load(
-		content["entry"]["interface"].get_base_dir().path_join(
+		content["entry"]["resourceDirectory"].path_join(
 			content["interface"]["textures"]["button_0"]["texture"]
 		)
 	)
@@ -132,7 +131,7 @@ func setup(content: Dictionary, tactical_map: Control) -> void:
 	_confirm.hide()
 	_world_back = Button.new()
 	_world_back.icon = load(
-		content["entry"]["interface"].get_base_dir().path_join(
+		content["entry"]["resourceDirectory"].path_join(
 			content["interface"]["textures"]["button_1"]["texture"]
 		)
 	)
@@ -152,7 +151,8 @@ func setup(content: Dictionary, tactical_map: Control) -> void:
 	hide()
 
 
-func play(sequence: Array) -> void:
+func play(sequence: Array, commander_configuration: Dictionary = {}) -> void:
+	_commander_configuration = commander_configuration
 	world_active = false
 	world_ready = false
 	_world_wait_updates = 21
@@ -173,6 +173,21 @@ func play(sequence: Array) -> void:
 	background = null
 	hide()
 	queue_redraw()
+
+
+func choose_commander(configuration: Dictionary) -> Dictionary:
+	if not configuration.get("candidates") is Array or configuration["candidates"].is_empty():
+		return {"ok": false, "error": "NO_ELIGIBLE_COMMANDER"}
+	var was_visible: bool = visible
+	show()
+	commander.present(configuration)
+	var selected: Dictionary = await commander.confirmed
+	selected_commander = int(selected["commander"])
+	selected_policy = int(selected["policy"])
+	commander.hide()
+	if not was_visible:
+		hide()
+	return {"ok": true, "commander": selected_commander, "policy": selected_policy}
 
 
 func _step(step: Dictionary) -> void:
@@ -197,7 +212,14 @@ func _step(step: Dictionary) -> void:
 			music_requested.emit("music")
 			queue_redraw()
 		"focus":
-			var cell := Vector2i(step["cell"][0], step["cell"][1])
+			var position: Variant = (
+				_unit_position(int(step["unitId"]))
+				if step.has("unitId")
+				else Vector2(step["cell"][0], step["cell"][1])
+			)
+			if position == null:
+				return
+			var cell := Vector2i(position)
 			if step.get("instant", false):
 				map.view.focus_cell(cell)
 				map.queue_redraw()
@@ -227,12 +249,17 @@ func _step(step: Dictionary) -> void:
 			if step["units"].is_empty():
 				return
 			var tween := create_tween().set_parallel(true)
+			var arrivals: int = 0
 			for entrance: Dictionary in step["units"]:
 				var id: int = int(entrance["unitId"])
+				var points: Dictionary = _entrance_points(entrance)
+				if points.is_empty():
+					continue
+				arrivals += 1
 				map.presentation_revealed_ids.append(id)
 				map.presentation_hidden_ids.erase(id)
-				var from := Vector2(entrance["from"][0], entrance["from"][1])
-				var to := Vector2(entrance["to"][0], entrance["to"][1])
+				var from: Vector2 = points["from"]
+				var to: Vector2 = points["to"]
 				map.presentation_positions[id] = from
 				tween.tween_method(
 					func(position: Vector2) -> void:
@@ -242,7 +269,10 @@ func _step(step: Dictionary) -> void:
 					to,
 					maxf(_tick_seconds, from.distance_to(to) * 2 * _tick_seconds)
 				)
-			await tween.finished
+			if arrivals > 0:
+				await tween.finished
+			else:
+				tween.kill()
 			if step.get("sourceHoldTicksAfter", 0) > 0:
 				await get_tree().create_timer(step["sourceHoldTicksAfter"] * _tick_seconds).timeout
 		"revealFaction":
@@ -250,22 +280,10 @@ func _step(step: Dictionary) -> void:
 			map.queue_redraw()
 			await get_tree().create_timer(step.get("sourceWaitTicks", 0) * _tick_seconds).timeout
 		"commanderSetup":
-			var candidates: Array = []
-			for id: Variant in step["candidates"]:
-				candidates.append(
-					{"id": int(id), "name": data["story"]["speakers"][str(int(id))]["name"]}
-				)
-			commander.present(
-				{
-					"commander": int(step["defaultCommanderId"]),
-					"policy": 0,
-					"candidates": candidates
-				}
-			)
-			var configuration: Dictionary = await commander.confirmed
-			selected_commander = configuration["commander"]
-			selected_policy = configuration["policy"]
-			commander.hide()
+			var configuration: Dictionary = await choose_commander(_commander_configuration)
+			if not configuration["ok"]:
+				selected_commander = -1
+				selected_policy = 0
 		"tutorial":
 			for text: String in data["controls"]["opening"]:
 				await _speak({"text": text, "sourceTextIndex": -1}, "操作指引", "narration")
@@ -278,8 +296,11 @@ func _step(step: Dictionary) -> void:
 
 func _entrance(step: Dictionary) -> void:
 	var id: int = int(step["unitId"])
-	var from := Vector2(step["from"][0], step["from"][1])
-	var to := Vector2(step["to"][0], step["to"][1])
+	var points: Dictionary = _entrance_points(step)
+	if points.is_empty():
+		return
+	var from: Vector2 = points["from"]
+	var to: Vector2 = points["to"]
 	await _focus_battle(Vector2i(from))
 	map.presentation_positions[id] = from
 	map.presentation_revealed_ids.append(id)
@@ -294,6 +315,26 @@ func _entrance(step: Dictionary) -> void:
 		maxf(_tick_seconds, from.distance_to(to) * 2 * _tick_seconds)
 	)
 	await tween.finished
+
+
+func _entrance_points(step: Dictionary) -> Dictionary:
+	var position: Variant = _unit_position(int(step["unitId"]))
+	if position == null:
+		return {}
+	if step.has("offset"):
+		var offset := Vector2(step["offset"][0], step["offset"][1])
+		return {"from": position + offset, "to": position}
+	return {
+		"from": Vector2(step["from"][0], step["from"][1]),
+		"to": Vector2(step["to"][0], step["to"][1])
+	}
+
+
+func _unit_position(id: int) -> Variant:
+	for actor: Dictionary in map.content["units"]:
+		if int(actor["id"]) == id:
+			return map.presentation_positions.get(id, Vector2(actor["x"], actor["y"]))
+	return null
 
 
 func _focus_battle(cell: Vector2i) -> void:
@@ -319,13 +360,9 @@ func _speak(
 ) -> void:
 	var speaker_id: Variant = line.get("speakerId")
 	if background == null and speaker_id != null:
-		for actor: Dictionary in map.content["units"]:
-			if actor["id"] == speaker_id:
-				var position: Vector2 = map.presentation_positions.get(
-					int(speaker_id), Vector2(actor["x"], actor["y"])
-				)
-				await _focus_battle(Vector2i(position))
-				break
+		var position: Variant = _unit_position(int(speaker_id))
+		if position != null:
+			await _focus_battle(Vector2i(position))
 	current_text_index = int(line["sourceTextIndex"])
 	var speaker: Dictionary = (
 		data["story"]["speakers"].get(str(int(speaker_id)), {}) if speaker_id != null else {}

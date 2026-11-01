@@ -11,7 +11,7 @@ var _finger: Texture2D
 
 func setup(data: Dictionary) -> void:
 	_finger = load(
-		data["entry"]["interface"].get_base_dir().path_join(
+		data["entry"]["resourceDirectory"].path_join(
 			data["interface"]["textures"]["finger"]["texture"]
 		)
 	)

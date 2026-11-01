@@ -3,6 +3,8 @@ extends Node
 var _scene: Control
 var _directory: String
 var _timer: Timer
+var _last_request_payload: Variant = null
+var _last_request_id: String = ""
 
 
 func setup(scene: Control, directory: String = "user://") -> Dictionary:
@@ -25,8 +27,13 @@ func _read_request() -> void:
 	var request_path: String = _directory.path_join("playtest_request.json")
 	if not FileAccess.file_exists(request_path):
 		return
-	var request: Variant = JSON.parse_string(FileAccess.get_file_as_string(request_path))
-	DirAccess.remove_absolute(request_path)
+	var payload: String = FileAccess.get_file_as_string(request_path)
+	if payload == _last_request_payload:
+		return
+	# IDBFS may have enumerated this path for a pending sync; retain it for that read.
+	_last_request_payload = payload
+	var parser := JSON.new()
+	var request: Variant = parser.data if parser.parse(payload) == OK else null
 	var response: Dictionary
 	if (
 		not request is Dictionary
@@ -36,6 +43,9 @@ func _read_request() -> void:
 	):
 		response = {"ok": false, "error": "INVALID_PLAYTEST_REQUEST"}
 	else:
+		if request["requestId"] == _last_request_id:
+			return
+		_last_request_id = request["requestId"]
 		response = _snapshot()
 	if request is Dictionary and request.get("requestId") is String:
 		response["requestId"] = request["requestId"]

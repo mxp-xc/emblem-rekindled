@@ -12,7 +12,7 @@ var _broken_groups: Dictionary = {}
 func _init(content: Dictionary) -> void:
 	_catalog = content["battleClips"]
 	_art = content["battleArt"]
-	_directory = content["entry"]["battleClips"].get_base_dir()
+	_directory = content["entry"]["resourceDirectory"]
 	_combat = Combat.new(content["rules"], content["map"]["terrain"])
 
 

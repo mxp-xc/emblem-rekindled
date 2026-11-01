@@ -1,63 +1,89 @@
 extends SceneTree
 
 const CHAPTER: String = "res://content/chapter_1/chapter.json"
+const Content = preload("res://app/chapter_content.gd")
 
-
-class FixtureLoader:
-	extends "res://app/chapter_content.gd"
-	var records: Dictionary = {}
-
-	func _read_json(path: String) -> Variant:
-		if records.has(path):
-			return records[path].duplicate(true)
-		return super._read_json(path)
+var _fixture_paths: Array[String] = []
 
 
 func _initialize() -> void:
-	var original: Dictionary = load("res://app/chapter_content.gd").new().load_chapter(CHAPTER)
-	var loader := FixtureLoader.new()
+	var original: Dictionary = Content.new().load_chapter(CHAPTER)
+	if not original["ok"]:
+		fail("Identity contract requires valid chapter content: " + str(original))
+		return
+	var prefix: String = "user://identity_fixture_%d" % Time.get_ticks_usec()
+	var chapter_path: String = prefix + ".chapter.json"
+	var library_path: String = prefix + ".library.json"
+	var rules_path: String = prefix + ".rules.json"
+	var story_path: String = prefix + ".story.json"
+	var deployments_path: String = prefix + ".deployments.json"
+	var battle_path: String = prefix + ".battle.json"
+	_fixture_paths = [
+		chapter_path, library_path, rules_path, story_path, deployments_path, battle_path
+	]
 	var entry: Dictionary = original["entry"].duplicate(true)
 	entry["id"] = "chapter_identity_fixture"
-	loader.records[CHAPTER] = entry
-	for key: String in ["units", "spawns", "rules", "mapAnimations", "interface", "story"]:
-		loader.records[entry[key]] = original[key].duplicate(true)
-	var unit: Dictionary = (
-		original["units"]
-		. filter(func(row: Dictionary) -> bool: return row["id"] == 9)[0]
-		. duplicate(true)
-	)
-	unit["id"] = 300
-	unit["x"] = 0
-	unit["y"] = 0
-	loader.records[entry["units"]].append(unit)
-	var spawn: Dictionary = (
-		original["spawns"]
-		. filter(func(row: Dictionary) -> bool: return row["id"] == 9)[0]
-		. duplicate(true)
-	)
+	entry["initialParty"] = [0, 300]
+	entry["library"] = library_path
+	entry["rules"] = rules_path
+	entry["battles"] = {"m0": battle_path}
+	var definition: Dictionary = {}
+	for key: String in ["battleId", "map", "mapTexture", "profiles", "stage", "scene"]:
+		definition[key] = entry[key]
+	definition["story"] = story_path
+	definition["deployments"] = deployments_path
+	var deployments: Array = original["_deployments"].duplicate(true)
+	var spawn: Dictionary = {}
+	for row: Dictionary in deployments:
+		if row["sourceId"] == 9 and not row.has("deploymentSlot"):
+			spawn = row.duplicate(true)
+			break
+	if spawn.is_empty():
+		fail("Identity fixture requires the original formal source template")
+		return
 	spawn["id"] = 300
+	spawn["formal"] = true
 	spawn["position"] = [0, 0]
 	spawn["itemChoices"] = [200, 60, 0]
-	loader.records[entry["spawns"]].append(spawn)
-	var template: Dictionary = original["rules"]["itemTemplates"][9].duplicate(true)
+	spawn["dropTemplateId"] = 300
+	spawn["growthTemplateId"] = 9
+	spawn["baseTemplateId"] = 9
+	spawn["initialGrowthTemplateId"] = 9
+	deployments.append(spawn)
+	var rules: Dictionary = original["rules"].duplicate(true)
+	var template: Dictionary = rules["itemTemplates"][9].duplicate(true)
 	template["id"] = 200
-	loader.records[entry["rules"]]["itemTemplates"].append(template)
-	loader.records[entry["mapAnimations"]]["units"]["300"] = (
-		original["mapAnimations"]["units"]["9"].duplicate(true)
-	)
-	loader.records[entry["interface"]]["portraitByUnitId"]["300"] = (
-		original["interface"]["portraitByUnitId"]["9"].duplicate(true)
-	)
-	loader.records[entry["interface"]]["items"]["200"] = (
-		original["interface"]["items"]["9"].duplicate(true)
-	)
-	for step: Dictionary in loader.records[entry["story"]]["sequences"]["opening"]:
+	rules["itemTemplates"].append(template)
+	var drop_template: Dictionary = rules["itemTemplates"][9].duplicate(true)
+	drop_template["id"] = 300
+	rules["itemTemplates"].append(drop_template)
+	var library: Dictionary = original["_library"].duplicate(true)
+	library["interface"]["items"]["200"] = library["interface"]["items"]["9"].duplicate(true)
+	library["interface"]["items"]["200"]["id"] = 200
+	library["interface"]["items"]["300"] = library["interface"]["items"]["9"].duplicate(true)
+	library["interface"]["items"]["300"]["id"] = 300
+	var story: Dictionary = original["_storyFragment"].duplicate(true)
+	for step: Dictionary in story["sequences"]["opening"]:
 		if step["kind"] == "commanderSetup":
 			step["candidates"] = [300, 0]
 			step["defaultCommanderId"] = 300
-	var content: Dictionary = loader.load_chapter(CHAPTER)
+	_write_json(chapter_path, entry)
+	_write_json(library_path, library)
+	_write_json(rules_path, rules)
+	_write_json(story_path, story)
+	_write_json(deployments_path, deployments)
+	_write_json(battle_path, definition)
+	var loader: RefCounted = Content.new()
+	var content: Dictionary = loader.load_chapter(chapter_path)
 	if not content["ok"]:
 		fail("Declared high identities must pass real chapter validation: " + str(content))
+		return
+	if (
+		content["entry"]["library"] != library_path
+		or content["entry"]["story"] != story_path
+		or content["entry"]["resourceDirectory"] != "res://"
+	):
+		fail("Fixture source documents and bundled resource coordinates must remain independent")
 		return
 	var battle: RefCounted = load("res://gameplay/battle_state.gd").new(
 		content, func(_limit: int) -> int: return 0
@@ -66,6 +92,9 @@ func _initialize() -> void:
 	var saved: Dictionary = store.encode(battle)
 	if not saved["ok"]:
 		fail("Declared high identities must be encodable: " + str(saved))
+		return
+	if battle.unit(300)["dropTemplateId"] != 300:
+		fail("Declared high drop templates must retain their item identity")
 		return
 	var decoded: Dictionary = store.decode(JSON.parse_string(JSON.stringify(saved["record"])))
 	if not decoded["ok"] or decoded["battle"].snapshot() != battle.snapshot():
@@ -141,23 +170,35 @@ func _initialize() -> void:
 		fail("World records must retain high IDs and formal commanders outside opening candidates")
 		return
 	for malformed: String in ["missing", "layout"]:
-		var metadata: Dictionary = loader.records[entry["interface"]]["items"]["200"].duplicate(
-			true
-		)
+		var metadata: Dictionary = library["interface"]["items"]["200"].duplicate(true)
 		if malformed == "missing":
-			loader.records[entry["interface"]]["items"].erase("200")
+			library["interface"]["items"].erase("200")
 		else:
-			loader.records[entry["interface"]]["items"]["200"]["detailAttributes"] = ["attack"]
-		if loader.load_chapter(CHAPTER)["ok"]:
+			library["interface"]["items"]["200"]["detailAttributes"] = ["attack"]
+		_write_json(library_path, library)
+		if loader.load_chapter(chapter_path)["ok"]:
 			fail("High item identities must satisfy the same display metadata contract")
 			return
-		loader.records[entry["interface"]]["items"]["200"] = metadata
+		library["interface"]["items"]["200"] = metadata
 	print(
 		"PASS content identity: validated high IDs, JSON restore, commander scope and chapter prefix"
 	)
+	_cleanup()
 	quit(0)
 
 
 func fail(message: String) -> void:
 	push_error(message)
+	_cleanup()
 	quit(1)
+
+
+func _write_json(path: String, value: Variant) -> void:
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	file.store_string(JSON.stringify(value))
+	file.close()
+
+
+func _cleanup() -> void:
+	for path: String in _fixture_paths:
+		DirAccess.remove_absolute(path)

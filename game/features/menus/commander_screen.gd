@@ -20,7 +20,7 @@ func setup(data: Dictionary) -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	var directory: String = data["entry"]["interface"].get_base_dir()
+	var directory: String = data["entry"]["resourceDirectory"]
 	_background = load(
 		directory.path_join(data["interface"]["textures"]["content_frame"]["texture"])
 	)

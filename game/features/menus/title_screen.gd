@@ -29,7 +29,7 @@ func setup(data: Dictionary, has_temporary_progress: bool) -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_tick_seconds = float(data["battleClips"]["tickMillis"]) / 1000
-	var directory: String = data["entry"]["story"].get_base_dir()
+	var directory: String = data["entry"]["resourceDirectory"]
 	splash = load(directory.path_join(data["story"]["images"]["splash"]["texture"]))
 	for key: String in ["title_00", "title_01"]:
 		_logos.append(load(directory.path_join(data["story"]["images"][key]["texture"])))
@@ -50,7 +50,7 @@ func setup(data: Dictionary, has_temporary_progress: bool) -> void:
 		var arrow := Button.new()
 		var key: String = "side_arrow_0" if direction < 0 else "side_arrow_1"
 		arrow.icon = load(
-			data["entry"]["interface"].get_base_dir().path_join(
+			data["entry"]["resourceDirectory"].path_join(
 				data["interface"]["textures"][key]["texture"]
 			)
 		)

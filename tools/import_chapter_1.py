@@ -1,321 +1,554 @@
-"""Import local chapter-1 resources with the pinned, local FreeJ2ME renderer.
+"""Update configured chapter-1 maps and the shared presentation bank offline.
 
-Run from any directory with uv run tools/import_chapter_1.py --emulator <jar>.
-Does not download, modify source JARs, or read historical snapshots.
+Normal Godot runs use the committed chapter snapshot. The pinned original JAR and
+FreeJ2ME are only needed here; authored narrative is never generated or replaced.
 """
 
 import argparse
 import hashlib
 import json
-import os
 import shutil
 import subprocess
 import tempfile
+import traceback
+from itertools import combinations
 from pathlib import Path
 
-from chapter_1_definitions import export_definitions
-from chapter_assets import (
-    owned_output_paths,
-    share_textures,
-    texture_import_parameters,
-    texture_import_settings,
+from chapter_1_definitions import SOURCE_SHA, read_deployment
+from chapter_configuration import (
+    apply_recruit_bindings,
+    format_changed_json,
+    motion_requirements,
+    prepare_map,
+    publish_chapter,
+    recruit_binding_plan,
+    recruit_contexts,
+    write_motion_reuse_plan,
 )
+from chapter_library import STAGE_FIELDS
 
 ROOT = Path(__file__).resolve().parents[1]
 EMULATOR_SHA = "9c59b74ae8e4fad205e5ff186940c24c53480918a3b180bb551559db9be3e7ff"
+JAVA_SOURCES = (
+    "ImportChapter1.java",
+    "Chapter1Rules.java",
+    "Chapter1MapAssets.java",
+    "Chapter1BattleAssets.java",
+    "Chapter1BattleClips.java",
+    "Chapter1Story.java",
+    "Chapter1Interface.java",
+)
 
 
 def run(*args: str | Path, cwd: Path) -> None:
     subprocess.run(["rtk", *map(str, args)], cwd=cwd, check=True)
 
 
-def rebase_textures(value, source: Path, target: Path):
-    """Inherited story PNGs keep their meaning when used by a different battle."""
-    if isinstance(value, dict):
-        return {key: rebase_textures(item, source, target) for key, item in value.items()}
-    if isinstance(value, list):
-        return [rebase_textures(item, source, target) for item in value]
-    if (
-        isinstance(value, str)
-        and value.endswith(".png")
-        and not value.startswith("res://")
-        and (source / value).is_file()
-    ):
-        return os.path.relpath((source / value).resolve(), target.resolve())
-    return value
+def variant_requests(records: list[dict]) -> str:
+    """All transferable legal weapons for allies; declared equipment for enemies."""
+    # Native weapon 52 is not obtainable from the verified chapter shops/deployments.
+    # Keep its template and any explicit enemy request, without synthesizing allied use.
+    requests = ["allies\t" + ",".join(map(str, range(52)))]
+    for record in records:
+        if record["faction"] != 2:
+            continue
+        choices = {0, *record["itemChoices"], record["dropTemplateId"]}
+        weapons = sorted(item for item in choices if 0 <= item <= 52)
+        requests.append(f"{record['sourceId']}\t{','.join(map(str, weapons))}")
+    return "\n".join(requests) + "\n"
 
 
-def finish_second_battle(output: Path) -> None:
-    shared = ROOT / "game/content/chapter_1/generated"
-    story_path = shared / "story/manifest.json"
-    original = json.loads(story_path.read_text())
-    target_story = shared / "battles/m1/story"
-    inherited = rebase_textures(original, story_path.parent, target_story)
-    fragment_path = output / "story/battle.json"
-    fragment = json.loads(fragment_path.read_text())
-    world = dict(fragment["world"])
-    world["texture"] = os.path.relpath(target_story / world["texture"], story_path.parent)
-    story = {**inherited, **fragment}
-    story["images"] = {**inherited["images"], **fragment["images"]}
-    story["sequences"] = {
-        key: inherited["sequences"][key] for key in ("boot", "newGame", "defeat")
-    } | fragment["sequences"]
-    story.pop("reinforcementTrigger", None)
-    (output / "story/manifest.json").write_text(
-        json.dumps(story, ensure_ascii=False, indent=2) + "\n"
-    )
-    fragment_path.unlink()
-    prefix = "res://content/chapter_1/generated/"
-    local = prefix + "battles/m1/"
-    entry = {
-        "battleId": "m1",
-        "map": local + "map.json",
-        "units": local + "units.json",
-        "rules": prefix + "rules.json",
-        "spawns": local + "spawns.json",
-        "mapAnimations": local + "map_animations.json",
-        "battleArt": local + "battle/manifest.json",
-        "battleClips": local + "battle/clips/manifest.json",
-        "mapTexture": local + "map.png",
-        "spriteDirectory": local,
-        "story": local + "story/manifest.json",
-        "interface": local + "ui/manifest.json",
-        "music": prefix + "map_music.ogg",
-        "battleMusic": prefix + "battle_music.ogg",
-        "titleMusic": prefix + "title_music.ogg",
-        "worldMusic": prefix + "world_music.ogg",
-        "victoryMusic": prefix + "victory_music.ogg",
-        "defeatMusic": prefix + "defeat_music.ogg",
-        "controls": "res://content/chapter_1/authored/controls.json",
+def sample_spawns(records: list[dict], units: list[dict]) -> list[dict]:
+    """Bind native samples by identity/slot, independently of the retained party vector."""
+    if len(records) != len(units) or len({unit["id"] for unit in units}) != len(units):
+        raise ValueError("Native sample changed deployment count or identities")
+    result, used = [], set()
+    direct_allies = {
+        row["sourceId"] for row in records if row["faction"] == 0 and "deploymentSlot" not in row
     }
-    (output / "battle.json").write_text(json.dumps(entry, ensure_ascii=False, indent=2) + "\n")
-    # The shared first-battle story exposes the same proven world graph and event contract.
-    original.update(
-        world=world,
-        worldNode=0,
-        battleNumber=1,
-        turnEvents=[
-            {
-                "id": "reinforcements",
-                "afterEnemyPhaseOfRound": 1,
-                "unitIds": [13, 14, 15],
-                "sequence": "reinforcements",
-            }
-        ],
-        aiChanges=[],
-    )
-    original.pop("reinforcementTrigger", None)
-    story_path.write_text(json.dumps(original, ensure_ascii=False, indent=2) + "\n")
-
-
-def publish_battle(output: Path, target: Path, chapter: Path) -> dict[str, int]:
-    """Publish only this owner's files, preserving per-source texture import settings."""
-    output, target, chapter = output.resolve(), target.resolve(), chapter.resolve()
-    provenance = json.loads((output / "provenance.json").read_text())
-    previous = (
-        json.loads((target / "provenance.json").read_text())
-        if (target / "provenance.json").exists()
-        else {"outputs": [], "textureSources": {}}
-    )
-    before = owned_output_paths(target, previous["outputs"])
-    incoming = owned_output_paths(target, provenance["outputs"])
-    source_paths = owned_output_paths(output, provenance["outputs"])
-    actual_files = {p.resolve() for p in output.rglob("*") if p.is_file()}
-    allowed_files = {output / "provenance.json", *source_paths}
-    allowed_files.update(Path(str(p) + ".import") for p in source_paths if p.suffix != ".json")
-    if not set(source_paths).issubset(actual_files) or not actual_files.issubset(allowed_files):
-        raise ValueError("Incoming files disagree with the ownership list")
-    sources = {
-        name: value
-        for name, value in previous.get("textureSources", {}).items()
-        if name in provenance["outputs"]
-    }
-    for name, value in sources.items():
-        texture = (chapter / value).resolve()
+    for record in records:
+        if "deploymentSlot" in record:
+            candidates = [
+                unit
+                for unit in units
+                if unit["faction"] == 0
+                and unit["id"] not in direct_allies
+                and unit["nativePolicy"] == record["deploymentSlot"]
+            ]
+        else:
+            candidates = [
+                unit
+                for unit in units
+                if unit["id"] == record["sourceId"]
+                and unit["faction"] == record["faction"]
+                and unit["classId"] == record["classId"]
+            ]
+        if len(candidates) != 1 or candidates[0]["id"] in used:
+            raise ValueError("Native deployment identity/class/slot disagrees with source")
+        unit = candidates[0]
+        used.add(unit["id"])
+        spawn = {**record, "id": unit["id"], "sourceId": unit["sourceId"], "formal": unit["formal"]}
         if (
-            not texture.is_relative_to((chapter / "generated/shared").resolve())
-            or not texture.is_file()
+            "deploymentSlot" in record
+            and not unit["formal"]
+            and record["deploymentSlot"] != unit["sourceId"]
         ):
-            raise ValueError(f"Invalid shared source texture: {value}")
-        owned_output_paths(target, [name])
-    # Check the existing chapter before overwriting or removing another owner's files.
-    share_textures(chapter, dry_run=True)
-    for name, value in sources.items():
-        sidecar = Path(str(output / name) + ".import")
-        if not sidecar.exists():
-            sidecar.write_bytes(
-                texture_import_settings(texture_import_parameters(chapter / value, {}))
+            raise ValueError("Native temporary source disagrees with deployment slot")
+        result.append(spawn)
+    return result
+
+
+def export_native(
+    source: Path,
+    output: Path,
+    emulator: Path,
+    deployment: dict,
+    route: int,
+    jdk: Path | None = None,
+    reuse_chapter: Path | None = None,
+) -> None:
+    """Keep native threads, RNG and RMS in an isolated temporary working directory."""
+    if output.exists():
+        raise ValueError(f"Native output must be a new directory: {output}")
+    if hashlib.sha256(emulator.read_bytes()).hexdigest() != EMULATOR_SHA:
+        raise ValueError("FreeJ2ME-Plus SHA-256 mismatch; use the documented pinned artifact")
+    java = jdk / "java" if jdk else "java"
+    javac = jdk / "javac" if jdk else "javac"
+    with tempfile.TemporaryDirectory(prefix="emblem-native-") as temporary:
+        work = Path(temporary)
+        native = work / "generated"
+        variants = work / "battle_variants.tsv"
+        variants.write_text(variant_requests(deployment["units"]))
+        reuse = []
+        if reuse_chapter:
+            plan = work / "motion-reuse.tsv"
+            write_motion_reuse_plan(reuse_chapter, plan)
+            reuse.append(plan)
+        try:
+            run(
+                javac,
+                "-cp",
+                emulator,
+                "-d",
+                work,
+                *(ROOT / "tools" / name for name in JAVA_SOURCES),
+                cwd=work,
             )
-    provenance["textureSources"] = sources
-    (output / "provenance.json").write_text(
-        json.dumps(provenance, ensure_ascii=False, indent=2) + "\n"
-    )
-    shutil.copytree(output, target, dirs_exist_ok=True)
-    for path in set(before) - set(incoming):
-        path.unlink(missing_ok=True)
-        Path(str(path) + ".import").unlink(missing_ok=True)
-    return share_textures(chapter)
+            run(
+                java,
+                "-Djava.awt.headless=true",
+                "-Dfile.encoding=ISO_8859_1",
+                "-cp",
+                f"{work}:{emulator}",
+                "ImportChapter1",
+                source,
+                native,
+                variants,
+                deployment["battleId"][1:],
+                str(route),
+                *reuse,
+                cwd=work,
+            )
+            units = json.loads((native / "units.json").read_text())
+            spawns = sample_spawns(deployment["units"], units)
+            (native / "spawns.json").write_text(
+                json.dumps(spawns, ensure_ascii=False, indent=2) + "\n"
+            )
+            provenance = json.loads((native / "provenance.json").read_text())
+            provenance["emulatorSha256"] = EMULATOR_SHA
+            (native / "provenance.json").write_text(
+                json.dumps(provenance, ensure_ascii=False, indent=2) + "\n"
+            )
+            shutil.copytree(native, output)
+        except Exception as error:
+            failures = ROOT / "temp/import-failures"
+            failures.mkdir(parents=True, exist_ok=True)
+            retained = Path(
+                tempfile.mkdtemp(prefix=f"{deployment['battleId']}-route-{route}-", dir=failures)
+            )
+            if native.exists():
+                shutil.copytree(native, retained / "native")
+            shutil.copyfile(variants, retained / variants.name)
+            if reuse:
+                shutil.copyfile(reuse[0], retained / "motion-reuse.tsv")
+            (retained / "failure.txt").write_text(traceback.format_exc())
+            raise RuntimeError(f"Native export failed; retained diagnostics: {retained}") from error
+
+
+def _context_requests(records: list[dict], context: dict, members: set[int]) -> set[str]:
+    requests = set()
+    party = context["party"]
+    for row in records:
+        if "deploymentSlot" in row:
+            slot = row["deploymentSlot"]
+            requests.add(
+                f"member:{party[slot]}"
+                if slot < len(party)
+                else f"slot_{slot}_job_{row['classId']}_faction_{row['faction']}"
+            )
+        elif row["faction"] == 0 and row["sourceId"] in members:
+            requests.add(f"member:{row['sourceId']}")
+        else:
+            requests.add(f"source_{row['sourceId']}_job_{row['classId']}_faction_{row['faction']}")
+    return requests
+
+
+def _profile_request(identity: str, profile: dict) -> str:
+    unit = profile["unit"]
+    if unit["formal"]:
+        return f"member:{unit['sourceId']}"
+    origin = "slot" if identity.startswith("slot_") else "source"
+    return f"{origin}_{unit['sourceId']}_job_{unit['classId']}_faction_{unit['faction']}"
+
+
+def _available_groups(
+    bank: dict, stage: str, records: list[dict], requests: set[str]
+) -> tuple[set, set]:
+    attacks, defenses = set(), set()
+    for identity, profile in bank["profiles"].items():
+        if _profile_request(identity, profile) not in requests:
+            continue
+        unit = profile["unit"]
+        allowed = set(range(52))
+        if unit["faction"] == 2:
+            allowed = {0}
+            for row in records:
+                if row["sourceId"] == unit["sourceId"] and row["classId"] == unit["classId"]:
+                    allowed.update(
+                        item
+                        for item in [*row["itemChoices"], row["dropTemplateId"]]
+                        if 0 <= item <= 52
+                    )
+        for weapon, motion in profile["motion"].get(stage, {}).items():
+            if int(weapon) not in allowed:
+                continue
+            defenses.add(motion["defenseGroup"])
+            if motion["canAttack"]:
+                attacks.add(motion["actionGroup"])
+    return attacks, defenses
+
+
+def update_chapter(
+    chapter: Path,
+    battle_id: str,
+    emulator: Path,
+    route: int | None,
+    jdk: Path | None,
+    native_inputs: list[Path],
+    *,
+    refresh_motion: bool = False,
+) -> dict:
+    """Prepare the smallest useful native context cover, then publish one closed chapter."""
+    chapter = chapter.resolve()
+    source = ROOT / "reference/original-jars/chapter-1.jar"
+    before = {
+        path.relative_to(chapter): path.read_bytes()
+        for path in chapter.rglob("*")
+        if path.is_file()
+    }
+    provided = {}
+    for path in native_inputs:
+        path = path.resolve()
+        provenance = json.loads((path / "provenance.json").read_text())
+        if (
+            provenance["sourceSha256"] != SOURCE_SHA
+            or provenance["emulatorSha256"] != EMULATOR_SHA
+            or provenance["preparationSeed"] != 0
+        ):
+            raise ValueError(f"Prepared native input has an unexpected source contract: {path}")
+        key = (provenance["map"].rsplit(":", 1)[-1], provenance["route"])
+        if key in provided:
+            raise ValueError(f"Duplicate prepared native context: {key}")
+        provided[key] = path
+    reports, sampled, raw = [], set(), {}
+    with tempfile.TemporaryDirectory(prefix="emblem-update-") as temporary:
+        work = Path(temporary)
+        staged = work / "game/content" / chapter.name
+        shutil.copytree(chapter, staged)
+        try:
+            entry = json.loads((staged / "chapter.json").read_text())
+            members = set(entry["initialParty"]) | set(entry["recruitByNode"].values())
+            candidates = []
+            for battle in dict.fromkeys([battle_id, *entry["battles"]]):
+                raw[battle] = read_deployment(source, int(battle[1:]))
+                for context in recruit_contexts(staged, battle):
+                    candidates.append(
+                        {
+                            "battle": battle,
+                            "context": context,
+                            "requests": _context_requests(raw[battle]["units"], context, members),
+                        }
+                    )
+
+            def sample(candidate):
+                battle, context = candidate["battle"], candidate["context"]
+                key = (battle, context["route"])
+                native = provided.get(key)
+                dependency_count = 0
+                if native is not None:
+                    motion = json.loads((native / "battle/clips/manifest.json").read_text())
+                    catalog = json.loads((staged / "generated/library/catalog.json").read_text())
+                    matches = [
+                        stage
+                        for stage in catalog["stages"].values()
+                        if {field: stage[field] for field in STAGE_FIELDS}
+                        == {field: motion[field] for field in STAGE_FIELDS}
+                    ]
+                    known = set(matches[0]["clips"]) if len(matches) == 1 else set()
+                    dependency_count = len(set(motion.get("reusedClips", [])) - known)
+                    if dependency_count:
+                        native = None
+                prepared = native is not None
+                if native is None:
+                    native = work / "native" / f"{battle}-route-{context['route']}"
+                    export_native(
+                        source,
+                        native,
+                        emulator,
+                        raw[battle],
+                        context["route"],
+                        jdk,
+                        None if refresh_motion else staged,
+                    )
+                units = json.loads((native / "units.json").read_text())
+                expected_formal = set(context["party"]) | {
+                    row["sourceId"]
+                    for row in raw[battle]["units"]
+                    if row["faction"] == 0
+                    and "deploymentSlot" not in row
+                    and row["sourceId"] in members
+                }
+                if {unit["id"] for unit in units if unit["formal"]} != expected_formal:
+                    raise ValueError(
+                        f"Prepared native roster disagrees with route prefix: "
+                        f"{battle} route {context['route']}"
+                    )
+                if json.loads((native / "spawns.json").read_text()) != sample_spawns(
+                    raw[battle]["units"], units
+                ):
+                    raise ValueError(f"Prepared native deployment binding is stale: {native}")
+                result = prepare_map(staged, native, raw[battle])
+                reports.append(
+                    {
+                        "battleId": battle,
+                        **context,
+                        "preparedInput": prepared,
+                        "preparedClipDependenciesMissing": dependency_count,
+                        **result,
+                    }
+                )
+                sampled.add(key)
+
+            first = next(
+                (
+                    candidate
+                    for candidate in candidates
+                    if candidate["battle"] == battle_id
+                    and (route is None or route in candidate["context"]["equivalentRoutes"])
+                ),
+                None,
+            )
+            if first is None:
+                raise ValueError(
+                    f"Route does not reach configured battle: {battle_id} route {route}"
+                )
+            selected_cover = [first]
+            if route is None:
+                catalog = json.loads((staged / "generated/library/catalog.json").read_text())
+                known = {
+                    _profile_request(identity, profile)
+                    for identity, profile in catalog["profiles"].items()
+                }
+                targets = [
+                    candidate for candidate in candidates if candidate["battle"] == battle_id
+                ]
+                required = set().union(*(candidate["requests"] for candidate in targets)) - known
+                for count in range(1, len(targets) + 1):
+                    cover = next(
+                        (
+                            subset
+                            for subset in combinations(targets, count)
+                            if required
+                            <= set().union(*(candidate["requests"] for candidate in subset))
+                        ),
+                        None,
+                    )
+                    if cover is not None:
+                        selected_cover = list(cover)
+                        break
+            for candidate in selected_cover:
+                sample(candidate)
+            while True:
+                bindings = recruit_binding_plan(staged)
+                pending = [
+                    candidate
+                    for candidate in candidates
+                    if (candidate["battle"], candidate["context"]["route"]) not in sampled
+                ]
+                if bindings["missingProfiles"]:
+                    needed = {
+                        f"member:{row['member']}" if "member" in row else row["recipe"]
+                        for row in bindings["missingProfiles"]
+                    }
+                    scored = [
+                        (len(candidate["requests"] & needed), candidate) for candidate in pending
+                    ]
+                else:
+                    apply_recruit_bindings(staged)
+                    coverage = motion_requirements(staged)
+                    if not coverage["missing"]:
+                        break
+                    catalog = json.loads((staged / "generated/library/catalog.json").read_text())
+                    scored = []
+                    for candidate in pending:
+                        map_entry = json.loads(
+                            (
+                                staged / "generated/battles" / candidate["battle"] / "battle.json"
+                            ).read_text()
+                        )
+                        stage = map_entry["stage"]
+                        attacks, defenses = _available_groups(
+                            catalog, stage, raw[candidate["battle"]]["units"], candidate["requests"]
+                        )
+                        score = sum(
+                            key.split("/")[0] in attacks and key.split("/")[1] in defenses
+                            for key in coverage["missing"].get(stage, {})
+                        )
+                        scored.append((score, candidate))
+                if not scored or max(score for score, _ in scored) == 0:
+                    raise ValueError(
+                        "No native context can complete the declared chapter; "
+                        "inspect missing profiles/motion: "
+                        + json.dumps(
+                            {"bindings": bindings, "motion": motion_requirements(staged)},
+                            ensure_ascii=False,
+                        )
+                    )
+                sample(max(scored, key=lambda item: item[0])[1])
+            formatted = format_changed_json(staged, before)
+            publication = publish_chapter(chapter, staged, before)
+            publication["formattedFiles"] = formatted
+        except Exception as error:
+            failures = ROOT / "temp/import-failures"
+            failures.mkdir(parents=True, exist_ok=True)
+            retained = Path(tempfile.mkdtemp(prefix=f"chapter-{battle_id}-", dir=failures))
+            shutil.copytree(staged, retained / "game/content" / chapter.name)
+            (retained / "failure.txt").write_text(traceback.format_exc())
+            (retained / "contexts.json").write_text(
+                json.dumps(reports, ensure_ascii=False, indent=2) + "\n"
+            )
+            raise RuntimeError(f"Chapter import failed; retained staging: {retained}") from error
+    return {
+        "chapter": str(chapter),
+        "contexts": reports,
+        "requestedContextCover": [candidate["context"]["route"] for candidate in selected_cover],
+        **publication,
+    }
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--emulator", type=Path, required=True)
-    parser.add_argument("--battle", choices=("m0", "m1"), default="m0")
+    parser.add_argument("--emulator", type=Path)
+    parser.add_argument("--battle", choices=tuple(f"m{index}" for index in range(8)))
+    parser.add_argument(
+        "--route",
+        type=int,
+        choices=range(8),
+        help="Preferred first native context; missing coverage is supplemented automatically",
+    )
+    parser.add_argument(
+        "--chapter",
+        type=Path,
+        default=ROOT / "game/content/chapter_1",
+        help="Explicit chapter tree for an isolated import rehearsal",
+    )
+    parser.add_argument(
+        "--native-input",
+        type=Path,
+        action="append",
+        default=[],
+        help="Use an explicitly prepared native context instead of sampling it again",
+    )
+    parser.add_argument("--report", type=Path, help="Write detailed context/publication evidence")
     parser.add_argument(
         "--jdk", type=Path, help="JDK bin directory; defaults to java/javac on PATH"
     )
+    parser.add_argument(
+        "--native-output", type=Path, help="Keep a native export without publishing content"
+    )
+    parser.add_argument(
+        "--plan",
+        action="store_true",
+        help="Report missing combinations for every registered map; no original runtime needed",
+    )
+    parser.add_argument(
+        "--refresh-motion",
+        action="store_true",
+        help="Explicitly resample motion instead of reusing an identical stage contract",
+    )
     args = parser.parse_args()
-    emulator = args.emulator.resolve()
-    if hashlib.sha256(emulator.read_bytes()).hexdigest() != EMULATOR_SHA:
-        raise ValueError("FreeJ2ME-Plus SHA-256 mismatch; use the documented pinned artifact")
-    battle = int(args.battle[1:])
-    target = ROOT / "game/content/chapter_1/generated"
-    if battle:
-        target = target / "battles" / args.battle
-    if (target / "provenance.json").exists():
-        owned_output_paths(target, json.loads((target / "provenance.json").read_text())["outputs"])
-    java = args.jdk / "java" if args.jdk else "java"
-    javac = args.jdk / "javac" if args.jdk else "javac"
-    with tempfile.TemporaryDirectory(prefix="emblem-import-") as directory:
-        work = Path(directory)
-        output = work / "generated"
-        export_definitions(ROOT / "reference/original-jars/chapter-1.jar", output, battle)
-        if battle:
-            shutil.copytree(
-                ROOT / "game/content/chapter_1/generated/story",
-                output / "story",
-                ignore=shutil.ignore_patterns("*.import", "*.uid"),
-            )
-        spawns = json.loads((output / "spawns.json").read_text())
-        allied_pool = {
-            int(item) for spawn in spawns if spawn["faction"] != 2 for item in spawn["itemChoices"]
+    chapter = args.chapter.resolve()
+    if args.plan:
+        plan = motion_requirements(chapter)
+        plan["missingProfiles"] = recruit_binding_plan(chapter)["missingProfiles"]
+        print(json.dumps(plan, ensure_ascii=False, indent=2))
+        return
+    if not args.battle or not args.emulator:
+        parser.error("--battle and --emulator are required when not using --plan")
+    reuse_chapter = None if args.refresh_motion else chapter
+    source = ROOT / "reference/original-jars/chapter-1.jar"
+    deployment = read_deployment(source, int(args.battle[1:]))
+    if args.native_output:
+        if args.native_input:
+            parser.error("--native-output and --native-input are separate workflows")
+        route = (
+            args.route
+            if args.route is not None
+            else recruit_contexts(chapter, args.battle)[0]["route"]
+        )
+        export_native(
+            source,
+            args.native_output.resolve(),
+            args.emulator.resolve(),
+            deployment,
+            route,
+            args.jdk,
+            reuse_chapter,
+        )
+        print(f"Native sampling export: {args.native_output}")
+        return
+    authored = chapter / "authored/battles" / f"{args.battle}.json"
+    if not authored.is_file():
+        raise ValueError(f"Create and verify the authored configuration first: {authored}")
+    if args.native_input and args.refresh_motion:
+        parser.error("--refresh-motion requires fresh native sampling, not prepared inputs")
+    result = update_chapter(
+        chapter,
+        args.battle,
+        args.emulator.resolve(),
+        args.route,
+        args.jdk,
+        args.native_input,
+        refresh_motion=args.refresh_motion,
+    )
+    if args.report:
+        args.report.parent.mkdir(parents=True, exist_ok=True)
+        args.report.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n")
+    summary = {key: value for key, value in result.items() if key != "contexts"}
+    summary["contexts"] = [
+        {
+            "battleId": context["battleId"],
+            "route": context["route"],
+            "preparedInput": context["preparedInput"],
+            **{
+                key: value
+                for key, value in context["presentation"].items()
+                if key not in ("bindings", "recipes")
+            },
         }
-        allied_pool.update(int(spawn["dropTemplateId"]) for spawn in spawns)
-        if battle:
-            # A carried/bought weapon may be traded to any compatible ally in the new battle.
-            allied_pool.update(range(1, 53))
-        lines = []
-        for spawn in spawns:
-            pool = set(spawn["itemChoices"]) | {spawn["dropTemplateId"]}
-            if spawn["faction"] != 2:
-                pool |= allied_pool
-            weapons = sorted({0} | {int(item) for item in pool if 0 < int(item) <= 52})
-            lines.append(f"{spawn['id']}\t{','.join(map(str, weapons))}")
-        variants = work / "battle_variants.tsv"
-        variants.write_text("\n".join(lines) + "\n")
-        run(
-            javac,
-            "-cp",
-            emulator,
-            "-d",
-            work,
-            ROOT / "tools/ImportChapter1.java",
-            ROOT / "tools/Chapter1Rules.java",
-            ROOT / "tools/Chapter1MapAssets.java",
-            ROOT / "tools/Chapter1BattleAssets.java",
-            ROOT / "tools/Chapter1BattleClips.java",
-            ROOT / "tools/Chapter1Story.java",
-            ROOT / "tools/Chapter1Interface.java",
-            cwd=work,
-        )
-        run(
-            java,
-            "-Djava.awt.headless=true",
-            "-Dfile.encoding=ISO_8859_1",
-            "-cp",
-            f"{work}:{emulator}",
-            "ImportChapter1",
-            ROOT / "reference/original-jars/chapter-1.jar",
-            output,
-            variants,
-            str(battle),
-            cwd=work,
-        )
-        if not battle:
-            exports = "java.desktop/com.sun.media.sound=ALL-UNNAMED"
-            run(
-                javac,
-                "--add-exports",
-                exports,
-                "-d",
-                work,
-                ROOT / "tools/RenderMidi.java",
-                cwd=work,
-            )
-        for stem in (
-            ()
-            if battle
-            else (
-                "map_music",
-                "battle_music",
-                "title_music",
-                "world_music",
-                "victory_music",
-                "defeat_music",
-            )
-        ):
-            run(
-                java,
-                "--add-exports",
-                exports,
-                "-cp",
-                work,
-                "RenderMidi",
-                output / f"{stem}.mid",
-                work / f"{stem}.wav",
-                cwd=work,
-            )
-            run(
-                "ffmpeg",
-                "-v",
-                "error",
-                "-y",
-                "-i",
-                work / f"{stem}.wav",
-                "-c:a",
-                "vorbis",
-                "-strict",
-                "-2",
-                "-q:a",
-                "4",
-                output / f"{stem}.ogg",
-                cwd=work,
-            )
-            (output / f"{stem}.mid").unlink()
-        if battle:
-            finish_second_battle(output)
-        provenance = json.loads((output / "provenance.json").read_text())
-        provenance.update(
-            emulatorSha256=EMULATOR_SHA,
-            audio=(
-                "References existing shared chapter-1 Ogg tracks; no audio is regenerated for m1"
-                if battle
-                else "p.mid/battle.mid/title.mid/world.mid/win.mid/over.mid rendered offline "
-                "with JDK generated default soundbank; timbre is not original phone synthesis"
-            ),
-        )
-        java_runtime = subprocess.check_output(
-            ["rtk", str(java), "-version"], text=True, stderr=subprocess.STDOUT
-        ).splitlines()[0]
-        provenance["javaRuntime"] = java_runtime
-        provenance["audioRenderer"] = (
-            json.loads((ROOT / "game/content/chapter_1/generated/provenance.json").read_text())[
-                "audioRenderer"
-            ]
-            if battle
-            else java_runtime
-        )
-        provenance["outputs"] = [
-            path.relative_to(output).as_posix()
-            for path in sorted(output.rglob("*"))
-            if path.is_file() and path.name != "provenance.json"
-        ]
-        (output / "provenance.json").write_text(
-            json.dumps(provenance, ensure_ascii=False, indent=2) + "\n"
-        )
-        shared_result = publish_battle(output, target, ROOT / "game/content/chapter_1")
-        print(f"Chapter textures: {shared_result}")
-    print(f"Imported chapter-1 into {target}")
+        for context in result["contexts"]
+    ]
+    print(json.dumps(summary, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":

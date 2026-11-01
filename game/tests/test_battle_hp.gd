@@ -6,11 +6,13 @@ func _initialize() -> void:
 	if script == null:
 		fail("Source-timed presentation HP model is missing")
 		return
-	var clips: Dictionary = JSON.parse_string(
-		FileAccess.get_file_as_string(
-			"res://content/chapter_1/generated/battle/clips/manifest.json"
-		)
+	var content: Dictionary = load("res://app/chapter_content.gd").new().load_chapter(
+		"res://content/chapter_1/chapter.json"
 	)
+	if not content["ok"]:
+		fail("The HP oracle requires validated current chapter content: " + str(content))
+		return
+	var clips: Dictionary = content["battleClips"]
 	var oracle: Dictionary = JSON.parse_string(
 		FileAccess.get_file_as_string("res://tests/fixtures/chapter_1_battle_hp.json")
 	)
@@ -31,7 +33,7 @@ func _initialize() -> void:
 		)
 		var clip: Dictionary = JSON.parse_string(
 			FileAccess.get_file_as_string(
-				"res://content/chapter_1/generated/battle/clips/".path_join(clips["clips"][key])
+				content["entry"]["resourceDirectory"].path_join(clips["clips"][key])
 			)
 		)
 		var hp: RefCounted = script.new(

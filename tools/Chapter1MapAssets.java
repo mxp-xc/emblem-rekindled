@@ -19,8 +19,8 @@ public final class Chapter1MapAssets {
     throws ReflectiveOperationException, IOException {
     Class<?> sprite = Class.forName("g", true, loader);
     Object raw = get(game, "as");
-    if (!(raw instanceof List<?> units) || units.size() != 32) {
-      throw new IllegalArgumentException("Expected a verified 32-unit deployment");
+    if (!(raw instanceof List<?> units) || units.isEmpty()) {
+      throw new IllegalArgumentException("Expected an initialized native deployment");
     }
     Object[][] templates = (Object[][]) get(game, "V");
     Method mapClass = game.getClass().getMethod("r", int.class);

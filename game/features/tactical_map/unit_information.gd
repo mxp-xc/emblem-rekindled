@@ -33,7 +33,7 @@ var _return_focus: Control
 
 func setup(data: Dictionary) -> void:
 	_interface = data["interface"]
-	_directory = data["entry"]["interface"].get_base_dir()
+	_directory = data["entry"]["resourceDirectory"]
 	for definition: Dictionary in data["rules"]["itemTemplates"]:
 		_items[int(definition["id"])] = definition
 	for key: String in _interface["textures"]:

@@ -30,7 +30,7 @@ func setup(content: Dictionary) -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	var directory: String = content["entry"]["interface"].get_base_dir()
+	var directory: String = content["entry"]["resourceDirectory"]
 	_frame = load(directory.path_join(content["interface"]["textures"]["window_frame"]["texture"]))
 	_clip = Control.new()
 	_clip.clip_contents = true

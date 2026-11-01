@@ -1,12 +1,15 @@
 extends RefCounted
 
 const Inventory = preload("res://gameplay/unit_inventory.gd")
+const Deployment = preload("res://app/chapter_deployment.gd")
 var _chapter_id: String
 var _battle_id: String
 var _gold_reward: int
 var _inherited_ids: Array[int] = []
 var _world_node: int
 var _world_routes: Array
+var _recruit_by_node: Dictionary
+var _initial_party: Array
 var _records: RefCounted
 var _gold_limit: int
 
@@ -17,6 +20,8 @@ func _init(content: Dictionary, records: RefCounted, gold_limit: int) -> void:
 	_gold_reward = int(content["story"]["sequences"]["victory"][-1]["goldReward"])
 	_world_node = int(content["story"]["worldNode"])
 	_world_routes = content["story"]["world"]["routes"]
+	_recruit_by_node = content["entry"]["recruitByNode"]
+	_initial_party = content["entry"]["initialParty"]
 	_records = records
 	_gold_limit = gold_limit
 	for spawn: Dictionary in content["spawns"]:
@@ -54,7 +59,7 @@ func prepare(progress: Dictionary, definitions: Dictionary) -> Dictionary:
 	var inherited: Dictionary = {}
 	var held_ids: Dictionary = {}
 	for saved: Variant in progress["party"]:
-		if not saved is Dictionary or not _integer_in(saved.get("id"), 0, 9):
+		if not saved is Dictionary or not _integer_in(saved.get("id"), 0, 2147483647):
 			return _failure("INVALID_CAMPAIGN_PARTY")
 		var id: int = int(saved["id"])
 		if id not in _inherited_ids or inherited.has(id):
@@ -143,6 +148,16 @@ func complete(state: Dictionary, route: int) -> Dictionary:
 		actor["action"] = 0
 		actor["visible"] = true
 		party[int(actor["id"])] = actor
+	var ordered_party: Dictionary = {}
+	for id: int in Deployment.recruit_order(
+		_world_routes[route], _recruit_by_node, world_step, _initial_party
+	):
+		if not party.has(id):
+			return _failure("INVALID_COMPLETION_PARTY")
+		ordered_party[id] = party[id]
+	if ordered_party.size() != party.size():
+		return _failure("INVALID_COMPLETION_PARTY")
+	party = ordered_party
 	var progress: Dictionary = {
 		"chapterId": _chapter_id,
 		"completedBattle": _battle_id,

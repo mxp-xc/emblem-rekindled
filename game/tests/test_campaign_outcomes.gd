@@ -3,7 +3,15 @@ extends SceneTree
 
 func _initialize() -> void:
 	var content: Dictionary = load("res://app/chapter_content.gd").new().load_chapter(
-		"res://content/chapter_1/chapter.json", "m1"
+		"res://content/chapter_1/chapter.json",
+		"m1",
+		{
+			"party":
+			[{"id": 0, "sourceId": 0, "classId": 0}, {"id": 9, "sourceId": 9, "classId": 4}],
+			"worldStep": 1,
+			"partyOrder": [9, 0],
+			"route": 0
+		}
 	)
 	var rules: RefCounted = load("res://gameplay/battle_events.gd").new(content)
 	var battle: RefCounted = load("res://gameplay/battle_state.gd").new(content)

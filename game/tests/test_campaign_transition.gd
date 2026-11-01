@@ -4,7 +4,17 @@ extends SceneTree
 func _initialize() -> void:
 	var loader: RefCounted = load("res://app/chapter_content.gd").new()
 	var first: Dictionary = loader.load_chapter("res://content/chapter_1/chapter.json")
-	var second: Dictionary = loader.load_chapter("res://content/chapter_1/chapter.json", "m1")
+	var second: Dictionary = loader.load_chapter(
+		"res://content/chapter_1/chapter.json",
+		"m1",
+		{
+			"party":
+			[{"id": 0, "sourceId": 0, "classId": 0}, {"id": 9, "sourceId": 9, "classId": 4}],
+			"worldStep": 1,
+			"partyOrder": [9, 0],
+			"route": 0
+		}
+	)
 	if not first["ok"] or not second["ok"]:
 		fail(
 			(
@@ -25,6 +35,9 @@ func _initialize() -> void:
 	opening.complete_event("level_tutorial")
 	opening.win_with_assistance()
 	var progress: Dictionary = opening.complete_victory(0)["progress"]
+	if progress["party"].map(func(actor: Dictionary) -> int: return int(actor["id"])) != [0, 9]:
+		fail("Settlement must return recruit order independently of native battle iteration order")
+		return
 	progress["gold"] = 12345
 	for actor: Dictionary in progress["party"]:
 		if actor["id"] == 0:
@@ -111,6 +124,10 @@ func _initialize() -> void:
 		or completed["worldStep"] != 2
 		or completed["route"] != 1
 		or completed["party"].size() != 3
+		or (
+			completed["party"].map(func(actor: Dictionary) -> int: return int(actor["id"]))
+			!= [0, 9, 6]
+		)
 		or completed["gold"] != 13345
 		or not completed.get("levelTutorialSeen", false)
 		or not battle.complete_victory(1).get("alreadyComplete", false)
@@ -125,6 +142,7 @@ func _initialize() -> void:
 		not world["ok"]
 		or not store.decode(world["record"])["ok"]
 		or world["record"]["battleId"] != "m1"
+		or store.decode(JSON.parse_string(JSON.stringify(world["record"])))["progress"] != completed
 	):
 		fail("The completed second battle must round-trip as an independent world record")
 		return

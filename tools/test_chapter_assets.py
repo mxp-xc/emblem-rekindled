@@ -5,8 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from chapter_assets import share_textures
-from import_chapter_1 import publish_battle
+from chapter_assets import publish_generated, share_textures
 
 
 class ChapterAssetsTest(unittest.TestCase):
@@ -175,11 +174,11 @@ class ChapterAssetsTest(unittest.TestCase):
             )
         share_textures(self.chapter)
         old = self.images(first)[0]
-        result = publish_battle(self.stage({"same.png": b"old"}), first, self.chapter)
+        result = publish_generated(self.stage({"same.png": b"old"}), first, self.chapter)
         self.assertEqual(result["texturesReused"], 1)
         self.assertEqual(self.images(first)[0], old)
         self.assertIn('uid="uid://original"', Path(str(old) + ".import").read_text())
-        publish_battle(self.stage({"same.png": b"new"}), first, self.chapter)
+        publish_generated(self.stage({"same.png": b"new"}), first, self.chapter)
         new = self.images(first)[0]
         self.assertEqual(self.images(second)[0], old)
         self.assertEqual(old.read_bytes(), b"old")
@@ -197,7 +196,7 @@ class ChapterAssetsTest(unittest.TestCase):
         self.write_json(provenance, {"outputs": ["units.json", "shared/same.png"]})
         before = self.snapshot()
         with self.assertRaisesRegex(ValueError, "another owner"):
-            publish_battle(self.stage({"same.png": b"new"}), first, self.chapter)
+            publish_generated(self.stage({"same.png": b"new"}), first, self.chapter)
         self.assertEqual(self.snapshot(), before)
         self.assertEqual(kept.read_bytes(), b"old")
         provenance.write_bytes(clean)
@@ -206,7 +205,7 @@ class ChapterAssetsTest(unittest.TestCase):
         self.write_json(incoming / "provenance.json", {"outputs": ["battles/m1/same.png"]})
         before = self.snapshot()
         with self.assertRaisesRegex(ValueError, "another owner"):
-            publish_battle(incoming, first, self.chapter)
+            publish_generated(incoming, first, self.chapter)
         self.assertEqual(self.snapshot(), before)
         self.assertEqual((second / "same.png").read_bytes(), b"second")
         for rogue in ("shared/same.png.import", "battles/m1/provenance.json"):
@@ -216,7 +215,7 @@ class ChapterAssetsTest(unittest.TestCase):
             path.write_bytes(b"rogue")
             before = self.snapshot()
             with self.assertRaisesRegex(ValueError, "ownership list"):
-                publish_battle(incoming, first, self.chapter)
+                publish_generated(incoming, first, self.chapter)
             self.assertEqual(self.snapshot(), before)
 
 

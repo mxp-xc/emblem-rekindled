@@ -2,19 +2,21 @@ extends SceneTree
 
 
 func _initialize() -> void:
-	var content: Dictionary = load("res://app/chapter_content.gd").new().load_chapter(
-		"res://content/chapter_1/chapter.json"
+	var opened: Dictionary = load("res://app/chapter_session.gd").new().open(
+		"res://content/chapter_1/chapter.json",
+		"",
+		{"new": true},
+		func(_limit: int) -> int: return 0
 	)
-	if not content["ok"]:
-		fail(str(content))
+	if not opened["ok"]:
+		fail(str(opened))
 		return
+	var content: Dictionary = opened["content"]
 	var library: RefCounted = load("res://app/battle_clip_library.gd").new(content)
 	# Controlled presentation inputs: a fire hit, an axe counter, then a fatal fire critical.
 	var participants: Array = []
 	for id: int in [54, 0]:
-		for unit: Dictionary in content["units"]:
-			if unit["id"] == id:
-				participants.append(unit.duplicate(true))
+		participants.append(opened["battle"].unit(id))
 	participants[0]["hp"] = 20
 	participants[1]["hp"] = 40
 	var result: Dictionary = {

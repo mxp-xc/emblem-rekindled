@@ -1,0 +1,7 @@
+{
+  "description": "Original map and ordered deployment; chapter library owns presentation",
+  "outputs": ["battle.json", "deployments.json", "map.json"],
+  "textureSources": {
+    "map.png": "generated/shared/battles/m0/map.png"
+  }
+}

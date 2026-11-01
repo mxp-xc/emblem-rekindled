@@ -1,0 +1,454 @@
+{
+  "battleId": "m1",
+  "worldNode": 1,
+  "battleName": {
+    "sourceTextIndex": 140,
+    "rawText": "索菲亚山脉",
+    "text": "索菲亚山脉",
+    "paragraphs": ["索菲亚山脉"],
+    "requiresInputRewrite": false,
+    "legacyInputTokens": [],
+    "speakerId": null
+  },
+  "objective": {
+    "sourceTextIndex": 157,
+    "rawText": "击杀塞格，雅木、福尔斯必须生还",
+    "text": "击杀塞格，雅木、福尔斯必须生还",
+    "paragraphs": ["击杀塞格，雅木、福尔斯必须生还"],
+    "requiresInputRewrite": false,
+    "legacyInputTokens": [],
+    "speakerId": null
+  },
+  "initialBattlePresentation": {
+    "hiddenUnitIds": [],
+    "hiddenFactions": [],
+    "unitPositionOverrides": {}
+  },
+  "turnEvents": [
+    {
+      "id": "allied_arrival",
+      "sequence": "allied_arrival",
+      "afterEnemyPhaseOfRound": 1,
+      "deploymentSlots": [0, 1, 2, 3, 4, 5]
+    },
+    {
+      "unitIds": [63, 59, 60],
+      "id": "enemy_arrival",
+      "sequence": "enemy_arrival",
+      "afterEnemyPhaseOfRound": 2
+    }
+  ],
+  "aiChanges": [
+    {
+      "policyClear": 2,
+      "beforeEnemyPhaseOfRound": 9,
+      "unitIds": [65, 52, 51, 81, 68],
+      "flagsSet": 16
+    }
+  ],
+  "routeChoices": [
+    {
+      "kind": "route",
+      "nodeId": 2,
+      "characterId": 7,
+      "name": "鲁卡",
+      "nameTextIndex": 181,
+      "className": "贤者",
+      "classTextIndex": 218,
+      "label": "鲁卡(贤者)",
+      "portraitId": 7,
+      "routeIndex": 0
+    },
+    {
+      "kind": "route",
+      "nodeId": 8,
+      "characterId": 1,
+      "name": "希尔克",
+      "nameTextIndex": 175,
+      "className": "修女",
+      "classTextIndex": 210,
+      "label": "希尔克(修女)",
+      "portraitId": 1,
+      "routeIndex": 1
+    }
+  ],
+  "speakers": {
+    "0": {
+      "id": 0,
+      "name": "雅木",
+      "faction": 0,
+      "portraitId": 0
+    },
+    "9": {
+      "id": 9,
+      "name": "赛丽卡",
+      "faction": 0,
+      "portraitId": 9
+    },
+    "6": {
+      "id": 6,
+      "name": "福尔斯",
+      "faction": 0,
+      "portraitId": 6
+    },
+    "51": {
+      "id": 51,
+      "name": "利盖鲁军",
+      "faction": 2,
+      "portraitId": null
+    },
+    "81": {
+      "id": 81,
+      "name": "塞格",
+      "faction": 2,
+      "portraitId": 12
+    }
+  },
+  "sequences": {
+    "opening": [
+      {
+        "kind": "battleTitle",
+        "text": {
+          "sourceTextIndex": -1,
+          "text": "第2战\n索菲亚山脉"
+        },
+        "sourceDurationUnits": 2000,
+        "source": "i.y:m1 -> c.ad10/ap2000"
+      },
+      {
+        "kind": "focus",
+        "cell": [5, 6],
+        "instant": true,
+        "source": "i.z:m1/dc0"
+      },
+      {
+        "kind": "focus",
+        "cell": [12, 6],
+        "source": "i.z:m1/dc1"
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 489,
+          "rawText": "你们跑不掉了！",
+          "text": "你们跑不掉了！",
+          "paragraphs": ["你们跑不掉了！"],
+          "requiresInputRewrite": false,
+          "legacyInputTokens": [],
+          "speakerId": 81
+        },
+        "source": "i.z:m1/dc2"
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 490,
+          "rawText": "凭你们就想困住我？看箭！",
+          "text": "凭你们就想困住我？看箭！",
+          "paragraphs": ["凭你们就想困住我？看箭！"],
+          "requiresInputRewrite": false,
+          "legacyInputTokens": [],
+          "speakerId": 6
+        },
+        "source": "i.z:m1/dc3"
+      },
+      {
+        "kind": "objective",
+        "text": {
+          "sourceTextIndex": 157,
+          "rawText": "击杀塞格，雅木、福尔斯必须生还",
+          "text": "击杀塞格，雅木、福尔斯必须生还",
+          "paragraphs": ["击杀塞格，雅木、福尔斯必须生还"],
+          "requiresInputRewrite": false,
+          "legacyInputTokens": [],
+          "speakerId": null
+        },
+        "source": "i.z:m1/dc4"
+      },
+      {
+        "kind": "commanderSetup",
+        "candidates": [6],
+        "defaultCommanderId": 6,
+        "defaultMode": "automatic",
+        "defaultStance": "attack",
+        "source": "i.z:m1/dc5"
+      }
+    ],
+    "allied_arrival": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 491,
+          "rawText": "报告！不！不好了！后方发现大批军队！悬挂的是索菲亚王室的旗帜！",
+          "text": "报告！不！不好了！后方发现大批军队！悬挂的是索菲亚王室的旗帜！",
+          "paragraphs": ["报告！不！不好了！后方发现大批军队！悬挂的是索菲亚王室的旗帜！"],
+          "requiresInputRewrite": false,
+          "legacyInputTokens": [],
+          "speakerId": 51
+        },
+        "source": "i.k:m1/bo1"
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 492,
+          "rawText": "慌什么？！立刻请求支援...",
+          "text": "慌什么？！立刻请求支援...",
+          "paragraphs": ["慌什么？！立刻请求支援..."],
+          "requiresInputRewrite": false,
+          "legacyInputTokens": [],
+          "speakerId": 81
+        }
+      },
+      {
+        "kind": "parallelEntrances",
+        "focus": [2, 3],
+        "deploymentSlots": [4, 2, 3],
+        "offset": [-3, 0]
+      },
+      {
+        "kind": "parallelEntrances",
+        "focus": [1, 15],
+        "deploymentSlots": [5, 0, 1],
+        "offset": [-3, 0]
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 493,
+          "rawText": "陛下，真是您？！",
+          "text": "陛下，真是您？！",
+          "paragraphs": ["陛下，真是您？！"],
+          "requiresInputRewrite": false,
+          "legacyInputTokens": [],
+          "speakerId": 6
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 494,
+          "rawText": "福尔斯，不要浪费时间，赶快解决他们！",
+          "text": "福尔斯，不要浪费时间，赶快解决他们！",
+          "paragraphs": ["福尔斯，不要浪费时间，赶快解决他们！"],
+          "requiresInputRewrite": false,
+          "legacyInputTokens": [],
+          "speakerId": 0
+        }
+      }
+    ],
+    "reinforcements": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 491,
+          "rawText": "报告！不！不好了！后方发现大批军队！悬挂的是索菲亚王室的旗帜！",
+          "text": "报告！不！不好了！后方发现大批军队！悬挂的是索菲亚王室的旗帜！",
+          "paragraphs": ["报告！不！不好了！后方发现大批军队！悬挂的是索菲亚王室的旗帜！"],
+          "requiresInputRewrite": false,
+          "legacyInputTokens": [],
+          "speakerId": 51
+        },
+        "source": "i.k:m1/bo1"
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 492,
+          "rawText": "慌什么？！立刻请求支援...",
+          "text": "慌什么？！立刻请求支援...",
+          "paragraphs": ["慌什么？！立刻请求支援..."],
+          "requiresInputRewrite": false,
+          "legacyInputTokens": [],
+          "speakerId": 81
+        }
+      },
+      {
+        "kind": "parallelEntrances",
+        "focus": [2, 3],
+        "deploymentSlots": [4, 2, 3],
+        "offset": [-3, 0]
+      },
+      {
+        "kind": "parallelEntrances",
+        "focus": [1, 15],
+        "deploymentSlots": [5, 0, 1],
+        "offset": [-3, 0]
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 493,
+          "rawText": "陛下，真是您？！",
+          "text": "陛下，真是您？！",
+          "paragraphs": ["陛下，真是您？！"],
+          "requiresInputRewrite": false,
+          "legacyInputTokens": [],
+          "speakerId": 6
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 494,
+          "rawText": "福尔斯，不要浪费时间，赶快解决他们！",
+          "text": "福尔斯，不要浪费时间，赶快解决他们！",
+          "paragraphs": ["福尔斯，不要浪费时间，赶快解决他们！"],
+          "requiresInputRewrite": false,
+          "legacyInputTokens": [],
+          "speakerId": 0
+        }
+      }
+    ],
+    "enemy_arrival": [
+      {
+        "kind": "parallelEntrances",
+        "focus": [5, 2],
+        "units": [
+          {
+            "kind": "unitEntrance",
+            "unitId": 63,
+            "from": [5, -2],
+            "to": [5, 1]
+          },
+          {
+            "kind": "unitEntrance",
+            "unitId": 59,
+            "from": [5, -1],
+            "to": [5, 2]
+          },
+          {
+            "kind": "unitEntrance",
+            "unitId": 60,
+            "from": [6, 0],
+            "to": [6, 3]
+          }
+        ],
+        "source": "i.k:m1/bo2"
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 495,
+          "rawText": "哈哈，中计了！",
+          "text": "哈哈，中计了！",
+          "paragraphs": ["哈哈，中计了！"],
+          "requiresInputRewrite": false,
+          "legacyInputTokens": [],
+          "speakerId": 81
+        }
+      }
+    ],
+    "boss_first_combat": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 496,
+          "speakerId": 81
+        },
+        "source": "i.b(b,b):23..34; ordinary attack or defense, enemy flag mask 4 once"
+      }
+    ],
+    "boss_death": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 497,
+          "speakerId": 81
+        },
+        "source": "i.d:3271..3285; aa81 ab0 before retirement/hide, ordinary death path"
+      }
+    ],
+    "victory": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 498,
+          "rawText": "陛下，据我所知鲁卡的部队在南面的森林中，而希尔克的牧师团在北面的一个小米拉神殿中，我们应该先去支援哪一边？",
+          "text": "陛下，据我所知鲁卡的部队在南面的森林中，而希尔克的牧师团在北面的一个小米拉神殿中，我们应该先去支援哪一边？",
+          "paragraphs": [
+            "陛下，据我所知鲁卡的部队在南面的森林中，而希尔克的牧师团在北面的一个小米拉神殿中，我们应该先去支援哪一边？"
+          ],
+          "requiresInputRewrite": false,
+          "legacyInputTokens": [],
+          "speakerId": 6
+        },
+        "source": "i.z:m1/dc7,dD1",
+        "whenWorldStep": 1
+      },
+      {
+        "kind": "routeChoice",
+        "options": [
+          {
+            "kind": "route",
+            "nodeId": 2,
+            "characterId": 7,
+            "name": "鲁卡",
+            "nameTextIndex": 181,
+            "className": "贤者",
+            "classTextIndex": 218,
+            "label": "鲁卡(贤者)",
+            "portraitId": 7,
+            "routeIndex": 0
+          },
+          {
+            "kind": "route",
+            "nodeId": 8,
+            "characterId": 1,
+            "name": "希尔克",
+            "nameTextIndex": 175,
+            "className": "修女",
+            "classTextIndex": 210,
+            "label": "希尔克(修女)",
+            "portraitId": 1,
+            "routeIndex": 1
+          }
+        ],
+        "source": "i.z:m1/dc8,dD1",
+        "whenWorldStep": 1
+      },
+      {
+        "kind": "missionComplete",
+        "text": {
+          "sourceTextIndex": 34,
+          "rawText": "任务完成",
+          "text": "任务完成",
+          "paragraphs": ["任务完成"],
+          "requiresInputRewrite": false,
+          "legacyInputTokens": [],
+          "speakerId": null
+        },
+        "goldReward": 1000,
+        "source": "i.z:m1/dc9 -> i.t"
+      }
+    ]
+  },
+  "outcomeRules": {
+    "checks": [
+      {
+        "kind": "victory",
+        "condition": "unitRetired",
+        "unitId": 81
+      },
+      {
+        "kind": "defeat",
+        "condition": "requiredUnitFallen",
+        "unitIds": [0, 6]
+      }
+    ]
+  },
+  "combatEvents": [
+    {
+      "id": "boss_first_combat",
+      "trigger": "firstCombat",
+      "unitId": 81,
+      "sequence": "boss_first_combat"
+    },
+    {
+      "id": "boss_death",
+      "trigger": "unitDeath",
+      "unitId": 81,
+      "beforeRetirement": "boss_death"
+    }
+  ]
+}

@@ -49,6 +49,7 @@ func run() -> void:
 	scene.title_screen.refresh_continue(true)
 	await _key(KEY_ENTER)
 	await _key(KEY_ENTER)
+	slots = scene.save_slots
 	if scene.title_screen.visible or slots.visible or not scene.map.visible:
 		fail(
 			"The source temporary-progress first entry resumes directly without world slot selection"

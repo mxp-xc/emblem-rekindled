@@ -8,6 +8,7 @@ var route: int = 0
 var route_sent: bool = false
 var seen: Array[int] = []
 var saw_game_over: bool = false
+var _directory: String = ""
 
 
 func _initialize() -> void:
@@ -16,7 +17,6 @@ func _initialize() -> void:
 
 func run() -> void:
 	root.size = Vector2i(720, 1280)
-	Engine.time_scale = 16
 	for chosen: int in [0, 2, 4, 6]:
 		await _victory(chosen)
 	for required: int in [0, 9]:
@@ -37,8 +37,22 @@ func _open() -> void:
 	await process_frame
 	scene.settings["music_enabled"] = false
 	scene.player.stop()
-	archive = Store.new(scene.content, "user://test_ending_ui_%d.json" % Time.get_ticks_usec())
+	var owned: String = "user://test_ending_ui_%d" % Time.get_ticks_usec()
+	if DirAccess.dir_exists_absolute(owned) or DirAccess.make_dir_absolute(owned) != OK:
+		fail("Ending UI needs a fresh owned record directory")
+		return
+	_directory = owned
+	scene.store.path = owned.path_join("settings.json")
+	archive = Store.new(scene.content, owned.path_join("continue.json"))
 	scene.battle_store = archive
+	scene._set_menu_visible(true)
+	scene.menu_layer.show_page("settings")
+	scene.menu_layer.find_child("GameSpeed", true, false).pressed.emit()
+	scene.menu_layer.find_child("Speed_32", true, false).pressed.emit()
+	scene._set_menu_visible(false)
+	if Engine.time_scale != 32:
+		fail("Every new test scene must accelerate using the session speed menu")
+		return
 	route_sent = false
 	seen = []
 	saw_game_over = false
@@ -75,6 +89,9 @@ func _victory(chosen: int) -> void:
 	await process_frame
 	await _tap(scene.get_node("UnitStatus/Status/Actions/Wait").get_global_rect().get_center())
 	await _world()
+	if scene.selected_unit != -1 or scene.choosing_destination:
+		fail("Entering the completed world must release the tactical selection")
+		return
 	if battle.outcome.get("reason") != "escaped":
 		fail("The Root ending must come from the original southern-escape command")
 		return
@@ -98,7 +115,12 @@ func _victory(chosen: int) -> void:
 	await _key(KEY_ENTER)
 	await _key(KEY_ENTER)
 	await _world()
-	if archive.read()["progress"] != progress:
+	if (
+		archive.read()["progress"] != progress
+		or scene.selected_unit != -1
+		or scene.choosing_destination
+		or not scene.battle.snapshot()["units"].is_empty()
+	):
 		fail("Loading completed progress must not settle the mission or award money again")
 		return
 	await _close()
@@ -249,13 +271,28 @@ func _title() -> void:
 
 
 func _close() -> void:
-	DirAccess.remove_absolute(archive.path)
 	scene.player.stop()
 	scene.queue_free()
 	await process_frame
 	await process_frame
+	if not _cleanup():
+		fail("Cannot remove owned ending test records")
 
 
 func fail(message: String) -> void:
+	Engine.time_scale = 1
 	push_error(message)
+	_cleanup()
 	quit(1)
+
+
+func _cleanup() -> bool:
+	if _directory.is_empty():
+		return true
+	for name: String in DirAccess.get_files_at(_directory):
+		if DirAccess.remove_absolute(_directory.path_join(name)) != OK:
+			return false
+	if DirAccess.remove_absolute(_directory) != OK:
+		return false
+	_directory = ""
+	return true

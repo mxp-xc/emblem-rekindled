@@ -25,7 +25,7 @@ func setup(content: Dictionary) -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	var directory: String = content["entry"]["interface"].get_base_dir()
+	var directory: String = content["entry"]["resourceDirectory"]
 	var textures: Dictionary = content["interface"]["textures"]
 	_frame = StyleBoxTexture.new()
 	_frame.texture = load(directory.path_join(textures["window_frame"]["texture"]))

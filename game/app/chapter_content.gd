@@ -2,10 +2,16 @@ extends RefCounted
 
 const BattleClips = preload("res://app/battle_clip_library.gd")
 const MapView = preload("res://features/tactical_map/map_view.gd")
+const ContentProjection = preload("res://app/chapter_projection.gd")
+const Deployment = preload("res://app/chapter_deployment.gd")
+const StoryContract = preload("res://app/chapter_story_contract.gd")
+const MapAttacks = preload("res://gameplay/map_attack_rules.gd")
+const TextureOverrides = preload("res://app/chapter_texture_overrides.gd")
+const RetirementPlayer = preload("res://features/battle/retirement_player.gd")
 
 
 # Content is validated once at the app boundary, before a scene receives it.
-func load_chapter(path: String, battle_id: String = "") -> Dictionary:
+func load_chapter(path: String, battle_id: String = "", context: Dictionary = {}) -> Dictionary:
 	var entry: Variant = _read_json(path)
 	if not entry is Dictionary:
 		return _failure("章入口无法读取: " + path)
@@ -13,31 +19,150 @@ func load_chapter(path: String, battle_id: String = "") -> Dictionary:
 		return _failure("章入口缺少首个关卡")
 	if battle_id.is_empty():
 		battle_id = entry["firstBattle"]
-	if battle_id != entry["firstBattle"]:
-		var catalog: Variant = entry.get("battles")
-		if not catalog is Dictionary or not catalog.get(battle_id) is String:
-			return _failure("关卡尚未接入: " + battle_id)
-		var definition: Variant = _read_json(catalog[battle_id])
-		if not definition is Dictionary or definition.get("battleId") != battle_id:
-			return _failure("关卡入口身份无效: " + battle_id)
-		var chapter_id: Variant = entry.get("id")
-		entry.merge(definition, true)
-		entry["id"] = chapter_id
+	var catalog: Variant = entry.get("battles")
+	if not catalog is Dictionary or not catalog.get(battle_id) is String:
+		return _failure("关卡尚未接入: " + battle_id)
+	if (
+		battle_id != entry["firstBattle"]
+		and (not context.has("party") or not context.has("partyOrder"))
+	):
+		return _failure("进入关卡缺少队伍来源: " + battle_id)
+	var definition: Variant = _read_json(catalog[battle_id])
+	if not definition is Dictionary or definition.get("battleId") != battle_id:
+		return _failure("关卡入口身份无效: " + battle_id)
+	if definition.has("textureOverrides"):
+		return _failure("图片替换表只在章入口声明")
+	for key: String in ["library", "rules", "controls"]:
+		if not entry.get(key) is String or entry[key].is_empty():
+			return _failure("章入口缺少字段: " + key)
+	for key: String in ["map", "mapTexture", "deployments", "story"]:
+		if not definition.get(key) is String or definition[key].is_empty():
+			return _failure("关卡入口缺少字段: " + key)
+	var library: Variant = _read_json(entry["library"])
+	var records: Variant = _read_json(definition["deployments"])
+	var fragment: Variant = _read_json(definition["story"])
+	if not library is Dictionary or not records is Array or not fragment is Dictionary:
+		return _failure("章内容库、部署或剧情无法读取: " + battle_id)
+	var texture_plan: Dictionary = TextureOverrides.read_plan(entry, library, _read_json)
+	if not texture_plan["ok"]:
+		return texture_plan
+	var chapter_id: Variant = entry.get("id")
+	entry.merge(definition, true)
+	entry["id"] = chapter_id
 	entry["battleId"] = battle_id
 	entry["chapterPath"] = path
+	return _resolve(entry, library, records, fragment, context, texture_plan["overrides"])
+
+
+# Rebind after random placement or restore, without rereading or mutating the catalog.
+func resolve_loaded(content: Dictionary, context: Dictionary) -> Dictionary:
+	for key: String in [
+		"_library", "_deployments", "_storyFragment", "_baseEntry", "_textureOverrides"
+	]:
+		if not content.has(key):
+			return _failure("缺少已读取的关卡定义: " + key)
+	return _resolve(
+		content["_baseEntry"].duplicate(true),
+		content["_library"],
+		content["_deployments"],
+		content["_storyFragment"],
+		context,
+		content["_textureOverrides"]
+	)
+
+
+func reproject(content: Dictionary, units: Array) -> Dictionary:
+	var context: Dictionary = content.get("_context", {}).duplicate(true)
+	var bound: Dictionary = Deployment.infer_bindings(
+		content.get("_deployments", []), context.get("party", []), units
+	)
+	if not bound["ok"]:
+		return bound
+	context["bindings"] = bound["bindings"]
+	context["classes"] = bound["classes"]
+	context["units"] = units
+	return resolve_loaded(content, context)
+
+
+func _resolve(
+	entry: Dictionary,
+	library: Dictionary,
+	records: Array,
+	fragment: Dictionary,
+	context: Dictionary,
+	texture_overrides: Dictionary
+) -> Dictionary:
+	var base_entry: Dictionary = entry.duplicate(true)
+	if (
+		not _integer(context.get("worldStep", 0))
+		or context.get("worldStep", 0) < 0
+		or not context.get("bindings", {}) is Dictionary
+		or not context.get("classes", {}) is Dictionary
+		or not context.get("units", []) is Array
+	):
+		return _failure("关卡来源上下文无效")
+	entry["resourceDirectory"] = "res://"
+	var projected: Dictionary = ContentProjection.project(entry, entry, library, records, context)
+	if not projected["ok"]:
+		return projected
+	for key: String in ["mapAnimations", "battleArt", "battleClips", "interface"]:
+		entry[key] = entry["library"]
+	entry["spriteDirectory"] = ""
+	var story: Dictionary = ContentProjection.merge_story(projected["storyCommon"], fragment)
+	story["battleId"] = entry["battleId"]
+	var resolved_texts: Dictionary = ContentProjection.resolve_texts(story, library["texts"])
+	if not resolved_texts["ok"]:
+		return resolved_texts
+	story = resolved_texts["value"]
+	var story_context: Dictionary = context.duplicate(true)
+	story_context["recruitByNode"] = entry.get("recruitByNode", {})
+	story_context["referenceIds"] = projected["referenceIds"]
+	var story_slots: Dictionary = projected["slots"].duplicate()
+	for record: Dictionary in records:
+		if record.has("deploymentSlot") and not story_slots.has(int(record["deploymentSlot"])):
+			story_slots[int(record["deploymentSlot"])] = -1
+	var resolved_story: Dictionary = ContentProjection.resolve_story(
+		story, projected["units"], story_slots, story_context
+	)
+	if not resolved_story["ok"]:
+		return resolved_story
+	for sequence: Array in resolved_story["story"]["sequences"].values():
+		for step: Dictionary in sequence:
+			if step.get("kind") == "enterBattle" and not entry["battles"].has(step.get("battleId")):
+				return _failure("剧情引用未接入关卡: " + str(step.get("battleId")))
+	projected["story"] = resolved_story["story"]
+	projected["entry"] = entry
+	projected["map"] = _read_json(entry["map"])
+	projected["rules"] = _read_json(entry["rules"])
+	projected["controls"] = _read_json(entry["controls"])
+	projected = TextureOverrides.apply(projected, texture_overrides)
+	for key: String in [
+		"mapAnimations", "battleArt", "battleClips", "interface", "mapEffects", "story"
+	]:
+		projected[key] = ContentProjection.relative_resources(projected[key])
+	var result: Dictionary = _validate(projected)
+	if result["ok"]:
+		result["_library"] = library
+		result["_deployments"] = records
+		result["_storyFragment"] = fragment
+		result["_context"] = context.duplicate(true)
+		result["_baseEntry"] = base_entry
+		result["_textureOverrides"] = texture_overrides
+	return result
+
+
+func _validate(content: Dictionary) -> Dictionary:
+	var entry: Dictionary = content["entry"]
 	for key: String in [
 		"id",
 		"firstBattle",
 		"map",
-		"units",
 		"rules",
-		"spawns",
 		"mapAnimations",
 		"battleArt",
 		"battleClips",
 		"battleMusic",
 		"mapTexture",
-		"spriteDirectory",
 		"music",
 		"story",
 		"titleMusic",
@@ -49,16 +174,16 @@ func load_chapter(path: String, battle_id: String = "") -> Dictionary:
 	]:
 		if not entry.get(key) is String or entry[key].is_empty():
 			return _failure("章入口缺少字段: " + key)
-	var map: Variant = _read_json(entry["map"])
-	var units: Variant = _read_json(entry["units"])
-	var rules: Variant = _read_json(entry["rules"])
-	var spawns: Variant = _read_json(entry["spawns"])
-	var map_animations: Variant = _read_json(entry["mapAnimations"])
-	var battle_art: Variant = _read_json(entry["battleArt"])
-	var battle_clips: Variant = _read_json(entry["battleClips"])
-	var story: Variant = _read_json(entry["story"])
-	var controls: Variant = _read_json(entry["controls"])
-	var interface_data: Variant = _read_json(entry["interface"])
+	var map: Variant = content["map"]
+	var units: Variant = content["units"]
+	var rules: Variant = content["rules"]
+	var spawns: Variant = content["spawns"]
+	var map_animations: Variant = content["mapAnimations"]
+	var battle_art: Variant = content["battleArt"]
+	var battle_clips: Variant = content["battleClips"]
+	var story: Variant = content["story"]
+	var controls: Variant = content["controls"]
+	var interface_data: Variant = content["interface"]
 	if (
 		not story is Dictionary
 		or not story.get("sequences") is Dictionary
@@ -76,6 +201,11 @@ func load_chapter(path: String, battle_id: String = "") -> Dictionary:
 		return _failure("地图、单位或规则数据无法读取")
 	if not _rules_valid(rules):
 		return _failure("物品、职业或属性模板无效")
+	var spawn_items: Dictionary = _spawn_references_valid(spawns, rules)
+	if not spawn_items["ok"]:
+		return spawn_items
+	if not _map_effects_valid(content.get("mapEffects"), entry["resourceDirectory"]):
+		return _failure("地图技能表现定义或资源引用无效")
 	if (
 		not map_animations is Dictionary
 		or not map_animations.get("units") is Dictionary
@@ -97,12 +227,14 @@ func load_chapter(path: String, battle_id: String = "") -> Dictionary:
 		or not _grid_valid(map.get("terrain"), width, height, 0, 10)
 	):
 		return _failure("地形引用或地图尺寸无效")
-	if not BattleClips.validate_art(battle_art, entry["battleArt"].get_base_dir(), map["terrain"]):
+	if not BattleClips.validate_art(battle_art, entry["resourceDirectory"], map["terrain"]):
 		return _failure("独立战斗画面定义或资源引用无效")
-	if not BattleClips.validate_catalog(
-		battle_clips, entry["battleClips"].get_base_dir(), battle_art
-	):
+	if not RetirementPlayer.validate_definition(battle_art, entry["resourceDirectory"]):
+		return _failure("地图退场表现定义或资源引用无效")
+	if not BattleClips.validate_catalog(battle_clips, entry["resourceDirectory"], battle_art):
 		return _failure("独立战斗动作定义或资源引用无效")
+	if not _action_presentations_valid(rules, battle_clips, content["mapEffects"]):
+		return _failure("物品行动方式与人物动作或地图技能表现不匹配")
 	if not map.get("movementCosts") is Dictionary:
 		return _failure("缺少职业移动消耗")
 	for costs: Variant in map["movementCosts"].values():
@@ -174,7 +306,7 @@ func load_chapter(path: String, battle_id: String = "") -> Dictionary:
 		var animation: Variant = map_animations["units"].get(str(int(unit["id"])))
 		if (
 			not animation is Dictionary
-			or not _animation_valid(animation, entry["mapAnimations"].get_base_dir())
+			or not _animation_valid(animation, entry["resourceDirectory"])
 		):
 			return _failure("缺少单位动画或动画引用无效: " + str(unit["id"]))
 		var cell := Vector2i(unit["x"], unit["y"])
@@ -186,13 +318,14 @@ func load_chapter(path: String, battle_id: String = "") -> Dictionary:
 	for item: Dictionary in rules["itemTemplates"]:
 		if item["id"] > 0:
 			item_ids.append(int(item["id"]))
-	if not _interface_valid(
-		interface_data, entry["interface"].get_base_dir(), ids.keys(), item_ids
-	):
+	if not _interface_valid(interface_data, entry["resourceDirectory"], ids.keys(), item_ids):
 		return _failure("人物信息、物品说明或窗口资源无效")
+	for id: int in content.get("referenceIds", []):
+		if not ids.has(id):
+			ids[id] = {}
 	if (
-		story.get("battleId") != battle_id
-		or not _story_valid(story, entry["story"].get_base_dir(), ids, width, height)
+		story.get("battleId") != entry["battleId"]
+		or not _story_valid(story, entry["resourceDirectory"], ids, width, height)
 	):
 		return _failure("剧情序列或资源引用无效")
 	if rules["nodeShopStockIndices"].size() < story["world"]["nodes"].size():
@@ -200,20 +333,148 @@ func load_chapter(path: String, battle_id: String = "") -> Dictionary:
 	for text: Variant in controls["opening"]:
 		if not text is String or text.is_empty():
 			return _failure("触控教学文本无效")
-	return {
-		"ok": true,
-		"entry": entry,
-		"map": map,
-		"units": units,
-		"rules": rules,
-		"spawns": spawns,
-		"mapAnimations": map_animations,
-		"battleArt": battle_art,
-		"battleClips": battle_clips,
-		"story": story,
-		"controls": controls,
-		"interface": interface_data
-	}
+	return content
+
+
+func _spawn_references_valid(spawns: Array, rules: Dictionary) -> Dictionary:
+	var declared: Dictionary = {}
+	for item: Dictionary in rules["itemTemplates"]:
+		declared[int(item["id"])] = true
+	var bases: Dictionary = {}
+	var growth: Dictionary = {}
+	for row: Dictionary in rules["baseStats"]:
+		bases[int(row["id"])] = true
+	for row: Dictionary in rules["growthRates"]:
+		growth[int(row["id"])] = true
+	for index: int in range(spawns.size()):
+		var spawn: Variant = spawns[index]
+		if not spawn is Dictionary or not spawn.get("itemChoices") is Array:
+			return _failure("部署物品定义无效: " + str(index))
+		var references: Array = spawn["itemChoices"].duplicate()
+		references.append(spawn.get("dropTemplateId"))
+		for id: Variant in references:
+			if not _integer(id) or id < 0:
+				return _failure("部署物品编号无效: " + str(index))
+			if id != 0 and not declared.has(int(id)):
+				return _failure("部署%d引用未声明物品: %d" % [index, int(id)])
+		if (
+			not _integer(spawn.get("growthTemplateId"))
+			or not growth.has(int(spawn["growthTemplateId"]))
+		):
+			return _failure("部署%d引用未声明成长模板" % index)
+		if not spawn.has("explicitStats"):
+			if (
+				not _integer(spawn.get("baseTemplateId"))
+				or not bases.has(int(spawn["baseTemplateId"]))
+			):
+				return _failure("部署%d引用未声明基础属性模板" % index)
+			if (
+				not _integer(spawn.get("initialGrowthTemplateId"))
+				or not growth.has(int(spawn["initialGrowthTemplateId"]))
+			):
+				return _failure("部署%d引用未声明初始成长模板" % index)
+	return {"ok": true}
+
+
+func _map_effects_valid(value: Variant, directory: String) -> bool:
+	if not value is Dictionary:
+		return false
+	for key: Variant in value:
+		var effect: Variant = value[key]
+		if (
+			not key is String
+			or key.is_empty()
+			or not effect is Dictionary
+			or not effect.get("source") is String
+			or effect["source"].is_empty()
+			or effect.get("logicalTickUnits") != 50
+		):
+			return false
+		match effect.get("kind"):
+			"shake":
+				if (
+					not _positive_integer(effect.get("durationUnits"))
+					or int(effect["durationUnits"]) % 50 != 0
+					or not _point_valid(effect.get("shakeModuli"))
+					or effect["shakeModuli"][0] <= 0
+					or effect["shakeModuli"][1] <= 0
+					or not _integer(effect.get("flashUpdates"))
+					or effect["flashUpdates"] < 0
+					or effect["flashUpdates"] * 50 > effect["durationUnits"]
+					or not _integer(effect.get("flashColor"))
+					or effect["flashColor"] < 0
+					or effect["flashColor"] > 16777215
+					or not effect.get("flashOnEven") is bool
+				):
+					return false
+			"sprite":
+				if (
+					not effect.get("sprite") is Dictionary
+					or effect.get("anchor") != "bottomCenter"
+					or not _point_valid(effect.get("unitOffset"))
+					or not _positive_integer(effect.get("cycles"))
+					or not _positive_integer(effect.get("stepUnits"))
+					or int(effect["stepUnits"]) % 50 != 0
+					or not _integer(effect.get("shakeUpdates"))
+					or effect["shakeUpdates"] < 0
+					or not _point_valid(effect.get("jitterRangeX"))
+					or effect["jitterRangeX"][0] > effect["jitterRangeX"][1]
+					or not _point_valid(effect.get("jitterRangeY"))
+					or effect["jitterRangeY"][0] > effect["jitterRangeY"][1]
+				):
+					return false
+				var sprite: Dictionary = effect["sprite"]
+				if (
+					not _positive_integer(sprite.get("virtualWidth"))
+					or not _positive_integer(sprite.get("virtualHeight"))
+					or not sprite.get("frames") is Array
+					or sprite["frames"].is_empty()
+					or not effect.get("sequence") is Array
+					or effect["sequence"].is_empty()
+				):
+					return false
+				for frame: Variant in sprite["frames"]:
+					if (
+						not frame is Dictionary
+						or not frame.get("texture") is String
+						or not ResourceLoader.exists(directory.path_join(frame["texture"]))
+						or not _integer(frame.get("offsetX"))
+						or not _integer(frame.get("offsetY"))
+						or not _positive_integer(frame.get("width"))
+						or not _positive_integer(frame.get("height"))
+						or not frame.get("empty") is bool
+					):
+						return false
+				for index: Variant in effect["sequence"]:
+					if not _integer(index) or index < 0 or index >= sprite["frames"].size():
+						return false
+			_:
+				return false
+	return true
+
+
+func _action_presentations_valid(
+	rules: Dictionary, clips: Dictionary, map_effects: Dictionary
+) -> bool:
+	var items: Dictionary = {}
+	for item: Dictionary in rules["itemTemplates"]:
+		items[int(item["id"])] = item
+		if item.get("actionMode") == "map_attack" and not map_effects.has(item["mapEffect"]):
+			return false
+	for key: String in clips["appearances"]:
+		var weapon: int = key.get_slice(":", 1).to_int()
+		if not items.has(weapon):
+			return false
+		var item: Dictionary = items[weapon]
+		if item["damageKind"] not in ["physical", "magic"]:
+			continue
+		var can_attack: bool = clips["appearances"][key]["canAttack"]
+		if (
+			(item["actionMode"] == "map_attack" and can_attack)
+			or (item["actionMode"] == "battle_clip" and not can_attack)
+		):
+			return false
+	return true
 
 
 func _interface_valid(value: Variant, directory: String, unit_ids: Array, item_ids: Array) -> bool:
@@ -481,6 +742,13 @@ func _rules_valid(rules: Dictionary) -> bool:
 			or item.get("damageKind") not in ["physical", "magic", "healing", "none"]
 		):
 			return false
+		if item["damageKind"] in ["physical", "magic"]:
+			if item.get("actionMode") not in ["battle_clip", "map_attack"]:
+				return false
+			if item["actionMode"] == "map_attack" and not MapAttacks.valid_definition(item):
+				return false
+		elif item.has("actionMode"):
+			return false
 		for key: String in [
 			"categoryMask",
 			"power",
@@ -579,391 +847,4 @@ func _failure(message: String) -> Dictionary:
 func _story_valid(
 	story: Dictionary, directory: String, ids: Dictionary, width: int, height: int
 ) -> bool:
-	if not story.get("tutorials") is Array:
-		return false
-	var tutorials: Dictionary = {}
-	for tutorial: Variant in story["tutorials"]:
-		if (
-			not tutorial is Dictionary
-			or not _integer(tutorial.get("id"))
-			or tutorials.has(int(tutorial["id"]))
-		):
-			return false
-		tutorials[int(tutorial["id"])] = tutorial
-	if (
-		not tutorials.has(6)
-		or not tutorials[6].get("text") is String
-		or tutorials[6]["text"].is_empty()
-	):
-		return false
-	for sequence: String in ["boot", "newGame", "opening", "victory", "defeat"]:
-		if not story["sequences"].get(sequence) is Array or story["sequences"][sequence].is_empty():
-			return false
-	for sequence: Variant in story["sequences"].values():
-		if not sequence is Array:
-			return false
-		for step: Variant in sequence:
-			if not step is Dictionary or not _story_step_valid(step, ids, width, height):
-				return false
-	var commander_setups: int = 0
-	for step: Dictionary in story["sequences"]["opening"]:
-		if step["kind"] == "commanderSetup":
-			commander_setups += 1
-	if commander_setups != 1:
-		return false
-	var boot: Array = story["sequences"]["boot"]
-	if boot.size() != 1 or boot[0]["kind"] != "prologue" or boot[0].get("image") != "intro0":
-		return false
-	if (
-		not story.get("images") is Dictionary
-		or not story.get("world") is Dictionary
-		or not story.get("speakers") is Dictionary
-		or not story.get("initialBattlePresentation") is Dictionary
-	):
-		return false
-	if (
-		not story.get("outcomeRules") is Dictionary
-		or not story.get("turnEvents") is Array
-		or not story.get("aiChanges") is Array
-	):
-		return false
-	var outcome: Dictionary = story["outcomeRules"]
-	if (
-		not _integer(outcome.get("enemyFaction"))
-		or outcome["enemyFaction"] < 0
-		or outcome["enemyFaction"] > 2
-		or not outcome.get("requiredUnitIds") is Array
-		or outcome["requiredUnitIds"].is_empty()
-	):
-		return false
-	if outcome.has("defeatUnitId"):
-		if not _integer(outcome["defeatUnitId"]) or not ids.has(int(outcome["defeatUnitId"])):
-			return false
-	else:
-		if (
-			not _integer(outcome.get("escapeUnitId"))
-			or not ids.has(int(outcome["escapeUnitId"]))
-			or not _integer(outcome.get("escapeRow"))
-			or outcome["escapeRow"] < 0
-			or outcome["escapeRow"] >= height
-		):
-			return false
-	for id: Variant in outcome["requiredUnitIds"]:
-		if not _integer(id) or not ids.has(int(id)):
-			return false
-	var event_ids: Dictionary = {}
-	for event: Variant in story["turnEvents"]:
-		if (
-			not event is Dictionary
-			or not event.get("id") is String
-			or event["id"].is_empty()
-			or event_ids.has(event["id"])
-			or not _positive_integer(event.get("afterEnemyPhaseOfRound"))
-			or not event.get("sequence") is String
-			or not story["sequences"].get(event["sequence"]) is Array
-			or story["sequences"][event["sequence"]].is_empty()
-			or not event.get("unitIds") is Array
-			or event["unitIds"].is_empty()
-		):
-			return false
-		event_ids[event["id"]] = true
-		for id: Variant in event["unitIds"]:
-			if not _integer(id) or not ids.has(int(id)):
-				return false
-	for change: Variant in story["aiChanges"]:
-		if (
-			not change is Dictionary
-			or not _positive_integer(change.get("beforeEnemyPhaseOfRound"))
-			or not change.get("unitIds") is Array
-			or not _integer(change.get("flagsSet"))
-			or change["flagsSet"] < 0
-			or change["flagsSet"] > 255
-			or not _integer(change.get("policyClear"))
-			or change["policyClear"] < 0
-			or change["policyClear"] > 255
-		):
-			return false
-		for id: Variant in change["unitIds"]:
-			if not _integer(id) or not ids.has(int(id)):
-				return false
-	for image_id: String in [
-		"splash",
-		"intro0",
-		"scene0",
-		"scene1",
-		"scene2",
-		"title_00",
-		"title_01",
-		"b0",
-		"b1",
-		"portraits_00",
-		"portraits_09"
-	]:
-		if not story["images"].has(image_id):
-			return false
-	if not story.get("routeChoices") is Array or story["routeChoices"].is_empty():
-		return false
-	var routes: Dictionary = {}
-	for route: Variant in story["routeChoices"]:
-		if (
-			not route is Dictionary
-			or not _integer(route.get("routeIndex"))
-			or routes.has(int(route["routeIndex"]))
-			or not route.get("label") is String
-			or not _integer(route.get("portraitId"))
-			or not story["images"].has("portraits_%02d" % int(route["portraitId"]))
-		):
-			return false
-		routes[int(route["routeIndex"])] = true
-	var images: Array = story["images"].values()
-	images.append(story["world"])
-	for image: Variant in images:
-		if (
-			not image is Dictionary
-			or not image.get("texture") is String
-			or not ResourceLoader.exists(directory.path_join(image["texture"]))
-		):
-			return false
-	for id: Variant in story["speakers"]:
-		var speaker: Variant = story["speakers"][id]
-		if (
-			not id is String
-			or not id.is_valid_int()
-			or not speaker is Dictionary
-			or not speaker.get("name") is String
-			or speaker["name"].is_empty()
-		):
-			return false
-		var portrait_id: Variant = speaker.get("portraitId")
-		if (
-			portrait_id != null
-			and (
-				not _integer(portrait_id)
-				or not story["images"].has("portraits_%02d" % int(portrait_id))
-			)
-		):
-			return false
-	for id: String in ["0", "9"]:
-		if not story["speakers"].has(id):
-			return false
-	for sequence: Variant in story["sequences"]:
-		if not sequence is String or not story["sequences"][sequence] is Array:
-			return false
-		for step: Variant in story["sequences"][sequence]:
-			if not step is Dictionary:
-				return false
-			if step.has("text") and step["text"].get("speakerId") != null:
-				var speaker_id: String = str(int(step["text"]["speakerId"]))
-				if not story["speakers"].has(speaker_id):
-					return false
-			var portrait_id: Variant = step.get("text", {}).get("portraitId")
-			if (
-				portrait_id != null
-				and (
-					not _integer(portrait_id)
-					or not story["images"].has("portraits_%02d" % int(portrait_id))
-				)
-			):
-				return false
-			if (
-				step["kind"] == "prologue"
-				and (not step.get("image") is String or not story["images"].has(step["image"]))
-			):
-				return false
-	if (
-		not story.get("battleName") is Dictionary
-		or not _story_text_valid(story["battleName"])
-		or not story.get("labels") is Dictionary
-		or not story["labels"].get("newGame") is Dictionary
-		or not _story_text_valid(story["labels"]["newGame"])
-	):
-		return false
-	var initial: Dictionary = story["initialBattlePresentation"]
-	if (
-		not initial.get("hiddenUnitIds") is Array
-		or not initial.get("hiddenFactions") is Array
-		or not initial.get("unitPositionOverrides") is Dictionary
-	):
-		return false
-	for id: Variant in initial["hiddenUnitIds"]:
-		if not _integer(id) or not ids.has(int(id)):
-			return false
-	for faction: Variant in initial["hiddenFactions"]:
-		if not _integer(faction) or faction < 0 or faction > 2:
-			return false
-	for id: Variant in initial["unitPositionOverrides"]:
-		if (
-			not id is String
-			or not id.is_valid_int()
-			or not ids.has(int(id))
-			or not _story_cell_valid(initial["unitPositionOverrides"][id], width, height)
-		):
-			return false
-	var world: Dictionary = story["world"]
-	if (
-		not _positive_integer(world.get("width"))
-		or not _positive_integer(world.get("height"))
-		or not _integer(world.get("tileSize"))
-		or world["tileSize"] != MapView.TILE_PIXELS
-		or not world.get("nodes") is Array
-		or world["nodes"].is_empty()
-		or not world.get("routes") is Array
-		or world["routes"].is_empty()
-		or not _integer(story.get("worldNode"))
-		or story["worldNode"] < 0
-		or story["worldNode"] >= world["nodes"].size()
-		or not _positive_integer(story.get("battleNumber"))
-	):
-		return false
-	for index: int in range(world["nodes"].size()):
-		var node: Variant = world["nodes"][index]
-		if (
-			not node is Dictionary
-			or not _integer(node.get("id"))
-			or node["id"] != index
-			or not node.get("name") is String
-			or node["name"].is_empty()
-			or not node.get("entryNarration") is Dictionary
-			or not _story_text_valid(node["entryNarration"])
-			or not _integer(node.get("markerId"))
-			or int(node["markerId"]) not in [-1, 0, 1]
-			or not _story_cell_valid(
-				node.get("position"), int(world["width"]), int(world["height"])
-			)
-		):
-			return false
-	for path: Variant in world["routes"]:
-		if not path is Array or path.size() < 2 or path[0] != 0:
-			return false
-		for node: Variant in path:
-			if not _integer(node) or node < 0 or node >= world["nodes"].size():
-				return false
-	for route: Dictionary in story["routeChoices"]:
-		if (
-			not _integer(route.get("nodeId"))
-			or route["nodeId"] <= 0
-			or route["nodeId"] >= world["nodes"].size()
-			or route["routeIndex"] < 0
-			or route["routeIndex"] >= world["routes"].size()
-		):
-			return false
-		var path: Array = world["routes"][int(route["routeIndex"])]
-		var current: int = path.find(story["worldNode"])
-		if current < 0 or current + 1 >= path.size() or path[current + 1] != route["nodeId"]:
-			return false
-	return true
-
-
-func _story_step_valid(step: Dictionary, ids: Dictionary, width: int, height: int) -> bool:
-	for timing: String in [
-		"sourceWaitTicks", "sourceWaitTicksAfter", "sourceHoldTicksAfter", "holdTicksAfter"
-	]:
-		if step.has(timing) and (not _integer(step[timing]) or step[timing] < 0):
-			return false
-	if step.has("instant") and not step["instant"] is bool:
-		return false
-	if (
-		step.get("kind")
-		in [
-			"prologue",
-			"worldNarration",
-			"dialogue",
-			"objective",
-			"instruction",
-			"missionComplete",
-			"gameOver",
-			"battleTitle"
-		]
-	):
-		return (
-			step.get("text") is Dictionary
-			and _story_text_valid(step["text"])
-			and (
-				step.get("kind") != "missionComplete"
-				or (_integer(step.get("goldReward")) and step["goldReward"] >= 0)
-			)
-			and (
-				step["kind"] != "battleTitle" or _positive_integer(step.get("sourceDurationUnits"))
-			)
-		)
-	match step.get("kind"):
-		"focus":
-			return _story_cell_valid(step.get("cell"), width, height)
-		"unitEntrance":
-			return (
-				_integer(step.get("unitId"))
-				and ids.has(int(step["unitId"]))
-				and _story_cell_valid(step.get("from"), width, height, true)
-				and _story_cell_valid(step.get("to"), width, height)
-			)
-		"parallelEntrances":
-			if (
-				not _story_cell_valid(step.get("focus"), width, height)
-				or not step.get("units") is Array
-				or step["units"].is_empty()
-			):
-				return false
-			for entrance: Variant in step["units"]:
-				if (
-					not entrance is Dictionary
-					or entrance.get("kind") != "unitEntrance"
-					or not _story_step_valid(entrance, ids, width, height)
-				):
-					return false
-			return true
-		"revealFaction":
-			return _integer(step.get("faction")) and step["faction"] >= 0 and step["faction"] <= 2
-		"commanderSetup":
-			if (
-				not step.get("candidates") is Array
-				or step["candidates"].is_empty()
-				or not _integer(step.get("defaultCommanderId"))
-				or step["defaultCommanderId"] not in step["candidates"]
-			):
-				return false
-			var candidates: Dictionary = {}
-			for id: Variant in step["candidates"]:
-				if not _integer(id) or candidates.has(int(id)) or not ids.has(int(id)):
-					return false
-				var candidate: Dictionary = ids[int(id)]
-				if candidate.get("formal") != true or candidate.get("faction") != 0:
-					return false
-				candidates[int(id)] = true
-			return true
-		"tutorial":
-			return step.get("tutorialId") == 0
-		"worldMarker":
-			return step.get("nodeId") == 0
-		"enterBattle":
-			return step.get("battleId") == "m0"
-		"routeChoice":
-			if not step.get("options") is Array or step["options"].is_empty():
-				return false
-			for route: Variant in step["options"]:
-				if (
-					not route is Dictionary
-					or not route.get("label") is String
-					or not _integer(route.get("routeIndex"))
-				):
-					return false
-			return true
-	return false
-
-
-func _story_cell_valid(cell: Variant, width: int, height: int, offscreen: bool = false) -> bool:
-	return (
-		cell is Array
-		and cell.size() == 2
-		and _integer(cell[0])
-		and _integer(cell[1])
-		and (offscreen or (cell[0] >= 0 and cell[0] < width and cell[1] >= 0 and cell[1] < height))
-	)
-
-
-func _story_text_valid(line: Dictionary) -> bool:
-	return (
-		line.get("text") is String
-		and not line["text"].is_empty()
-		and _integer(line.get("sourceTextIndex"))
-		and (line.get("speakerId") == null or _integer(line["speakerId"]))
-	)
+	return StoryContract.validate(story, directory, ids, width, height)

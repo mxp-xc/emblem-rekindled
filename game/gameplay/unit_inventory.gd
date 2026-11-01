@@ -67,6 +67,22 @@ func cleanup_combat(actor: Dictionary) -> void:
 	actor["flags"] &= ~(8 | 32)
 
 
+func broken_items(participants: Array, current_units: Dictionary) -> Array[Dictionary]:
+	var broken: Array[Dictionary] = []
+	for participant: Dictionary in participants:
+		for held: Dictionary in participant["inventory"]:
+			var remaining: Dictionary = held_item(current_units[int(participant["id"])], held["id"])
+			if held["durability"] > 0 and (remaining.is_empty() or remaining["durability"] <= 0):
+				broken.append(
+					{
+						"unit": participant["id"],
+						"item": held["id"],
+						"templateId": held["templateId"]
+					}
+				)
+	return broken
+
+
 func consume_weapon(actor: Dictionary) -> void:
 	actor["proficiency"] += 1
 	var protected: bool = false

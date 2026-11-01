@@ -13,8 +13,8 @@ var _clip_directory: String
 func setup(data: Dictionary, foreground: bool) -> void:
 	_content = data
 	foreground_pass = foreground
-	_art_directory = data["entry"]["battleArt"].get_base_dir()
-	_clip_directory = data["entry"]["battleClips"].get_base_dir()
+	_art_directory = data["entry"]["resourceDirectory"]
+	_clip_directory = data["entry"]["resourceDirectory"]
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)

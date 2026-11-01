@@ -1,0 +1,3 @@
+{
+  "res://tests/fixtures/texture_overrides/base/source.png": "res://tests/fixtures/texture_overrides/authored/replacement.png"
+}

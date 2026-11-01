@@ -45,7 +45,11 @@ func run() -> void:
 		fail("The item screen replaces the world menu rather than overlaying two actionable lists")
 		return
 	await wheel(MOUSE_BUTTON_WHEEL_DOWN)
-	await key(KEY_ENTER)
+	if root.gui_get_focus_owner() != view.find_child("Party_9", true, false):
+		fail("Party overview wheel follows the current recruit order")
+		return
+	view.find_child("Party_0", true, false).pressed.emit()
+	await process_frame
 	var warehouse: Button = view.find_child("Warehouse", true, false)
 	if warehouse == null or view.page != "operations":
 		fail("Confirming the world character must expose Shop, Warehouse and Trade operations")
@@ -96,8 +100,8 @@ func run() -> void:
 		return
 	scene.story_player.advance()
 	scene.story_player.find_child("World_inventory", true, false).pressed.emit()
-	await key(KEY_RIGHT)
-	await key(KEY_ENTER)
+	view.find_child("Party_0", true, false).pressed.emit()
+	await process_frame
 	view.find_child("Shop", true, false).pressed.emit()
 	await process_frame
 	if view.page != "shop" or view.stage != "tabs":

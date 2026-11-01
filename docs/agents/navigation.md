@@ -19,6 +19,8 @@
 素材路径从 `chapter.json` 的对应 manifest 追踪；生成 JSON/图片不是默认搜索范围。
 扩关、改图或修改资源清理前，阅读 `docs/development.md` 的“章内共享图片与改图”；
 公共图片归章级shared所有，关卡只拥有私有输出，共享逻辑从 `tools/chapter_assets.py` 进入。
+扩展关卡配置、队伍部署或章级表现库时，阅读 `docs/design/chapter-content.md`；
+其中区分选定设计与已落地行为，实施状态以关联issue为准。
 
 ```sh
 rtk rg --files game/app game/gameplay game/features game/persistence -g '*.gd'

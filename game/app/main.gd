@@ -2,7 +2,7 @@
 # gdlint: disable=max-file-lines
 extends Control
 
-const Content = preload("res://app/chapter_content.gd")
+const Session = preload("res://app/chapter_session.gd")
 const Settings = preload("res://persistence/settings_store.gd")
 const UnitMenu = preload("res://features/tactical_map/unit_menu.gd")
 const UnitInformation = preload("res://features/tactical_map/unit_information.gd")
@@ -22,6 +22,8 @@ const StoryPlayer = preload("res://features/dialogue/story_player.gd")
 const BattleClips = preload("res://app/battle_clip_library.gd")
 const BattleView = preload("res://features/battle/battle_view.gd")
 const ActionFeedback = preload("res://features/battle/action_feedback.gd")
+const RetirementPlayer = preload("res://features/battle/retirement_player.gd")
+const MapAttackPlayer = preload("res://features/battle/map_attack_player.gd")
 const TargetSelection = preload("res://features/tactical_map/target_selection.gd")
 const Battle = preload("res://gameplay/battle_state.gd")
 const FONT = preload("res://ui/fonts/NotoSansCJKsc-Regular.otf")
@@ -41,6 +43,8 @@ var battle_store: RefCounted
 var battle_clips: RefCounted
 var battle_view: Control
 var action_feedback: Control
+var retirement_player: Control
+var map_attack_player: Control
 var target_selection: Control
 var title_screen: Control
 var story_player: Control
@@ -61,6 +65,8 @@ var exchange_screen: Control
 var menu_layer: ColorRect
 var player := AudioStreamPlayer.new()
 var music_started: bool = false
+var _target_item: String = ""
+var _target_mode: String = ""
 var _last_system_back_millis: int = -1000
 var _slot_operation: String
 var _played_seconds: float = -1
@@ -87,16 +93,14 @@ func _ready() -> void:
 	theme.default_font_size = 24
 	theme.set_color("font_color", "Label", INK)
 	theme.set_color("font_color", "Button", INK)
-	var loaded: Dictionary = Content.new().load_chapter("res://content/chapter_1/chapter.json")
+	var loaded: Dictionary = Session.new().open("res://content/chapter_1/chapter.json")
 	if not loaded["ok"]:
 		push_error(loaded["error"])
 		add_child(_label("关卡资源无法加载\n请检查游戏文件后重试。", 28))
 		return
-	content = loaded
-	theme = PixelTheme.new().create(
-		content["interface"], content["entry"]["interface"].get_base_dir()
-	)
-	battle = Battle.new(content)
+	content = loaded["content"]
+	theme = PixelTheme.new().create(content["interface"], content["entry"]["resourceDirectory"])
+	battle = loaded["battle"]
 	battle_clips = BattleClips.new(content)
 	battle_store = BattleStore.new(content)
 	var restored: Dictionary = store.read()
@@ -183,24 +187,30 @@ func _build_interface() -> void:
 		screen.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
 
 
-func _adopt_content(next_content: Dictionary) -> void:
-	if content["entry"]["battleId"] == next_content["entry"]["battleId"]:
-		return
+func _adopt_content(next_content: Dictionary, next_battle: RefCounted = null) -> void:
 	_rebuilding_interface = true
+	_reset_tactical_selection()
+	_wheel_owner = null
 	for child: Node in get_children():
 		if child is Control:
 			remove_child(child)
 			child.queue_free()
 	content = next_content
-	battle = Battle.new(content)
+	battle = next_battle if next_battle != null else Battle.new(content, Callable(), false)
 	battle_clips = BattleClips.new(content)
-	theme = PixelTheme.new().create(
-		content["interface"], content["entry"]["interface"].get_base_dir()
-	)
+	theme = PixelTheme.new().create(content["interface"], content["entry"]["resourceDirectory"])
 	_build_interface()
 	_rebuilding_interface = false
 	_layout()
 	_update_music_button()
+
+
+func _reset_tactical_selection() -> void:
+	selected_unit = -1
+	choosing_destination = false
+	trade_partner = -1
+	_target_item = ""
+	_target_mode = ""
 
 
 func _build_battlefield() -> void:
@@ -267,6 +277,14 @@ func _build_battlefield() -> void:
 	action_feedback.name = "ActionFeedback"
 	add_child(action_feedback)
 	action_feedback.setup(content, map, map_hud)
+	map_attack_player = MapAttackPlayer.new()
+	map_attack_player.name = "MapAttackPlayer"
+	add_child(map_attack_player)
+	map_attack_player.setup(content, map, map_hud)
+	retirement_player = RetirementPlayer.new()
+	retirement_player.name = "RetirementPlayer"
+	add_child(retirement_player)
+	retirement_player.setup(content, map)
 	feedback = _label("", 25, GOLD)
 	feedback.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	feedback.add_theme_color_override("font_shadow_color", Color.BLACK)
@@ -401,6 +419,7 @@ func _layout_overlays(force: bool = false) -> void:
 		screen.size = area.size
 	story_player.set_battle_area(area, safe)
 	action_feedback.set_content_area(area)
+	map_attack_player.set_content_area(area)
 	menu_layer.set_safe_rect(safe if full_screen else area)
 
 
@@ -625,7 +644,26 @@ func _targeting_intent(kind: String, details: Dictionary) -> void:
 		return
 	match kind:
 		"item_selected":
+			_target_item = details["item"]
+			_target_mode = "heal" if details["action"] == "heal" else "battle_clip"
 			if details["action"] == "attack":
+				var options: Dictionary = battle.attack_options(selected_unit, _target_item)
+				if not options["ok"] or not options["available"]:
+					return
+				_target_mode = options["actionMode"]
+				if _target_mode == "map_attack":
+					if options["selection"] == "none":
+						await _show_map_forecast(
+							battle.map_attack_preview(selected_unit, _target_item)
+						)
+					else:
+						var primary_targets: Array = []
+						for id: int in options["primaryTargets"]:
+							primary_targets.append(battle.unit(id))
+						map.set_action_field(options["rangeCells"], primary_targets, "attack")
+						map.action_hint = "选择施法目标"
+						target_selection.show_targets(primary_targets)
+					return
 				var equipped: Dictionary = battle.equip_unit(selected_unit, details["item"])
 				if not equipped["ok"]:
 					push_error(str(equipped))
@@ -649,16 +687,34 @@ func _targeting_intent(kind: String, details: Dictionary) -> void:
 			map.set_movement_field({})
 		"target_highlight":
 			var target: Dictionary = battle.unit(details["target"])
+			if target.is_empty():
+				return
 			map.selected = Vector2i(target["x"], target["y"])
 			map.view.focus_cell(map.selected)
 			if details["action"] == "heal":
 				map_hud.present(map.selected, target)
+			elif _target_mode == "map_attack":
+				var options: Dictionary = battle.attack_options(selected_unit, _target_item)
+				var primary_targets: Array = []
+				for id: int in options.get("primaryTargets", []):
+					primary_targets.append(battle.unit(id))
+				map.set_action_field(options.get("rangeCells", {}), primary_targets, "attack")
+				map.action_hint = "选择施法目标"
+				var area: Dictionary = battle.map_attack_preview(
+					selected_unit, _target_item, details["target"]
+				)
+				map.set_affected_cells(area.get("affectedCells", {}) if area["ok"] else {})
 			map.queue_redraw()
 		"target_selected":
 			if details["action"] == "heal":
 				target_selection.hide()
 				await _present_player_action(
 					battle.heal_unit(selected_unit, details["target"], details["item"])
+				)
+				return
+			if _target_mode == "map_attack":
+				await _show_map_forecast(
+					battle.map_attack_preview(selected_unit, _target_item, details["target"])
 				)
 				return
 			var preview: Dictionary = battle.attack_preview(selected_unit, details["target"])
@@ -672,6 +728,25 @@ func _targeting_intent(kind: String, details: Dictionary) -> void:
 		"attack_confirmed":
 			target_selection.hide()
 			await _present_player_action(battle.attack_unit(selected_unit, details["target"]))
+		"map_attack_confirmed":
+			var preview: Dictionary = battle.map_attack_preview(
+				selected_unit, _target_item, details["target"]
+			)
+			if not preview["ok"]:
+				return
+			var loaded: Dictionary = map_attack_player.preload_effect(preview)
+			if not loaded["ok"]:
+				push_error(loaded["error"])
+				return
+			var cast: Dictionary = battle.cast_map_attack(
+				selected_unit, _target_item, details["target"]
+			)
+			if not cast["ok"]:
+				push_error(cast["error"])
+				target_selection.show_map_forecast(preview)
+				return
+			target_selection.hide()
+			await _present_player_action(cast)
 		"closed":
 			menu_button.disabled = false
 			menu_button.show()
@@ -681,6 +756,22 @@ func _targeting_intent(kind: String, details: Dictionary) -> void:
 			map.queue_redraw()
 			_refresh_selection()
 			unit_panel.show()
+
+
+func _show_map_forecast(preview: Dictionary) -> void:
+	if not preview["ok"]:
+		return
+	var loaded: Dictionary = map_attack_player.preload_effect(preview)
+	if not loaded["ok"]:
+		push_error(loaded["error"])
+		return
+	var affected: Array = []
+	for id: int in preview["targetIds"]:
+		affected.append(battle.unit(id))
+	map.set_action_field(preview["rangeCells"], affected, "attack")
+	map.set_affected_cells(preview["affectedCells"])
+	map.action_hint = "确认施放范围"
+	target_selection.show_map_forecast(preview)
 
 
 func _wait() -> void:
@@ -750,6 +841,8 @@ func _active_navigation_target() -> Control:
 			return screen
 	if action_feedback != null and action_feedback.playing:
 		return action_feedback
+	if map_attack_player != null and map_attack_player.playing:
+		return map_attack_player
 	for screen: Control in [
 		battle_view, target_selection, exchange_screen, item_actions, unit_information, unit_panel
 	]:
@@ -859,7 +952,7 @@ func _show_information() -> void:
 	var texture: Texture2D
 	if portrait["texture"] != null:
 		texture = load(
-			content["entry"]["interface"].get_base_dir().path_join(
+			content["entry"]["resourceDirectory"].path_join(
 				content["interface"]["textures"][portrait["texture"]]["texture"]
 			)
 		)
@@ -998,20 +1091,16 @@ func _show_title() -> void:
 func start_new_game() -> void:
 	if not title_screen.visible or title_screen.prologue.visible:
 		return
-	if content["entry"]["battleId"] != content["entry"]["firstBattle"]:
-		var first: Dictionary = Content.new().load_chapter(content["entry"]["chapterPath"])
-		if not first["ok"]:
-			push_error(first["error"])
-			title_screen.message.text = "首关资源无法读取，当前记录已保留。"
-			return
-		_adopt_content(first)
+	var first: Dictionary = Session.new().open(content["entry"]["chapterPath"])
+	if not first["ok"]:
+		push_error(first["error"])
+		title_screen.message.text = "首关资源无法读取，当前记录已保留。"
+		return
+	_adopt_content(first["content"], first["battle"])
 	_unlock_music()
 	world_progress = {}
 	_played_seconds = 0
 	title_screen.hide()
-	battle = Battle.new(content)
-	selected_unit = -1
-	choosing_destination = false
 	map.selected = Vector2i(-1, -1)
 	map.set_movement_field({})
 	map.set_units(battle.snapshot()["units"])
@@ -1024,20 +1113,41 @@ func start_new_game() -> void:
 	map.set_zoom(maxf(3.0, fill_height))
 	busy = true
 	await story_player.play(content["story"]["sequences"]["newGame"])
-	await story_player.play(content["story"]["sequences"]["opening"])
-	battle.configure_commander(
-		story_player.selected_commander,
-		bool(story_player.selected_policy & 1),
-		bool(story_player.selected_policy & 4)
+	await story_player.play(
+		content["story"]["sequences"]["opening"], battle.command_configuration()
 	)
+	if not await _commit_opening_commander():
+		return
 	battle.complete_event("opening")
 	resume_battle(battle)
 
 
+func _commit_opening_commander() -> bool:
+	while true:
+		var configured: Dictionary = battle.configure_commander(
+			story_player.selected_commander,
+			bool(story_player.selected_policy & 1),
+			bool(story_player.selected_policy & 4)
+		)
+		if configured["ok"]:
+			return true
+		push_warning("Commander setup rejected: " + str(configured["error"]))
+		var configuration: Dictionary = battle.command_configuration()
+		if configuration["candidates"].is_empty():
+			await story_player.show_notice("当前没有可用指挥官，原进度已保留。", "回到标题")
+			_show_title()
+			return false
+		await story_player.show_notice("当前选择无法配置，请重新选择指挥官。", "重新配置")
+		var selected: Dictionary = await story_player.choose_commander(configuration)
+		if not selected["ok"]:
+			_show_title()
+			return false
+	return false
+
+
 func resume_battle(restored_battle: RefCounted) -> void:
 	battle = restored_battle
-	selected_unit = -1
-	choosing_destination = false
+	_reset_tactical_selection()
 	busy = false
 	menu_button.disabled = false
 	map.selection_enabled = true
@@ -1070,7 +1180,7 @@ func load_game() -> void:
 	_unlock_music()
 	var result: Dictionary = battle_store.read()
 	if result["ok"]:
-		_adopt_content(result["content"])
+		_adopt_content(result["content"], result.get("battle"))
 		if result.has("progress"):
 			_played_seconds = float(result["progress"].get("elapsedMinutes", -1)) * 60
 			await _show_completed_progress(result["progress"])
@@ -1209,12 +1319,28 @@ func _present_player_action(result: Dictionary) -> void:
 
 func _present_action_visuals(result: Dictionary) -> void:
 	if result.get("kind") == "combat":
+		if not result.get("storyBefore", []).is_empty():
+			var before_units: Array = battle.snapshot()["units"]
+			for index: int in range(before_units.size()):
+				for participant: Dictionary in result["participants"]:
+					if before_units[index]["id"] == participant["id"]:
+						before_units[index] = participant.duplicate(true)
+			map.set_units(before_units)
+			for sequence: String in result["storyBefore"]:
+				await story_player.play(content["story"]["sequences"][sequence])
+			map.set_units(battle.snapshot()["units"])
 		_change_music("battleMusic")
 		var played: Dictionary = await battle_view.play(result)
 		_change_music("music")
 		if not played["ok"]:
 			push_error(played["error"])
 			await story_player.show_notice("战斗演出无法播放，结算结果已保留。", "继续")
+		await _present_retirements(result.get("retirements", []))
+	elif result.get("kind") == "map_attack":
+		var played: Dictionary = await map_attack_player.play(result, battle.snapshot()["units"])
+		if not played["ok"]:
+			push_error(played["error"])
+			await story_player.show_notice("法术演出无法播放，结算结果已保留。", "继续")
 	if await action_feedback.play(
 		result,
 		battle.snapshot()["units"],
@@ -1226,6 +1352,30 @@ func _present_action_visuals(result: Dictionary) -> void:
 	if not map_hud.actor.is_empty():
 		var actor: Dictionary = battle.unit(int(map_hud.actor["id"]))
 		map_hud.present(Vector2i(actor["x"], actor["y"]), actor)
+
+
+func _present_retirements(retirements: Array) -> void:
+	if retirements.is_empty():
+		return
+	var displayed: Array = battle.snapshot()["units"]
+	for retirement: Dictionary in retirements:
+		for actor: Dictionary in displayed:
+			if actor["id"] == retirement["unitId"]:
+				# Damage and death are committed. Only the map copy waits for the dialogue.
+				actor["visible"] = true
+				actor["flags"] &= ~1
+	map.set_units(displayed)
+	for retirement: Dictionary in retirements:
+		for sequence: String in retirement["beforeRetirement"]:
+			await story_player.play(content["story"]["sequences"][sequence])
+		await story_player.play([{"kind": "focus", "unitId": retirement["unitId"]}])
+		var played: Dictionary = await retirement_player.play(battle.unit(retirement["unitId"]))
+		if not played["ok"]:
+			push_error(played["error"])
+			await story_player.show_notice("退场演出无法播放，结算结果已保留。", "继续")
+		for sequence: String in retirement["afterRetirement"]:
+			await story_player.play(content["story"]["sequences"][sequence])
+	map.set_units(battle.snapshot()["units"])
 
 
 func _end_turn() -> void:
@@ -1272,6 +1422,34 @@ func _end_turn() -> void:
 			map.presentation_positions.erase(id)
 			map.set_movement_field({})
 			var plan: Dictionary = began["plan"]
+			if plan.get("actionMode") == "map_attack":
+				var preview: Dictionary = battle.map_attack_preview(
+					id, plan["mapItem"], plan["mapPrimary"]
+				)
+				if not preview["ok"]:
+					await _automatic_error(preview)
+					return
+				var loaded: Dictionary = map_attack_player.preload_effect(preview)
+				if not loaded["ok"]:
+					await _automatic_error(loaded)
+					return
+				var targets: Array = []
+				for target: int in preview["targetIds"]:
+					targets.append(battle.unit(target))
+				map.set_action_field(preview["rangeCells"], targets, "attack")
+				map.set_affected_cells(preview["affectedCells"])
+				map.action_hint = "敌军施法" if battle.phase == 2 else "友军施法"
+				await get_tree().create_timer(10 * tick_seconds).timeout
+				map.set_movement_field({})
+				var cast: Dictionary = battle.cast_map_attack(
+					id, plan["mapItem"], plan["mapPrimary"]
+				)
+				if not cast["ok"]:
+					await _automatic_error(cast)
+					return
+				await _present_action_visuals(cast)
+				await get_tree().create_timer(6 * tick_seconds).timeout
+				continue
 			var result: Dictionary
 			var target_id: int = int(plan["attackTarget"])
 			if target_id < 0:
@@ -1336,6 +1514,9 @@ func _present_phase_events(events: Array) -> void:
 	for event: Dictionary in events:
 		if event["kind"] != "reinforcements":
 			continue
+		if event.get("sequence", "").is_empty():
+			map.set_units(battle.snapshot()["units"])
+			continue
 		var sequence: Array = content["story"]["sequences"][event["sequence"]].duplicate(true)
 		var arrivals: Dictionary = {}
 		for arrival: Dictionary in event["arrivals"]:
@@ -1379,6 +1560,7 @@ func _automatic_error(result: Dictionary) -> void:
 
 func _show_completed_progress(progress: Dictionary, guidance: bool = false) -> void:
 	busy = true
+	_reset_tactical_selection()
 	world_progress = progress.duplicate(true)
 	save_slots.hide()
 	world_inventory_screen.hide()
@@ -1495,40 +1677,31 @@ func _world_node(node_id: int) -> void:
 	if not content["entry"].get("battles", {}).has(next_id):
 		await story_player.show_world_notice("这一关卡内容尚在制作，当前进度已保留。")
 		return
-	var next_content: Dictionary = Content.new().load_chapter(
-		content["entry"]["chapterPath"], next_id
+	var opened: Dictionary = Session.new().open(
+		content["entry"]["chapterPath"], next_id, {"progress": world_progress}
 	)
-	if not next_content["ok"]:
-		push_error(str(next_content))
+	if not opened["ok"]:
+		push_error(str(opened))
 		await story_player.show_world_notice("关卡数据无法加载，当前进度已保留。")
 		return
 	_world_transitioning = true
 	if not await story_player.confirm_travel(node_id):
 		_world_transitioning = false
 		return
-	var next_battle: RefCounted = Battle.new(next_content)
-	var entered: Dictionary = next_battle.begin_from_progress(world_progress)
-	if not entered["ok"]:
-		push_error(str(entered))
-		await story_player.show_world_notice("队伍无法进入下一战，当前记录已保留。")
-		_world_transitioning = false
-		return
 	await story_player.travel_to(node_id)
-	_adopt_content(next_content)
-	battle = next_battle
-	selected_unit = -1
+	_adopt_content(opened["content"], opened["battle"])
 	busy = true
 	title_screen.hide()
 	map.set_units(battle.snapshot()["units"])
 	map.prepare_opening(content["story"]["initialBattlePresentation"])
 	map_hud.hide()
 	menu_button.hide()
-	await story_player.play(content["story"]["sequences"]["opening"])
-	battle.configure_commander(
-		story_player.selected_commander,
-		bool(story_player.selected_policy & 1),
-		bool(story_player.selected_policy & 4)
+	await story_player.play(
+		content["story"]["sequences"]["opening"], battle.command_configuration()
 	)
+	if not await _commit_opening_commander():
+		_world_transitioning = false
+		return
 	battle.complete_event("opening")
 	var saved: Dictionary = battle_store.write(battle, _play_minutes())
 	while not saved["ok"]:
@@ -1550,7 +1723,11 @@ func _finish_outcome() -> void:
 	menu_button.hide()
 	if battle.outcome["kind"] == "victory":
 		await story_player.play(content["story"]["sequences"]["victory"])
-		var completed: Dictionary = battle.complete_victory(story_player.selected_route)
+		var routes: Array = content["story"]["routeChoices"]
+		var route: int = (
+			int(routes[0]["routeIndex"]) if routes.size() == 1 else story_player.selected_route
+		)
+		var completed: Dictionary = battle.complete_victory(route)
 		if not completed["ok"]:
 			push_error(completed["error"])
 			await story_player.show_notice("关卡结算失败，原存档已保留。", "回到标题")

@@ -27,8 +27,42 @@ public final class Chapter1Story {
 
   private Chapter1Story() {}
 
+  /** Chapter resources only; verified per-map events are authored JSON, not Java branches. */
+  public static void exportResources(Object game, ClassLoader loader, Path output)
+    throws Exception {
+    verifySource(loader);
+    Method text = Class.forName("e", true, loader).getMethod("b", int.class);
+    Method resource = Class.forName("h", true, loader).getMethod("c", String.class);
+    Path directory = output.resolve("story");
+    Files.createDirectories(directory);
+    Map<String, Object> manifest = new LinkedHashMap<>();
+    manifest.put("texts", exportTexts(resource, text));
+    Map<String, Object> images = new LinkedHashMap<>();
+    Map<String, Object> speakers = new LinkedHashMap<>();
+    for (Object unit : deployment(game).values()) {
+      int id = number(unit, "y"),
+        portraitId = number(unit, "A");
+      Map<String, Object> speaker = new LinkedHashMap<>();
+      speaker.put("id", id);
+      speaker.put("name", get(unit, "w"));
+      speaker.put("faction", number(unit, "C"));
+      speaker.put("portraitId", portraitId < 0 ? null : portraitId);
+      speakers.put(String.valueOf(id), speaker);
+      if (portraitId >= 0) {
+        String name = String.format("portraits_%02d", portraitId);
+        if (!images.containsKey(name)) images.put(
+          name,
+          copyPng(resource, name + ".png", directory, "images/" + name + ".png")
+        );
+      }
+    }
+    manifest.put("images", images);
+    manifest.put("speakers", speakers);
+    Files.writeString(directory.resolve("manifest.json"), Chapter1Rules.json(manifest) + "\n");
+  }
+
   /** The reference runtime must already be paused and initialized in an isolated temporary cwd. */
-  public static void export(Object game, ClassLoader loader, Path output) throws Exception {
+  public static void exportCommon(Object game, ClassLoader loader, Path output) throws Exception {
     verifySource(loader);
     Class<?> textClass = Class.forName("e", true, loader);
     Class<?> helperClass = Class.forName("h", true, loader);
@@ -42,28 +76,8 @@ public final class Chapter1Story {
     Map<String, Object> manifest = new LinkedHashMap<>();
     manifest.put("schemaVersion", 1);
     manifest.put("chapterId", "chapter_1");
-    manifest.put("battleId", "m0");
-    manifest.put("worldNode", 0);
-    manifest.put("battleNumber", 1);
-    manifest.put("pathsRelativeTo", "manifest.json");
     manifest.put("sourceSha256", SOURCE_SHA);
-    manifest.put("battleName", line(text, 139, null));
-    manifest.put("objective", line(text, 156, null));
-    // i.z:m0/dc15 checks victory before the required-survivor failure branch.
-    manifest.put(
-      "outcomeRules",
-      Map.of(
-        "enemyFaction",
-        2,
-        "escapeUnitId",
-        0,
-        "escapeRow",
-        24,
-        "requiredUnitIds",
-        List.of(0, 9)
-      )
-    );
-
+    manifest.put("texts", exportTexts(resource, text));
     Map<String, Object> labels = new LinkedHashMap<>();
     String[] labelNames = {
       "newGame",
@@ -105,18 +119,11 @@ public final class Chapter1Story {
       images.put(name, copyPng(resource, name + ".png", directory, "images/" + name + ".png"));
     }
     Map<Integer, Object> units = deployment(game);
-    Map<String, Object> speakers = new LinkedHashMap<>();
     Set<Integer> portraits = new LinkedHashSet<>(List.of(0, 9, 10, 6, 3, 2, 5));
     for (int id : new int[] { 0, 9, 10, 11, 13, 14, 15 }) {
       Object unit = units.get(id);
       if (unit == null) throw new IllegalStateException("Missing first-battle speaker " + id);
       int portraitId = number(unit, "A");
-      Map<String, Object> speaker = new LinkedHashMap<>();
-      speaker.put("id", id);
-      speaker.put("name", get(unit, "w"));
-      speaker.put("faction", number(unit, "C"));
-      speaker.put("portraitId", portraitId < 0 ? null : portraitId);
-      speakers.put(String.valueOf(id), speaker);
       if (portraitId >= 0) portraits.add(portraitId);
     }
     for (int id : portraits) {
@@ -124,7 +131,6 @@ public final class Chapter1Story {
       images.put(name, copyPng(resource, name + ".png", directory, "images/" + name + ".png"));
     }
     manifest.put("images", images);
-    manifest.put("speakers", speakers);
 
     // Resource constructors may populate d.a; preserve the original cache and its identity.
     Map<Object, Object> cache = imageCache(frameClass);
@@ -169,219 +175,6 @@ public final class Chapter1Story {
           "i.G:dC10"
         ),
         step("enterBattle", "battleId", "m0", "source", "i.G:dC11 -> i.F")
-      )
-    );
-    List<Object> opening = new ArrayList<>();
-    opening.add(
-      step(
-        "focus",
-        "cell",
-        List.of(8, 11),
-        "instant",
-        true,
-        "sourceWaitTicks",
-        26,
-        "source",
-        "i.z:m0/dc0"
-      )
-    );
-    opening.add(step("dialogue", "text", line(text, 477, 9), "source", "i.z:m0/dc1"));
-    opening.add(step("dialogue", "text", line(text, 478, 0), "source", "i.z:m0/dc1"));
-    opening.add(
-      step(
-        "unitEntrance",
-        "unitId",
-        10,
-        "from",
-        List.of(7, 10),
-        "to",
-        List.of(7, 9),
-        "source",
-        "i.z:m0/dc1"
-      )
-    );
-    opening.add(
-      step(
-        "dialogue",
-        "text",
-        line(text, 479, 10),
-        "sourceWaitTicksAfter",
-        15,
-        "source",
-        "i.z:m0/dc1..2"
-      )
-    );
-    List<Object> northern = new ArrayList<>();
-    for (int id : new int[] { 52, 53, 55, 56, 50, 54 }) {
-      Object unit = units.get(id);
-      int x = number(unit, "D"),
-        y = number(unit, "E");
-      northern.add(
-        step("unitEntrance", "unitId", id, "from", List.of(x, y - 3), "to", List.of(x, y))
-      );
-    }
-    // Show both northern flanks before leaving this view; only the original six move.
-    for (int id : new int[] { 48, 49, 51, 57 }) {
-      Object unit = units.get(id);
-      List<Integer> cell = List.of(number(unit, "D"), number(unit, "E"));
-      northern.add(step("unitEntrance", "unitId", id, "from", cell, "to", cell));
-    }
-    opening.add(
-      step(
-        "parallelEntrances",
-        "focus",
-        List.of(9, 1),
-        "units",
-        northern,
-        "sourceHoldTicksAfter",
-        9,
-        "source",
-        "i.z:m0/dc3; presentation:northern-flanks"
-      )
-    );
-    opening.add(
-      step(
-        "focus",
-        "cell",
-        List.of(2, 3),
-        "holdTicksAfter",
-        6,
-        "source",
-        "presentation:northern-left-flank"
-      )
-    );
-    opening.add(
-      step(
-        "focus",
-        "cell",
-        List.of(16, 3),
-        "holdTicksAfter",
-        6,
-        "source",
-        "presentation:northern-right-flank"
-      )
-    );
-    opening.add(
-      step(
-        "unitEntrance",
-        "unitId",
-        11,
-        "from",
-        List.of(10, 12),
-        "to",
-        List.of(10, 13),
-        "source",
-        "i.z:m0/dc4"
-      )
-    );
-    opening.add(step("dialogue", "text", line(text, 480, 11), "source", "i.z:m0/dc4"));
-    opening.add(step("focus", "cell", List.of(9, 22), "source", "i.z:m0/dc5"));
-    opening.add(step("revealFaction", "faction", 2, "sourceWaitTicks", 10, "source", "i.z:m0/dc6"));
-    opening.add(
-      step(
-        "dialogue",
-        "text",
-        line(text, 481, 0),
-        "sourceWaitTicksAfter",
-        20,
-        "source",
-        "i.z:m0/dc7..8"
-      )
-    );
-    opening.add(step("objective", "text", line(text, 156, null), "source", "i.z:m0/dc11 -> i.o"));
-    opening.add(step("instruction", "text", line(text, 455, null), "source", "i.z:m0/dc12"));
-    List<Integer> commanders = new ArrayList<>();
-    for (Object unit : units.values()) {
-      if (
-        number(unit, "C") == 0 && number(unit, "y") < 10 && (number(unit, "B") & 1) == 0
-      ) commanders.add(number(unit, "y"));
-    }
-    opening.add(
-      step(
-        "commanderSetup",
-        "candidates",
-        commanders,
-        "defaultCommanderId",
-        commanders.isEmpty() ? null : commanders.get(0),
-        "defaultMode",
-        "automatic",
-        "defaultStance",
-        "attack",
-        "source",
-        "i.z:m0/dc13 -> i.a(e,1)"
-      )
-    );
-    opening.add(step("tutorial", "tutorialId", 0, "source", "i.z:m0/dc14 -> i.e(0,0)"));
-    sequences.put("opening", opening);
-
-    List<Object> reinforcementUnits = new ArrayList<>();
-    for (int id : new int[] { 13, 14, 15 }) {
-      Object unit = units.get(id);
-      reinforcementUnits.add(
-        step(
-          "unitEntrance",
-          "unitId",
-          id,
-          "from",
-          List.of(number(unit, "D"), number(unit, "E")),
-          "to",
-          List.of(number(unit, "D"), number(unit, "E"))
-        )
-      );
-    }
-    sequences.put(
-      "reinforcements",
-      List.of(
-        step(
-          "parallelEntrances",
-          "focus",
-          List.of(16, 21),
-          "units",
-          reinforcementUnits,
-          "source",
-          "i.k:m0/bo1"
-        ),
-        step("dialogue", "text", line(text, 482, 15)),
-        step("dialogue", "text", line(text, 483, 14)),
-        step("dialogue", "text", line(text, 484, 13))
-      )
-    );
-    manifest.put(
-      "turnEvents",
-      List.of(
-        Map.of(
-          "id",
-          "reinforcements",
-          "afterEnemyPhaseOfRound",
-          1,
-          "unitIds",
-          List.of(13, 14, 15),
-          "sequence",
-          "reinforcements"
-        )
-      )
-    );
-    manifest.put("aiChanges", List.of());
-
-    List<Object> routes = exportRoutes(game, text);
-    manifest.put("routeChoices", routes);
-    sequences.put(
-      "victory",
-      List.of(
-        step("dialogue", "text", line(text, 485, 9), "source", "i.z:m0/dc16"),
-        step("dialogue", "text", line(text, 486, 0)),
-        step("dialogue", "text", line(text, 487, 9)),
-        step("dialogue", "text", line(text, 488, 0)),
-        step("routeChoice", "options", routes, "source", "i.z:m0/dc17; i.a(e,String[],byte[])"),
-        step(
-          "missionComplete",
-          "text",
-          line(text, 34, null),
-          "goldReward",
-          1000,
-          "source",
-          "i.z:m0/dc18 -> i.t"
-        )
       )
     );
     sequences.put(
@@ -434,17 +227,6 @@ public final class Chapter1Story {
       )
     );
     manifest.put(
-      "initialBattlePresentation",
-      Map.of(
-        "hiddenFactions",
-        List.of(2),
-        "hiddenUnitIds",
-        List.of(13, 14, 15),
-        "unitPositionOverrides",
-        Map.of("10", List.of(7, 10), "11", List.of(10, 12))
-      )
-    );
-    manifest.put(
       "timing",
       Map.of(
         "sourceWaitTicks",
@@ -456,285 +238,6 @@ public final class Chapter1Story {
       )
     );
     Files.writeString(directory.resolve("manifest.json"), Chapter1Rules.json(manifest) + "\n");
-  }
-
-  /** m1-specific narrative; the importer supplies the unchanged chapter presentation metadata. */
-  public static void exportSecondBattle(Object game, ClassLoader loader, Path output)
-    throws Exception {
-    verifySource(loader);
-    Class<?> textClass = Class.forName("e", true, loader);
-    Class<?> helperClass = Class.forName("h", true, loader);
-    Class<?> spriteClass = Class.forName("g", true, loader);
-    Class<?> frameClass = Class.forName("d", true, loader);
-    Method text = textClass.getMethod("b", int.class);
-    Method resource = helperClass.getMethod("c", String.class);
-    Path directory = output.resolve("story");
-    Files.createDirectories(directory);
-    Map<Integer, Object> units = deployment(game);
-    Map<String, Object> manifest = new LinkedHashMap<>();
-    manifest.put("battleId", "m1");
-    manifest.put("worldNode", 1);
-    manifest.put("battleNumber", 2);
-    manifest.put("battleName", line(text, 140, null));
-    manifest.put("objective", line(text, 157, null));
-    manifest.put(
-      "outcomeRules",
-      Map.of("enemyFaction", 2, "defeatUnitId", 81, "requiredUnitIds", List.of(0, 6))
-    );
-    Map<String, Object> speakers = new LinkedHashMap<>();
-    Set<Integer> portraitIds = new LinkedHashSet<>(List.of(0, 9, 10, 6, 7, 1));
-    for (int id : new int[] { 0, 9, 6, 51, 81 }) {
-      Object unit = units.get(id);
-      if (unit == null) throw new IllegalStateException("Missing m1 speaker " + id);
-      int portrait = number(unit, "A");
-      Map<String, Object> speaker = new LinkedHashMap<>();
-      speaker.put("id", id);
-      speaker.put("name", get(unit, "w"));
-      speaker.put("faction", number(unit, "C"));
-      speaker.put("portraitId", portrait < 0 ? null : portrait);
-      speakers.put(String.valueOf(id), speaker);
-      if (portrait >= 0) portraitIds.add(portrait);
-    }
-    Map<String, Object> images = new LinkedHashMap<>();
-    for (int id : portraitIds) {
-      String name = String.format("portraits_%02d", id);
-      images.put(name, copyPng(resource, name + ".png", directory, "images/" + name + ".png"));
-    }
-    manifest.put("speakers", speakers);
-    manifest.put("images", images);
-    Map<Object, Object> cache = imageCache(frameClass);
-    Map<Object, Object> before = new LinkedHashMap<>(cache);
-    try {
-      manifest.put("world", exportWorld(game, spriteClass, resource, text, directory));
-    } finally {
-      cache.clear();
-      cache.putAll(before);
-    }
-    List<Object> routes = new ArrayList<>();
-    int[] nextNodes = { 2, 8 };
-    int[] classTextIndices = { 218, 210 };
-    byte[] characterByNode = (byte[]) field(game.getClass(), "di").get(null);
-    for (int route = 0; route < nextNodes.length; route++) {
-      int character = characterByNode[nextNodes[route]];
-      String name = (String) text.invoke(null, 174 + character);
-      String className = (String) text.invoke(null, classTextIndices[route]);
-      routes.add(
-        step(
-          "route",
-          "nodeId",
-          nextNodes[route],
-          "characterId",
-          character,
-          "name",
-          name,
-          "nameTextIndex",
-          174 + character,
-          "className",
-          className,
-          "classTextIndex",
-          classTextIndices[route],
-          "label",
-          name + "(" + className + ")",
-          "portraitId",
-          character,
-          "routeIndex",
-          route
-        )
-      );
-    }
-    manifest.put("routeChoices", routes);
-    Map<String, Object> sequences = new LinkedHashMap<>();
-    sequences.put(
-      "opening",
-      List.of(
-        step(
-          "battleTitle",
-          "text",
-          Map.of("sourceTextIndex", -1, "text", "第2战\n" + text.invoke(null, 140)),
-          "sourceDurationUnits",
-          2000,
-          "source",
-          "i.y:m1 -> c.ad10/ap2000"
-        ),
-        step("focus", "cell", List.of(5, 6), "instant", true, "source", "i.z:m1/dc0"),
-        step("focus", "cell", List.of(12, 6), "source", "i.z:m1/dc1"),
-        step("dialogue", "text", line(text, 489, 81), "source", "i.z:m1/dc2"),
-        step("dialogue", "text", line(text, 490, 6), "source", "i.z:m1/dc3"),
-        step("objective", "text", line(text, 157, null), "source", "i.z:m1/dc4"),
-        step(
-          "commanderSetup",
-          "candidates",
-          List.of(6),
-          "defaultCommanderId",
-          6,
-          "defaultMode",
-          "automatic",
-          "defaultStance",
-          "attack",
-          "source",
-          "i.z:m1/dc5"
-        )
-      )
-    );
-    List<Object> firstEntrances = new ArrayList<>();
-    List<Object> secondEntrances = new ArrayList<>();
-    List<Object> enemyEntrances = new ArrayList<>();
-    for (int id : new int[] { 97, 95, 96 }) firstEntrances.add(entrance(units.get(id), 3, 0));
-    for (int id : new int[] { 98, 0, 9 }) secondEntrances.add(entrance(units.get(id), 3, 0));
-    for (int id : new int[] { 63, 59, 60 }) enemyEntrances.add(entrance(units.get(id), 0, 3));
-    List<Object> alliedArrival = List.of(
-      step("dialogue", "text", line(text, 491, 51), "source", "i.k:m1/bo1"),
-      step("dialogue", "text", line(text, 492, 81)),
-      step("parallelEntrances", "focus", List.of(2, 3), "units", firstEntrances),
-      step("parallelEntrances", "focus", List.of(1, 15), "units", secondEntrances),
-      step("dialogue", "text", line(text, 493, 6)),
-      step("dialogue", "text", line(text, 494, 0))
-    );
-    sequences.put("allied_arrival", alliedArrival);
-    sequences.put("reinforcements", alliedArrival);
-    sequences.put(
-      "enemy_arrival",
-      List.of(
-        step(
-          "parallelEntrances",
-          "focus",
-          List.of(5, 2),
-          "units",
-          enemyEntrances,
-          "source",
-          "i.k:m1/bo2"
-        ),
-        step("dialogue", "text", line(text, 495, 81))
-      )
-    );
-    sequences.put(
-      "victory",
-      List.of(
-        step("dialogue", "text", line(text, 498, 6), "source", "i.z:m1/dc7,dD1"),
-        step("routeChoice", "options", routes, "source", "i.z:m1/dc8,dD1"),
-        step(
-          "missionComplete",
-          "text",
-          line(text, 34, null),
-          "goldReward",
-          1000,
-          "source",
-          "i.z:m1/dc9 -> i.t"
-        )
-      )
-    );
-    manifest.put("sequences", sequences);
-    manifest.put(
-      "turnEvents",
-      List.of(
-        Map.of(
-          "id",
-          "allied_arrival",
-          "afterEnemyPhaseOfRound",
-          1,
-          "unitIds",
-          List.of(95, 96, 97, 98, 0, 9),
-          "sequence",
-          "allied_arrival"
-        ),
-        Map.of(
-          "id",
-          "enemy_arrival",
-          "afterEnemyPhaseOfRound",
-          2,
-          "unitIds",
-          List.of(63, 59, 60),
-          "sequence",
-          "enemy_arrival"
-        )
-      )
-    );
-    manifest.put(
-      "aiChanges",
-      List.of(
-        Map.of(
-          "beforeEnemyPhaseOfRound",
-          9,
-          "unitIds",
-          List.of(65, 52, 51, 81, 68),
-          "flagsSet",
-          16,
-          "policyClear",
-          2
-        )
-      )
-    );
-    manifest.put(
-      "initialBattlePresentation",
-      Map.of(
-        "hiddenFactions",
-        List.of(),
-        "hiddenUnitIds",
-        List.of(),
-        "unitPositionOverrides",
-        Map.of()
-      )
-    );
-    Files.writeString(directory.resolve("battle.json"), Chapter1Rules.json(manifest) + "\n");
-  }
-
-  private static Map<String, Object> entrance(Object unit, int left, int above) throws Exception {
-    int x = number(unit, "D"),
-      y = number(unit, "E");
-    return step(
-      "unitEntrance",
-      "unitId",
-      number(unit, "y"),
-      "from",
-      List.of(x - left, y - above),
-      "to",
-      List.of(x, y)
-    );
-  }
-
-  private static List<Object> exportRoutes(Object game, Method text) throws Exception {
-    byte[] characterByNode = (byte[]) field(game.getClass(), "di").get(null);
-    byte[][] routes = (byte[][]) field(game.getClass(), "dq").get(null);
-    int[] classes = { 226, 222, 214, 222 };
-    int[] nodes = { 1, 3, 5, 7 };
-    List<Object> result = new ArrayList<>();
-    for (int index = 0; index < nodes.length; index++) {
-      int node = nodes[index],
-        character = characterByNode[node];
-      String name = (String) text.invoke(null, 174 + character);
-      String className = (String) text.invoke(null, classes[index]);
-      int routeIndex = -1;
-      for (int candidate = 0; candidate < routes.length; candidate++) {
-        if (routes[candidate][0] == 0 && routes[candidate][1] == node) {
-          routeIndex = candidate;
-          break;
-        }
-      }
-      result.add(
-        step(
-          "route",
-          "nodeId",
-          node,
-          "characterId",
-          character,
-          "name",
-          name,
-          "nameTextIndex",
-          174 + character,
-          "className",
-          className,
-          "classTextIndex",
-          classes[index],
-          "label",
-          name + "(" + className + ")",
-          "portraitId",
-          character,
-          "routeIndex",
-          routeIndex
-        )
-      );
-    }
-    return result;
   }
 
   private static Map<String, Object> exportWorld(
@@ -840,6 +343,21 @@ public final class Chapter1Story {
     result.put("requiresInputRewrite", rewrite);
     result.put("legacyInputTokens", tokens);
     result.put("speakerId", speakerId);
+    return result;
+  }
+
+  private static Map<String, Object> exportTexts(Method resource, Method text) throws Exception {
+    Map<String, Object> result = new LinkedHashMap<>();
+    try (
+      DataInputStream input = new DataInputStream((InputStream) resource.invoke(null, "t.bin"))
+    ) {
+      int count = input.readInt();
+      if (count < 1 || count > 10000) throw new IOException("Invalid original text count");
+      for (int index = 0; index < count; index++) result.put(
+        String.valueOf(index),
+        line(text, index, null)
+      );
+    }
     return result;
   }
 

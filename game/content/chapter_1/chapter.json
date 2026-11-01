@@ -1,25 +1,31 @@
 {
   "id": "chapter_1",
   "firstBattle": "m0",
-  "battles": {
-    "m1": "res://content/chapter_1/generated/battles/m1/battle.json"
-  },
-  "map": "res://content/chapter_1/generated/map.json",
-  "units": "res://content/chapter_1/generated/units.json",
   "rules": "res://content/chapter_1/generated/rules.json",
-  "spawns": "res://content/chapter_1/generated/spawns.json",
-  "mapAnimations": "res://content/chapter_1/generated/map_animations.json",
-  "battleArt": "res://content/chapter_1/generated/battle/manifest.json",
-  "battleClips": "res://content/chapter_1/generated/battle/clips/manifest.json",
-  "battleMusic": "res://content/chapter_1/generated/battle_music.ogg",
-  "mapTexture": "res://content/chapter_1/generated/map.png",
-  "spriteDirectory": "res://content/chapter_1/generated/",
+  "controls": "res://content/chapter_1/authored/controls.json",
   "music": "res://content/chapter_1/generated/map_music.ogg",
-  "story": "res://content/chapter_1/generated/story/manifest.json",
+  "battleMusic": "res://content/chapter_1/generated/battle_music.ogg",
   "titleMusic": "res://content/chapter_1/generated/title_music.ogg",
   "worldMusic": "res://content/chapter_1/generated/world_music.ogg",
   "victoryMusic": "res://content/chapter_1/generated/victory_music.ogg",
   "defeatMusic": "res://content/chapter_1/generated/defeat_music.ogg",
-  "controls": "res://content/chapter_1/authored/controls.json",
-  "interface": "res://content/chapter_1/generated/ui/manifest.json"
+  "battles": {
+    "m0": "res://content/chapter_1/generated/battles/m0/battle.json",
+    "m1": "res://content/chapter_1/generated/battles/m1/battle.json",
+    "m2": "res://content/chapter_1/generated/battles/m2/battle.json"
+  },
+  "library": "res://content/chapter_1/generated/library/catalog.json",
+  "initialParty": [0],
+  "recruitByNode": {
+    "0": 9,
+    "1": 6,
+    "2": 7,
+    "3": 3,
+    "4": 8,
+    "5": 2,
+    "6": 4,
+    "7": 5,
+    "8": 1
+  },
+  "textureOverrides": "res://content/chapter_1/authored/texture_overrides.json"
 }

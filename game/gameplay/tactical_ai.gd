@@ -2,6 +2,7 @@ extends RefCounted
 
 const Combat = preload("res://gameplay/combat_rules.gd")
 const MapRules = preload("res://gameplay/map_rules.gd")
+const MapAttacks = preload("res://gameplay/map_attack_rules.gd")
 var _combat: RefCounted
 var _movement: RefCounted
 var _map: Dictionary
@@ -94,6 +95,9 @@ func plan(
 		"healTarget": -1,
 		"healItem": "",
 		"equipItem": "",
+		"actionMode": "",
+		"mapItem": "",
+		"mapPrimary": -1,
 		"allocation": allocation
 	}
 	var chosen_slot: int = -1
@@ -106,13 +110,25 @@ func plan(
 			or (int(definition["categoryMask"]) & int(actor["equipMask"])) == 0
 		):
 			weapon = 0
-		elif weapon == 46 and round_number % 3 != 0:
-			weapon = 0
-		elif weapon in [49, 51] and round_number % 2 != 0:
+		elif (
+			_combat.action_mode(weapon) == "map_attack"
+			and not _combat.map_attack_available(weapon, round_number)
+		):
 			weapon = 0
 		definition = _combat.item_definition(weapon)
-		if weapon == 46:
+		var mode: String = _combat.action_mode(weapon)
+		if (
+			mode == "map_attack"
+			and definition["targetRule"]["selection"] == "none"
+			and not MapAttacks.affected_targets(actor, definition, units, _alliances).is_empty()
+		):
 			chosen_slot = slot
+			result["cell"] = _cell(actor)
+			result["attackTarget"] = -1
+			result["healTarget"] = -1
+			result["actionMode"] = "map_attack"
+			result["mapItem"] = held["id"]
+			result["mapPrimary"] = -1
 			break
 		for y: int in range(int(_map["height"])):
 			for x: int in range(int(_map["width"])):
@@ -135,12 +151,31 @@ func plan(
 						if not _in_range(cell, target, definition):
 							continue
 						var score: int = _score(actor, weapon, cell, target)
+						if mode == "map_attack":
+							var moved: Dictionary = actor.duplicate()
+							moved["x"] = cell.x
+							moved["y"] = cell.y
+							score += (
+								150
+								* (
+									MapAttacks
+									. affected_targets(
+										moved, definition, units, _alliances, int(target["id"])
+									)
+									. size()
+								)
+							)
 						if score > best:
 							best = score
 							chosen_slot = slot
 							result["cell"] = cell
-							result["attackTarget"] = int(target["id"])
+							result["attackTarget"] = (
+								-1 if mode == "map_attack" else int(target["id"])
+							)
 							result["healTarget"] = -1
+							result["actionMode"] = mode
+							result["mapItem"] = held["id"] if mode == "map_attack" else ""
+							result["mapPrimary"] = int(target["id"]) if mode == "map_attack" else -1
 				if definition["damageKind"] == "healing":
 					var heal_candidates: Array = (
 						friends if weapon == 53 else (_friends if weapon == 54 else [])
@@ -159,16 +194,23 @@ func plan(
 							result["attackTarget"] = -1
 							result["healTarget"] = int(target["id"])
 							result["healItem"] = held["id"]
+							result["actionMode"] = ""
+							result["mapItem"] = ""
+							result["mapPrimary"] = -1
 				var score: int = _score(actor, weapon, cell)
 				if score > best:
 					best = score
 					result["cell"] = cell
 					result["attackTarget"] = -1
 					result["healTarget"] = -1
+					result["actionMode"] = ""
+					result["mapItem"] = ""
+					result["mapPrimary"] = -1
 	if (
 		(int(actor.get("policy", 0)) & 2) != 0
 		and result["attackTarget"] < 0
 		and result["healTarget"] < 0
+		and result["actionMode"] != "map_attack"
 	):
 		result["cell"] = _cell(actor)
 	if chosen_slot >= 0:

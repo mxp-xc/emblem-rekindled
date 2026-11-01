@@ -2,28 +2,16 @@ extends RefCounted
 
 const Inventory = preload("res://gameplay/unit_inventory.gd")
 const Battle = preload("res://gameplay/battle_state.gd")
-const Content = preload("res://app/chapter_content.gd")
+const Session = preload("res://app/chapter_session.gd")
+const Deployment = preload("res://app/chapter_deployment.gd")
 const SLOT_COUNT: int = 4
 var path: String
 var _content: Dictionary
-var _contents: Dictionary = {}
 
 
 func _init(content: Dictionary, save_path: String = "user://battle_save.json") -> void:
 	_content = content
-	_contents[content["entry"]["battleId"]] = content
 	path = save_path
-
-
-func _battle_content(battle_id: String) -> Dictionary:
-	if not _contents.has(battle_id):
-		var loaded: Dictionary = Content.new().load_chapter(
-			_content["entry"]["chapterPath"], battle_id
-		)
-		if not loaded["ok"]:
-			return {"ok": false, "error": "SAVE_CONTENT_MISMATCH"}
-		_contents[battle_id] = loaded
-	return _contents[battle_id]
 
 
 func has_save() -> bool:
@@ -139,9 +127,6 @@ func decode(record: Dictionary, random_source: Callable = Callable()) -> Diction
 		or record["chapterId"] != _content["entry"]["id"]
 	):
 		return {"ok": false, "error": "SAVE_CONTENT_MISMATCH"}
-	var content: Dictionary = _battle_content(record["battleId"])
-	if not content["ok"]:
-		return content
 	if record.has("progress"):
 		if (
 			record.has("state")
@@ -155,11 +140,14 @@ func decode(record: Dictionary, random_source: Callable = Callable()) -> Diction
 		return {"ok": false, "error": "INVALID_SAVE_STATE"}
 	if record.has("elapsedMinutes") and not _minutes_valid(record["elapsedMinutes"]):
 		return {"ok": false, "error": "INVALID_SAVE_TIME"}
-	var candidate: RefCounted = Battle.new(content, random_source)
-	var restored: Dictionary = candidate.restore_snapshot(record["state"])
-	if not restored["ok"]:
-		return restored
-	var result: Dictionary = {"ok": true, "battle": candidate, "content": content}
+	var result: Dictionary = Session.new().open(
+		_content["entry"]["chapterPath"],
+		record["battleId"],
+		{"snapshot": record["state"]},
+		random_source
+	)
+	if not result["ok"]:
+		return result
 	if record.has("elapsedMinutes"):
 		result["elapsedMinutes"] = int(record["elapsedMinutes"])
 	return result
@@ -184,9 +172,12 @@ func encode_progress(progress: Dictionary) -> Dictionary:
 func _decode_progress(value: Dictionary) -> Dictionary:
 	if not value.get("completedBattle") is String:
 		return {"ok": false, "error": "SAVE_PROGRESS_CONTENT_MISMATCH"}
-	var content: Dictionary = _battle_content(value["completedBattle"])
-	if not content["ok"]:
-		return content
+	var resolved: Dictionary = Session.new().completed_content(
+		_content["entry"]["chapterPath"], value
+	)
+	if not resolved["ok"]:
+		return resolved
+	var content: Dictionary = resolved["content"]
 	if value.has("elapsedMinutes") and not _minutes_valid(value["elapsedMinutes"]):
 		return {"ok": false, "error": "INVALID_SAVE_TIME"}
 	if value.has("levelTutorialSeen") and not value["levelTutorialSeen"] is bool:
@@ -244,7 +235,7 @@ func _decode_progress(value: Dictionary) -> Dictionary:
 	)
 	var decoder: RefCounted = load("res://gameplay/unit_record.gd").new(content, combat)
 	var held_ids: Dictionary = {}
-	var party: Array[Dictionary] = []
+	var party_by_id: Dictionary = {}
 	for raw: Variant in value["party"]:
 		if not raw is Dictionary:
 			return {"ok": false, "error": "INVALID_SAVE_PARTY"}
@@ -262,10 +253,17 @@ func _decode_progress(value: Dictionary) -> Dictionary:
 		):
 			return {"ok": false, "error": "INVALID_SAVE_PARTY"}
 		expected.erase(unit["id"])
-		party.append(unit)
+		party_by_id[int(unit["id"])] = unit
 	var warehouse: Array = value["warehouse"].duplicate(true)
 	if not decoder.validate_inventory(warehouse, held_ids):
 		return {"ok": false, "error": "INVALID_SAVE_WAREHOUSE"}
+	var party: Array[Dictionary] = []
+	for id: int in Deployment.recruit_order(
+		route, content["entry"]["recruitByNode"], int(world_step), content["entry"]["initialParty"]
+	):
+		if not party_by_id.has(id):
+			return {"ok": false, "error": "INVALID_SAVE_PARTY"}
+		party.append(party_by_id[id])
 	var progress: Dictionary = {
 		"chapterId": _content["entry"]["id"],
 		"completedBattle": value["completedBattle"],

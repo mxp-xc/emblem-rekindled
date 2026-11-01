@@ -14,7 +14,7 @@ var _textures: Dictionary = {}
 func setup(content: Dictionary) -> void:
 	_interface = content["interface"]
 	_metadata = _interface["battleHud"]
-	var directory: String = content["entry"]["interface"].get_base_dir()
+	var directory: String = content["entry"]["resourceDirectory"]
 	for key: String in _interface["textures"]:
 		_textures[key] = load(directory.path_join(_interface["textures"][key]["texture"]))
 	mouse_filter = Control.MOUSE_FILTER_IGNORE

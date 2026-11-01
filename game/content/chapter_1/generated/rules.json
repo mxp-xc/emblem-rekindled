@@ -34,7 +34,8 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "battle_clip"
     },
     {
       "id": 2,
@@ -52,7 +53,8 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "battle_clip"
     },
     {
       "id": 3,
@@ -70,7 +72,8 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "battle_clip"
     },
     {
       "id": 4,
@@ -88,7 +91,8 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "battle_clip"
     },
     {
       "id": 5,
@@ -106,7 +110,8 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "battle_clip"
     },
     {
       "id": 6,
@@ -124,7 +129,8 @@
       "doubleStrike": false,
       "drainsHp": true,
       "ignoresDefense": false,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "battle_clip"
     },
     {
       "id": 7,
@@ -142,7 +148,8 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "battle_clip"
     },
     {
       "id": 8,
@@ -160,7 +167,8 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "battle_clip"
     },
     {
       "id": 9,
@@ -178,7 +186,8 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": [7, 8, 9]
+      "effectiveGroups": [7, 8, 9],
+      "actionMode": "battle_clip"
     },
     {
       "id": 10,
@@ -196,7 +205,8 @@
       "doubleStrike": true,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "battle_clip"
     },
     {
       "id": 11,
@@ -214,7 +224,8 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": [2]
+      "effectiveGroups": [2],
+      "actionMode": "battle_clip"
     },
     {
       "id": 12,
@@ -232,7 +243,8 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": true,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "battle_clip"
     },
     {
       "id": 13,
@@ -250,7 +262,8 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "battle_clip"
     },
     {
       "id": 14,
@@ -268,7 +281,8 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "battle_clip"
     },
     {
       "id": 15,
@@ -286,7 +300,8 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "battle_clip"
     },
     {
       "id": 16,
@@ -304,7 +319,8 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": [2]
+      "effectiveGroups": [2],
+      "actionMode": "battle_clip"
     },
     {
       "id": 17,
@@ -322,7 +338,8 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "battle_clip"
     },
     {
       "id": 18,
@@ -340,7 +357,8 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": [7, 8, 9]
+      "effectiveGroups": [7, 8, 9],
+      "actionMode": "battle_clip"
     },
     {
       "id": 19,
@@ -358,7 +376,8 @@
       "doubleStrike": true,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "battle_clip"
     },
     {
       "id": 20,
@@ -376,7 +395,8 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": [4]
+      "effectiveGroups": [4],
+      "actionMode": "battle_clip"
     },
     {
       "id": 21,
@@ -394,7 +414,8 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "battle_clip"
     },
     {
       "id": 22,
@@ -412,7 +433,8 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "battle_clip"
     },
     {
       "id": 23,
@@ -430,7 +452,8 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "battle_clip"
     },
     {
       "id": 24,
@@ -448,7 +471,8 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": [4]
+      "effectiveGroups": [4],
+      "actionMode": "battle_clip"
     },
     {
       "id": 25,
@@ -466,7 +490,8 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "battle_clip"
     },
     {
       "id": 26,
@@ -484,7 +509,8 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": [7, 8, 9]
+      "effectiveGroups": [7, 8, 9],
+      "actionMode": "battle_clip"
     },
     {
       "id": 27,
@@ -502,7 +528,8 @@
       "doubleStrike": true,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "battle_clip"
     },
     {
       "id": 28,
@@ -520,7 +547,8 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "battle_clip"
     },
     {
       "id": 29,
@@ -538,7 +566,8 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "battle_clip"
     },
     {
       "id": 30,
@@ -556,7 +585,8 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "battle_clip"
     },
     {
       "id": 31,
@@ -574,7 +604,8 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "battle_clip"
     },
     {
       "id": 32,
@@ -592,7 +623,8 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "battle_clip"
     },
     {
       "id": 33,
@@ -610,7 +642,8 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "battle_clip"
     },
     {
       "id": 34,
@@ -628,7 +661,8 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "battle_clip"
     },
     {
       "id": 35,
@@ -646,7 +680,8 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "battle_clip"
     },
     {
       "id": 36,
@@ -664,7 +699,8 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "battle_clip"
     },
     {
       "id": 37,
@@ -682,7 +718,8 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": [7, 8, 9]
+      "effectiveGroups": [7, 8, 9],
+      "actionMode": "battle_clip"
     },
     {
       "id": 38,
@@ -700,7 +737,8 @@
       "doubleStrike": true,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "battle_clip"
     },
     {
       "id": 39,
@@ -718,7 +756,8 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": [1, 3]
+      "effectiveGroups": [1, 3],
+      "actionMode": "battle_clip"
     },
     {
       "id": 40,
@@ -736,7 +775,8 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "battle_clip"
     },
     {
       "id": 41,
@@ -754,7 +794,8 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "battle_clip"
     },
     {
       "id": 42,
@@ -772,7 +813,8 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "battle_clip"
     },
     {
       "id": 43,
@@ -790,7 +832,8 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "battle_clip"
     },
     {
       "id": 44,
@@ -808,7 +851,8 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "battle_clip"
     },
     {
       "id": 45,
@@ -826,7 +870,8 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "battle_clip"
     },
     {
       "id": 46,
@@ -844,7 +889,18 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "map_attack",
+      "targetRule": {
+        "selection": "none",
+        "range": "map",
+        "shape": "all_hostile"
+      },
+      "roundRule": {
+        "period": 3,
+        "remainder": 0
+      },
+      "mapEffect": "earthquake"
     },
     {
       "id": 47,
@@ -862,7 +918,8 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "battle_clip"
     },
     {
       "id": 48,
@@ -880,7 +937,8 @@
       "doubleStrike": false,
       "drainsHp": true,
       "ignoresDefense": false,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "battle_clip"
     },
     {
       "id": 49,
@@ -898,7 +956,19 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "map_attack",
+      "targetRule": {
+        "selection": "hostile_unit",
+        "range": "item",
+        "shape": "square",
+        "radius": 1
+      },
+      "roundRule": {
+        "period": 2,
+        "remainder": 0
+      },
+      "mapEffect": "fire"
     },
     {
       "id": 50,
@@ -916,7 +986,19 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "map_attack",
+      "targetRule": {
+        "selection": "hostile_unit",
+        "range": "item",
+        "shape": "cross",
+        "radius": 1
+      },
+      "roundRule": {
+        "period": 1,
+        "remainder": 0
+      },
+      "mapEffect": "wind"
     },
     {
       "id": 51,
@@ -934,7 +1016,19 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": false,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "map_attack",
+      "targetRule": {
+        "selection": "hostile_unit",
+        "range": "item",
+        "shape": "square",
+        "radius": 1
+      },
+      "roundRule": {
+        "period": 2,
+        "remainder": 0
+      },
+      "mapEffect": "light"
     },
     {
       "id": 52,
@@ -952,7 +1046,8 @@
       "doubleStrike": false,
       "drainsHp": false,
       "ignoresDefense": true,
-      "effectiveGroups": []
+      "effectiveGroups": [],
+      "actionMode": "battle_clip"
     },
     {
       "id": 53,
@@ -1586,47 +1681,252 @@
     }
   ],
   "jobTemplates": [
-    { "id": 0, "name": "国王", "classGroup": 0, "equipMask": 1 },
-    { "id": 1, "name": "复国王", "classGroup": 0, "equipMask": 5 },
-    { "id": 2, "name": "圣王", "classGroup": 0, "equipMask": 5 },
-    { "id": 3, "name": "光明王", "classGroup": 0, "equipMask": 5 },
-    { "id": 4, "name": "修女", "classGroup": 1, "equipMask": 32 },
-    { "id": 5, "name": "圣女", "classGroup": 1, "equipMask": 48 },
-    { "id": 6, "name": "光之侍女", "classGroup": 1, "equipMask": 48 },
-    { "id": 7, "name": "光之使者", "classGroup": 1, "equipMask": 48 },
-    { "id": 8, "name": "狂战士", "classGroup": 2, "equipMask": 4 },
-    { "id": 9, "name": "圣战士", "classGroup": 2, "equipMask": 5 },
-    { "id": 10, "name": "重战士", "classGroup": 2, "equipMask": 5 },
-    { "id": 11, "name": "男爵", "classGroup": 2, "equipMask": 5 },
-    { "id": 12, "name": "贤者", "classGroup": 3, "equipMask": 16 },
-    { "id": 13, "name": "大贤者", "classGroup": 3, "equipMask": 48 },
-    { "id": 14, "name": "大国师", "classGroup": 3, "equipMask": 48 },
-    { "id": 15, "name": "魔导师", "classGroup": 3, "equipMask": 48 },
-    { "id": 16, "name": "圣骑士", "classGroup": 4, "equipMask": 3 },
-    { "id": 17, "name": "皇家骑士", "classGroup": 4, "equipMask": 7 },
-    { "id": 18, "name": "龙骑兵", "classGroup": 4, "equipMask": 7 },
-    { "id": 19, "name": "龙骑将", "classGroup": 4, "equipMask": 7 },
-    { "id": 20, "name": "神射手", "classGroup": 5, "equipMask": 8 },
-    { "id": 21, "name": "游侠", "classGroup": 5, "equipMask": 8 },
-    { "id": 22, "name": "圣堂游侠", "classGroup": 5, "equipMask": 8 },
-    { "id": 23, "name": "光明游侠", "classGroup": 5, "equipMask": 8 },
-    { "id": 24, "name": "神宫", "classGroup": 6, "equipMask": 17 },
-    { "id": 25, "name": "神宫战士", "classGroup": 6, "equipMask": 17 },
-    { "id": 26, "name": "神宫长", "classGroup": 6, "equipMask": 21 },
-    { "id": 27, "name": "大神宫", "classGroup": 6, "equipMask": 21 },
-    { "id": 28, "name": "石人", "classGroup": 7, "equipMask": 5 },
-    { "id": 29, "name": "巨石人", "classGroup": 7, "equipMask": 5 },
-    { "id": 30, "name": "", "classGroup": 7, "equipMask": 5 },
-    { "id": 31, "name": "", "classGroup": 7, "equipMask": 5 },
-    { "id": 32, "name": "石像鬼", "classGroup": 8, "equipMask": 5 },
-    { "id": 33, "name": "石像鬼王", "classGroup": 8, "equipMask": 5 },
-    { "id": 34, "name": "", "classGroup": 8, "equipMask": 5 },
-    { "id": 35, "name": "", "classGroup": 8, "equipMask": 5 },
-    { "id": 36, "name": "邪灵", "classGroup": 9, "equipMask": 16 },
-    { "id": 37, "name": "邪灵王", "classGroup": 9, "equipMask": 16 },
-    { "id": 38, "name": "", "classGroup": 9, "equipMask": 16 },
-    { "id": 39, "name": "", "classGroup": 9, "equipMask": 16 },
-    { "id": 40, "name": "远古元素", "classGroup": 10, "equipMask": 16 }
+    {
+      "id": 0,
+      "name": "国王",
+      "classGroup": 0,
+      "equipMask": 1
+    },
+    {
+      "id": 1,
+      "name": "复国王",
+      "classGroup": 0,
+      "equipMask": 5
+    },
+    {
+      "id": 2,
+      "name": "圣王",
+      "classGroup": 0,
+      "equipMask": 5
+    },
+    {
+      "id": 3,
+      "name": "光明王",
+      "classGroup": 0,
+      "equipMask": 5
+    },
+    {
+      "id": 4,
+      "name": "修女",
+      "classGroup": 1,
+      "equipMask": 32
+    },
+    {
+      "id": 5,
+      "name": "圣女",
+      "classGroup": 1,
+      "equipMask": 48
+    },
+    {
+      "id": 6,
+      "name": "光之侍女",
+      "classGroup": 1,
+      "equipMask": 48
+    },
+    {
+      "id": 7,
+      "name": "光之使者",
+      "classGroup": 1,
+      "equipMask": 48
+    },
+    {
+      "id": 8,
+      "name": "狂战士",
+      "classGroup": 2,
+      "equipMask": 4
+    },
+    {
+      "id": 9,
+      "name": "圣战士",
+      "classGroup": 2,
+      "equipMask": 5
+    },
+    {
+      "id": 10,
+      "name": "重战士",
+      "classGroup": 2,
+      "equipMask": 5
+    },
+    {
+      "id": 11,
+      "name": "男爵",
+      "classGroup": 2,
+      "equipMask": 5
+    },
+    {
+      "id": 12,
+      "name": "贤者",
+      "classGroup": 3,
+      "equipMask": 16
+    },
+    {
+      "id": 13,
+      "name": "大贤者",
+      "classGroup": 3,
+      "equipMask": 48
+    },
+    {
+      "id": 14,
+      "name": "大国师",
+      "classGroup": 3,
+      "equipMask": 48
+    },
+    {
+      "id": 15,
+      "name": "魔导师",
+      "classGroup": 3,
+      "equipMask": 48
+    },
+    {
+      "id": 16,
+      "name": "圣骑士",
+      "classGroup": 4,
+      "equipMask": 3
+    },
+    {
+      "id": 17,
+      "name": "皇家骑士",
+      "classGroup": 4,
+      "equipMask": 7
+    },
+    {
+      "id": 18,
+      "name": "龙骑兵",
+      "classGroup": 4,
+      "equipMask": 7
+    },
+    {
+      "id": 19,
+      "name": "龙骑将",
+      "classGroup": 4,
+      "equipMask": 7
+    },
+    {
+      "id": 20,
+      "name": "神射手",
+      "classGroup": 5,
+      "equipMask": 8
+    },
+    {
+      "id": 21,
+      "name": "游侠",
+      "classGroup": 5,
+      "equipMask": 8
+    },
+    {
+      "id": 22,
+      "name": "圣堂游侠",
+      "classGroup": 5,
+      "equipMask": 8
+    },
+    {
+      "id": 23,
+      "name": "光明游侠",
+      "classGroup": 5,
+      "equipMask": 8
+    },
+    {
+      "id": 24,
+      "name": "神宫",
+      "classGroup": 6,
+      "equipMask": 17
+    },
+    {
+      "id": 25,
+      "name": "神宫战士",
+      "classGroup": 6,
+      "equipMask": 17
+    },
+    {
+      "id": 26,
+      "name": "神宫长",
+      "classGroup": 6,
+      "equipMask": 21
+    },
+    {
+      "id": 27,
+      "name": "大神宫",
+      "classGroup": 6,
+      "equipMask": 21
+    },
+    {
+      "id": 28,
+      "name": "石人",
+      "classGroup": 7,
+      "equipMask": 5
+    },
+    {
+      "id": 29,
+      "name": "巨石人",
+      "classGroup": 7,
+      "equipMask": 5
+    },
+    {
+      "id": 30,
+      "name": "",
+      "classGroup": 7,
+      "equipMask": 5
+    },
+    {
+      "id": 31,
+      "name": "",
+      "classGroup": 7,
+      "equipMask": 5
+    },
+    {
+      "id": 32,
+      "name": "石像鬼",
+      "classGroup": 8,
+      "equipMask": 5
+    },
+    {
+      "id": 33,
+      "name": "石像鬼王",
+      "classGroup": 8,
+      "equipMask": 5
+    },
+    {
+      "id": 34,
+      "name": "",
+      "classGroup": 8,
+      "equipMask": 5
+    },
+    {
+      "id": 35,
+      "name": "",
+      "classGroup": 8,
+      "equipMask": 5
+    },
+    {
+      "id": 36,
+      "name": "邪灵",
+      "classGroup": 9,
+      "equipMask": 16
+    },
+    {
+      "id": 37,
+      "name": "邪灵王",
+      "classGroup": 9,
+      "equipMask": 16
+    },
+    {
+      "id": 38,
+      "name": "",
+      "classGroup": 9,
+      "equipMask": 16
+    },
+    {
+      "id": 39,
+      "name": "",
+      "classGroup": 9,
+      "equipMask": 16
+    },
+    {
+      "id": 40,
+      "name": "远古元素",
+      "classGroup": 10,
+      "equipMask": 16
+    }
   ],
   "baseStats": [
     {

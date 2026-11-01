@@ -1,0 +1,113 @@
+{
+  "items": {
+    "46": {
+      "actionMode": "map_attack",
+      "targetRule": {
+        "selection": "none",
+        "range": "map",
+        "shape": "all_hostile"
+      },
+      "roundRule": {
+        "period": 3,
+        "remainder": 0
+      },
+      "mapEffect": "earthquake"
+    },
+    "49": {
+      "actionMode": "map_attack",
+      "targetRule": {
+        "selection": "hostile_unit",
+        "range": "item",
+        "shape": "square",
+        "radius": 1
+      },
+      "roundRule": {
+        "period": 2,
+        "remainder": 0
+      },
+      "mapEffect": "fire"
+    },
+    "50": {
+      "actionMode": "map_attack",
+      "targetRule": {
+        "selection": "hostile_unit",
+        "range": "item",
+        "shape": "cross",
+        "radius": 1
+      },
+      "roundRule": {
+        "period": 1,
+        "remainder": 0
+      },
+      "mapEffect": "wind"
+    },
+    "51": {
+      "actionMode": "map_attack",
+      "targetRule": {
+        "selection": "hostile_unit",
+        "range": "item",
+        "shape": "square",
+        "radius": 1
+      },
+      "roundRule": {
+        "period": 2,
+        "remainder": 0
+      },
+      "mapEffect": "light"
+    }
+  },
+  "effects": {
+    "earthquake": {
+      "kind": "shake",
+      "durationUnits": 500,
+      "logicalTickUnits": 50,
+      "shakeModuli": [10, 3],
+      "flashUpdates": 5,
+      "flashColor": 0,
+      "flashOnEven": true,
+      "source": "i.c(b,true): b(500,false) + c(5,0); i.d/i.a(Graphics)"
+    },
+    "fire": {
+      "kind": "sprite",
+      "spriteKey": "fire",
+      "sequence": [0, 1],
+      "cycles": 2,
+      "stepUnits": 100,
+      "logicalTickUnits": 50,
+      "anchor": "bottomCenter",
+      "unitOffset": [12, 24],
+      "shakeUpdates": 0,
+      "jitterRangeX": [-4, 5],
+      "jitterRangeY": [-1, 2],
+      "source": "i.c(b,false): original i.O clone aV[0,1], a(...,2,100)"
+    },
+    "wind": {
+      "kind": "sprite",
+      "spriteKey": "wind",
+      "sequence": [0, 1],
+      "cycles": 2,
+      "stepUnits": 100,
+      "logicalTickUnits": 50,
+      "anchor": "bottomCenter",
+      "unitOffset": [12, 24],
+      "shakeUpdates": 8,
+      "jitterRangeX": [-4, 5],
+      "jitterRangeY": [-1, 2],
+      "source": "i.c(b,false): original i.P clone aV[0,1], a(...,2,100)"
+    },
+    "light": {
+      "kind": "sprite",
+      "spriteKey": "light",
+      "sequence": [0, 1],
+      "cycles": 2,
+      "stepUnits": 100,
+      "logicalTickUnits": 50,
+      "anchor": "bottomCenter",
+      "unitOffset": [12, 24],
+      "shakeUpdates": 0,
+      "jitterRangeX": [-4, 5],
+      "jitterRangeY": [-1, 2],
+      "source": "i.c(b,false): original i.N clone aV[0,1], a(...,2,100)"
+    }
+  }
+}

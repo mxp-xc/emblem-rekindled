@@ -1,4 +1,4 @@
-"""Convert the pinned chapter-1 deployment data into runtime spawn definitions."""
+"""Read ordered unresolved deployments from the pinned chapter-1 source."""
 
 import argparse
 import hashlib
@@ -30,13 +30,11 @@ def _pak_member(pak: bytes, wanted: str) -> bytes:
                 raise ValueError(f"Truncated archive resource: {wanted}")
             return result
         position += length
-    raise ValueError(f"Archive resource not found: {wanted}")
+    raise KeyError(wanted)
 
 
-def _spawn_definitions(data: bytes, battle: int = 0) -> list[dict]:
-    if battle not in (0, 1):
-        raise ValueError(f"Unverified chapter-1 battle: m{battle}")
-    width, height = (20, 25) if battle == 0 else (22, 22)
+def deployment_records(data: bytes, width: int, height: int) -> list[dict]:
+    """Parse ordered source records without choosing a route, roster or random result."""
     position = 0
 
     def byte() -> int:
@@ -48,11 +46,9 @@ def _spawn_definitions(data: bytes, battle: int = 0) -> list[dict]:
         return value - 256 if value > 127 else value
 
     count = byte()
-    if count != 32:
-        raise ValueError(f"Unexpected chapter-1 deployment count: {count}")
+    if count < 1 or width < 1 or height < 1:
+        raise ValueError("Invalid deployment dimensions or record count")
     result = []
-    next_temporary_id = 95
-    identities: set[int] = set()
     for _ in range(count):
         kind, class_id = byte(), byte()
         if kind not in (0, 1):
@@ -69,90 +65,78 @@ def _spawn_definitions(data: bytes, battle: int = 0) -> list[dict]:
         choices = [byte() for _ in range(3)]
         drop_template_id = byte()
         region_count = byte()
-        if region_count != 0:
-            raise ValueError("Random deployment regions are not part of the verified deployments")
-        point = [byte(), byte()]
+        if region_count < 0:
+            raise ValueError("Invalid deployment region count")
+        regions = [[byte() for _ in range(4)] for _ in range(region_count)]
+        point = [byte(), byte()] if region_count == 0 else None
         if random_equipment not in (0, 1):
             raise ValueError(f"Unsupported equipment selection mode: {random_equipment}")
-        if class_id < 0 or class_id > 40 or faction not in (0, 1, 2):
-            raise ValueError("Invalid chapter-1 class or faction")
+        if not 0 <= class_id <= 40 or source_id < 0 or faction not in (0, 1, 2):
+            raise ValueError("Invalid chapter-1 class, source identity or faction")
         if any(item < 0 or item > 87 for item in [*choices, drop_template_id]):
             raise ValueError("Invalid chapter-1 item reference")
-        if not 0 <= point[0] < width or not 0 <= point[1] < height:
-            raise ValueError(f"Chapter-1 deployment position is outside m{battle}")
-        deployment_id = source_id
-        deployment_slot = source_id if faction == 0 and policy & 32 else None
-        if deployment_slot is not None:
-            if battle == 1 and deployment_slot in (0, 1):
-                deployment_id = (0, 9)[deployment_slot]
-                source_id = deployment_id
-            else:
-                deployment_id = next_temporary_id
-                next_temporary_id += 1
-                if deployment_id > 99:
-                    raise ValueError("Temporary deployment identities exhausted")
-        if deployment_id in identities:
-            raise ValueError(f"Duplicate deployment identity: {deployment_id}")
-        identities.add(deployment_id)
-        if battle == 0 and deployment_id == 10:
-            point = [7, 9]
-        elif battle == 0 and deployment_id == 11:
-            point = [10, 13]
-        if faction == 2 and battle == 0:
-            flags &= ~1
-        group = class_id // 4
-        spawn = {
-            "id": deployment_id,
-            "sourceId": source_id,
-            "formal": faction == 0 and 0 <= deployment_id < 10,
+        if point is not None and (not 0 <= point[0] < width or not 0 <= point[1] < height):
+            raise ValueError("Chapter-1 deployment position is outside map")
+        if any(
+            not 0 <= left <= right < width or not 0 <= top <= bottom < height
+            for left, top, right, bottom in regions
+        ):
+            raise ValueError("Chapter-1 deployment region is outside map")
+        record = {
+            "kind": kind,
             "classId": class_id,
-            "faction": faction,
+            "sourceId": source_id,
             "level": max(1, level),
-            "initialGrowthTemplateId": (source_id if source_id < 10 else 10 + group)
-            if kind == 1
-            else None,
-            "growthTemplateId": deployment_id if deployment_id < 10 else 10 + group,
-            "itemChoices": choices,
-            "randomEquipment": random_equipment == 1,
-            "dropTemplateId": drop_template_id,
-            "position": point,
+            "faction": faction,
             "flags": flags,
             "policy": policy,
-            "visible": flags & 1 == 0,
+            "randomEquipment": random_equipment == 1,
+            "itemChoices": choices,
+            "dropTemplateId": drop_template_id,
         }
-        if battle and deployment_slot is not None:
-            spawn["deploymentSlot"] = deployment_slot
-        if explicit is not None:
-            spawn["explicitStats"] = explicit
+        if regions:
+            record["deploymentRegions"] = regions
         else:
-            spawn["baseTemplateId"] = source_id if source_id < 10 else 10 + class_id
-        result.append(spawn)
+            record["position"] = point
+        if explicit is not None:
+            record["explicitStats"] = explicit
+        if faction == 0 and policy & 32:
+            record["deploymentSlot"] = source_id
+        result.append(record)
     if position != len(data):
         raise ValueError(f"Unexpected trailing deployment bytes: {len(data) - position}")
-    if next_temporary_id != (100 if battle == 0 else 99):
-        raise ValueError(f"Unexpected temporary deployment count in m{battle}")
     return result
 
 
-def export_definitions(source: Path, output: Path, battle: int = 0) -> None:
-    """Write spawns.json under output, preserving random choices rather than sampling them."""
+def read_deployment(source: Path, battle: int) -> dict:
+    """Read one verified map's raw deployment; normal runtime never requires the JAR."""
+    if not 0 <= battle <= 7:
+        raise ValueError(f"Unverified chapter-1 battle: m{battle}")
     if hashlib.sha256(source.read_bytes()).hexdigest() != SOURCE_SHA:
         raise ValueError("Chapter-1 source JAR SHA-256 mismatch")
     with zipfile.ZipFile(source) as archive:
-        data = (
-            _pak_member(archive.read("1.pak"), "p0") if battle == 0 else archive.read(f"p{battle}")
-        )
-        spawns = _spawn_definitions(data, battle)
-    output.mkdir(parents=True, exist_ok=True)
-    (output / "spawns.json").write_text(json.dumps(spawns, ensure_ascii=False, indent=2) + "\n")
+        pak = archive.read("1.pak")
+
+        def resource(name):
+            try:
+                return _pak_member(pak, name)
+            except KeyError:
+                return archive.read(name)
+
+        width, height = resource(f"m{battle}")[:2]
+        records = deployment_records(resource(f"p{battle}"), width, height)
+    return {"battleId": f"m{battle}", "width": width, "height": height, "units": records}
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("source", type=Path)
-    parser.add_argument("output", type=Path, help="Directory to receive spawns.json")
+    parser.add_argument("output", type=Path, help="JSON file to receive ordered raw records")
+    parser.add_argument("--battle", type=int, choices=range(8), required=True)
     args = parser.parse_args()
-    export_definitions(args.source, args.output)
+    deployment = read_deployment(args.source, args.battle)
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(json.dumps(deployment["units"], ensure_ascii=False, indent=2) + "\n")
 
 
 if __name__ == "__main__":

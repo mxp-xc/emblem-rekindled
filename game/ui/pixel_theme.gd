@@ -44,7 +44,7 @@ func create(interface_data: Dictionary, directory: String) -> Theme:
 	result.set_color("font_color", "Label", Color.WHITE)
 	var frame: Dictionary = interface_data["textures"]["window_frame"]
 	var texture: Texture2D = load(directory.path_join(frame["texture"]))
-	var image: Image = texture.get_image()
+	var image: Image = texture.get_image().duplicate()
 	image.resize(image.get_width() * 3, image.get_height() * 3, Image.INTERPOLATE_NEAREST)
 	var panel := StyleBoxTexture.new()
 	panel.texture = ImageTexture.create_from_image(image)

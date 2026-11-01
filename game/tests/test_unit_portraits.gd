@@ -9,10 +9,25 @@ func run() -> void:
 	var scene: Control = load("res://app/main.tscn").instantiate()
 	root.add_child(scene)
 	await process_frame
+	# Read source profiles independently of Main's portrait resolver and interface aliases.
+	var chapter: Dictionary = JSON.parse_string(
+		FileAccess.get_file_as_string(scene.content["entry"]["chapterPath"])
+	)
+	var definition: Dictionary = JSON.parse_string(
+		FileAccess.get_file_as_string(chapter["battles"][scene.content["entry"]["battleId"]])
+	)
+	var library: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(chapter["library"]))
 	scene.resume_battle(scene.battle)
 	for commander: int in [9, 0]:
-		scene.battle.configure_commander(commander, true, true)
+		if not scene.battle.configure_commander(commander, true, true)["ok"]:
+			fail(
+				"Both original commanders must actually be selected for independent portrait checks"
+			)
+			return
 		var before: Dictionary = scene.battle.snapshot()
+		if before["units"].size() != 32:
+			fail("The portrait regression must inspect all 32 actual first-map identities")
+			return
 		for actor: Dictionary in before["units"]:
 			scene.selected_unit = int(actor["id"])
 			scene._show_information()
@@ -22,18 +37,24 @@ func run() -> void:
 					"Unit information must expose its actual identity image in the portrait header"
 				)
 				return
+			var recipe: String = (
+				"%s_%d_job_%d_faction_%d"
+				% [
+					"slot" if actor.get("temporary", false) else "source",
+					actor["sourceId"],
+					actor["classId"],
+					actor["faction"]
+				]
+			)
+			var profile: Dictionary = library["profiles"][definition["profiles"][recipe]]
+			var dedicated: bool = profile["portrait"]["texture"] != null
 			var source: Texture2D
-			if actor["id"] in [0, 9]:
-				var key: String = "portrait_" + str(int(actor["id"]))
-				source = load(
-					scene.content["entry"]["interface"].get_base_dir().path_join(
-						scene.content["interface"]["textures"][key]["texture"]
-					)
-				)
+			if dedicated:
+				source = load(profile["portrait"]["texture"]["texture"])
 			else:
-				source = load(scene.content["entry"]["spriteDirectory"].path_join(actor["sprite"]))
+				source = load(profile["unit"]["sprite"])
 			var expected: Image = source.get_image()
-			if actor["id"] not in [0, 9]:
+			if not dedicated:
 				expected = expected.get_region(expected.get_used_rect())
 			var shown: Image = picture.texture.get_image()
 			if shown.get_size() != expected.get_size() or shown.get_data() != expected.get_data():

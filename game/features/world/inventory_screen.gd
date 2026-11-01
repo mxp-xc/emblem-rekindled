@@ -50,7 +50,7 @@ func setup(content: Dictionary, model: RefCounted) -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	var directory: String = content["entry"]["interface"].get_base_dir()
+	var directory: String = content["entry"]["resourceDirectory"]
 	for key: String in content["interface"]["textures"]:
 		_textures[key] = load(directory.path_join(content["interface"]["textures"][key]["texture"]))
 	_heading = Label.new()
@@ -146,7 +146,7 @@ func present(progress: Dictionary) -> void:
 		button.tooltip_text = member["name"]
 		var frame: Dictionary = _content["mapAnimations"]["units"][str(int(member["id"]))]["frames"][0]
 		button.icon = PixelTheme.sprite_icon(
-			load(_content["entry"]["mapAnimations"].get_base_dir().path_join(frame["texture"]))
+			load(_content["entry"]["resourceDirectory"].path_join(frame["texture"]))
 		)
 		button.pressed.connect(_party_pressed.bind(index))
 		button.focus_entered.connect(_preview_actor.bind(index))

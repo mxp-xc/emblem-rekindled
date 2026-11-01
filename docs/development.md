@@ -82,7 +82,9 @@ Back收起菜单，子页返回保留选中项。
 密之匙在进入商店时消耗，只决定本次特殊商品，不做支付或永久激活。
 确认改动物品后先写当前“继续”记录，再更新界面状态，失败保持原物品和资金；四个命名档仍只由明确记录操作写入。
 物品说明复用现有底栏，长仓库列表使用可触控滚动及键盘焦点跟随。
-当前接入初章第一战与索菲亚山脉第二战；未接入节点显示制作中并保留进度，后续关卡与标题外围入口逐阶段推进。
+当前已登记关卡以[章入口](../game/content/chapter_1/chapter.json)的 `battles` 为准，
+包含m0、m1和迷雾森林边缘m2；m2配置与运行时定向检查已通过，实际平台流程仍待验收。
+未接入节点显示制作中并保留进度，后续关卡与标题外围入口逐阶段推进。
 
 ## lint、格式化与测试
 
@@ -155,12 +157,11 @@ Android请求发布与匹配响应等待在一次ADB调用中完成；未就绪�
 ## 原版资源整理
 
 正式运行只读取 `game/` 内已准备的数据、PNG、Ogg 和字体，不读取原 JAR、模拟器或提取工具。
-章入口显式引用生成结果；生成器只拥有 `content/chapter_1/generated/`，不覆盖人工内容。
+章入口显式引用生成结果；生成器只发布已声明拥有的生成文件，并登记关卡入口，不覆盖 `authored/`。
 
 ```sh
-rtk uv run tools/import_chapter_1.py --emulator /path/to/freej2me_plus.jar
-rtk uv run tools/import_chapter_1.py --emulator /path/to/freej2me_plus.jar --battle m1
-rtk bun run format
+rtk uv run python tools/import_chapter_1.py --plan
+rtk uv run python tools/import_chapter_1.py --emulator /path/to/freej2me_plus.jar --battle m2 --report temp/m2-import.json
 rtk godot --headless --path game --import
 ```
 
@@ -173,9 +174,13 @@ rtk godot --headless --path game --import
 受控原包调用沿用 `-Dfile.encoding=ISO_8859_1`；已观察到改写该属性别名后，现有参考运行器在加载阶段直接退出，不能只凭进程返回0判断采样成功。
 历史 RMS 快照不参与导入；机器上的参考运行器路径记在可选 `AGENTS.local.md`。
 
-工具默认使用 PATH 中的 `java` / `javac`；其他位置通过 `--jdk /path/to/jdk/bin` 指定，还需现有 ffmpeg。
-工具在隔离临时目录中调用原始初始化器与绘图器，固定准备阶段随机源。默认导入首关；`--battle m1`导出第二战目录并同步共享世界元数据。
-首关显式应用已核对的两条开场位置调整；第二战使用原版过关清理后加载p1的受控准备状态，保留原隐蔽部署与两批回合事件。
+工具默认使用 PATH 中的 `java` / `javac`；其他位置通过 `--jdk /path/to/jdk/bin` 指定。
+地图更新保留已有Ogg，不重复合成音乐，无需为扩一关重新运行ffmpeg。
+工具在隔离临时目录中调用原始初始化器与绘图器，固定准备阶段随机源。用 `--battle` 指定目标关卡；
+默认选择覆盖所缺人物表现的最少路线上下文，再补齐全章动作缺项。`--route` 可指定优先准备的原路线，
+其余上下文仍由工具按缺项补充，不能用该路线替代其他路线的真实表现。
+原生准备按路线前缀结算并加载目标地图，剧情、目标与事件由已核对的 `authored/battles/mN.json` 承载。
+首关两条有效位置调整和初始敌军状态在离线规范化时应用，不在运行时按地图编号分派。
 这不是自然游玩记录；普通敌军初始 HP 可与旧运行样本不同。两战各有32条记录，首关29个、第二战23个初始可见单位。
 地图人物使用原版两帧待机/移动循环，原阈值为300逻辑单位，即6次50单位地图更新；按65ms目标周期换算为0.39秒。
 行动结束切换原版灰色静态帧。
@@ -193,8 +198,9 @@ rtk godot --headless --path game --import
 
 ### 章内共享图片与改图
 
-`generated/shared/` 由章级 `provenance.json` 统一拥有。各关保留自己的地图、单位、
-动作、帧序列与偏移定义，JSON中的图片路径可以引用该目录。相同PNG字节与相同导入参数
+`generated/shared/` 由章级 `provenance.json` 统一拥有。各关保留地图和原始部署；
+`generated/library/` 拥有人物表现、UI、文本、动作和片段，关卡通过recipe与stage/scene引用。
+JSON中的图片路径可以引用shared目录。相同PNG字节与相同导入参数
 只保存一份；同名异图、同图不同参数仍分别保存。普通Godot导入和导出直接使用这些PNG，
 无需原JAR、展开素材包、运行时目录扫描或额外挂载资源包。
 
@@ -204,16 +210,23 @@ rtk godot --headless --path game --import
 重导入同一图片复用现有公共路径；同源文件内容变化时分配另一个路径，其他关仍可使用旧图。
 每关的 `textureSources` 记录原始图片路径到共享图片的离线映射，重导入时沿用该来源已选择的
 导入参数；新图由Godot分配新UID，仍在使用的旧图保留原UID。映射不参与游戏运行。
-章入口和 `authored/` 的声明保持原样，它们引用的私有图片保留稳定路径；例如首关 `map.png`。
+`authored/` 的声明保持原样，其引用的私有图片保留稳定路径；章入口由导入器登记关卡，但不改写人工资源声明。
 `.import` 保留Godot导入参数和UID，移动后由Godot重建导入目标路径；`.godot/`仍为可重建缓存。
+运行时要修改共享Texture通过 `get_image()` 取得的Image（如缩放主题图片）时，
+先调用 `duplicate()` 取得自己的Image，再执行 `resize()`、`crop()` 等修改；纯读取无需复制，
+不能修改ResourceLoader共用的原图。
 
 修改图片时按作用范围选择：
 
 - 所有使用方一起改：通过关卡manifest找到共享PNG，直接编辑该PNG；预览后检查所有引用方。
   它仍属于生成快照，下次重新提取来源可能为当前关恢复原版图片，人工长期改图使用下一种方式。
-- 只改某关或某动作：将独立PNG放入 `authored/`，复制需要人工维护的manifest到该目录，
-  修改该帧引用，再让章入口或对应关卡入口选择人工manifest。相对路径按新manifest目录调整；
-  原有帧尺寸、舞台偏移、时长和动作定义按修改目标保留。生成器不会清理或覆盖authored。
+- 长期人工换图：将同尺寸PNG放入 `authored/`，在章入口 `textureOverrides` 指向的
+  `authored/texture_overrides.json` 中登记源PNG到替换PNG的绝对 `res://` 路径。
+  例如 `{"res://content/chapter_1/generated/shared/battles/m1/map_units/unit_0/active_0.png":
+"res://content/chapter_1/authored/custom/hero.png"}`。替换作用于全章使用该源图的引用，
+  不改原PNG、帧定义或生成catalog；空表等价于原表现。目标必须位于该表所在目录或子目录，
+  且为可加载的同尺寸PNG；未知源图、越界路径和尺寸不符在打开关卡前报错。
+  生成器保留表和私有图片，后续扩关只更新生成库，不需要复制或同步整份catalog。
 - 新增一关：导出该关自己的定义与新增视觉差异，再经过共享入口；先比较图片和导入参数，
   不能按部署ID、角色名或文件名推断相同。扩关验收包含“重导入旧关，新关资源仍可加载”。
 
@@ -222,6 +235,34 @@ rtk godot --headless --path game --import
 关卡只拥有私有输出，避免这两类问题。新增生成器应沿用这一所有权关系，
 不要另建逐关公共素材副本。图集仅在新的文件治理或性能证据支持时另行评估，见
 [Godot素材组织调研](research/godot-texture-packing.md)。
+
+### 配置扩关与片段缺项
+
+最终数据和打开接口见[配置驱动扩关设计](design/chapter-content.md)。本轮接入状态仍以[#36](https://github.com/mxp-xc/emblem-rekindled/issues/36)
+及各关实施票为准；能解析某张地图不等于该关已通过实际流程验收。
+
+先核对原版事件，编写 `authored/battles/mN.json`，再按原路线导入地图/部署和章库缺项。
+新关文本通过 `{ "sourceTextIndex": 499, "speakerId": 82 }` 引用章级654条原文本；
+需要人工改写时提供完整 `text`。同一关不为每条路线保存完整人物或片段副本。
+
+`--plan` 不调用原JAR，列出所有已登记关卡在当前共享profile和stage下需要的组合与缺项。
+`--chapter temp/<batch>/game/content/chapter_1` 可在显式章副本演练同一正式导入入口。
+`--native-input <directory>` 可重复指定已准备的原生输出；工具核对来源、路线、部署绑定及片段依赖，
+不能把依赖尚未合入章库的增量输出当成完整输入。缺依赖时重新准备该上下文。
+`--report` 记录所选上下文、采样与复用数量、闭包和发布结果。
+未变化的JSON保留现有字节；新数据或语义变化的数据使用项目Prettier格式化后发布，
+相同输入重入不应产生格式diff。人工配置和已有PNG的导入参数、UID保留。
+普通导入向原生采样器提供已有stage的完整契约与真实文件清单，契约完全相同时仅采样缺少的组合；
+`--refresh-motion` 显式重采当前原生上下文，用于核对采样规则变化，不覆盖冲突的旧片段。
+需要保留独立原生输出时添加 `--native-output temp/<batch>/<name>`；该模式不发布游戏内容。
+
+发布先在隔离的完整章副本合并库和地图，再检查所有已登记地图的动作组合闭包。
+新关给共享profile增加武器时，旧关可能新增“该动作×旧敌人形状”的组合；
+不能只检查新关自己的原生输出。已有m0/m1实际样本曾缺36个组合，补齐后统一校验；
+相应行为测试保护“旧关缺片段时整章不发布”。复制图片、缩减合法装备或放宽运行时校验都不能补齐这些动作。
+
+库中的PNG/clip引用落盘使用绝对 `res://`；投影交给现有控件时统一使用派生的
+`content.entry.resourceDirectory = "res://"` 作为资源基准。临时 `user://` 配置的位置不改变随包资源基准。
 
 ## 导出
 

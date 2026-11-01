@@ -11,7 +11,7 @@ func run() -> void:
 	)
 	var details: Control = load("res://features/tactical_map/item_details.gd").new()
 	details.theme = load("res://ui/pixel_theme.gd").new().create(
-		content["interface"], content["entry"]["interface"].get_base_dir()
+		content["interface"], content["entry"]["resourceDirectory"]
 	)
 	root.add_child(details)
 	details.setup(content)

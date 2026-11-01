@@ -38,6 +38,8 @@ var presentation_hidden_ids: Array = []
 var presentation_hidden_factions: Array = []
 var presentation_revealed_ids: Array = []
 var presentation_positions: Dictionary = {}
+var presentation_offset := Vector2.ZERO
+var affected_cells: Dictionary = {}
 var selection_enabled: bool = true
 var last_tap_cell := Vector2i(-1, -1)
 var last_tap_ms: int = -1000
@@ -72,7 +74,7 @@ func setup(data: Dictionary) -> void:
 	for unit: Dictionary in data["units"]:
 		var id: int = int(unit["id"])
 		var definition: Dictionary = data["mapAnimations"]["units"][str(id)]
-		var directory: String = data["entry"]["mapAnimations"].get_base_dir()
+		var directory: String = data["entry"]["resourceDirectory"]
 		var frames: Array[Texture2D] = []
 		for frame: Dictionary in definition["frames"]:
 			frames.append(load(directory.path_join(frame["texture"])))
@@ -175,9 +177,15 @@ func set_units(units: Array) -> void:
 
 func set_movement_field(field: Dictionary, kind: String = "move") -> void:
 	movement = field
+	affected_cells.clear()
 	range_kind = kind
 	target_cells.clear()
 	action_hint = ""
+	queue_redraw()
+
+
+func set_affected_cells(cells: Dictionary) -> void:
+	affected_cells = cells
 	queue_redraw()
 
 
@@ -295,10 +303,14 @@ func _draw() -> void:
 	if content.is_empty() or map_texture == null:
 		return
 	var tile_pixels: float = View.TILE_PIXELS * view.zoom
-	var origin: Vector2 = view.screen_at(Vector2.ZERO)
+	var origin: Vector2 = view.screen_at(Vector2.ZERO) + presentation_offset * view.zoom
 	draw_texture_rect(map_texture, Rect2(origin, Vector2(view.grid_size) * tile_pixels), false)
 	for cell: Vector2i in movement:
 		_draw_field_cell(origin + Vector2(cell) * tile_pixels)
+	for cell: Vector2i in affected_cells:
+		var rect := Rect2(origin + Vector2(cell) * tile_pixels, Vector2.ONE * tile_pixels)
+		draw_rect(rect.grow(-view.zoom), Color("ffbf4866"))
+		draw_rect(rect.grow(-view.zoom), Color("ffcf73"), false, maxf(1, view.zoom))
 	if route.size() > 1:
 		var points := PackedVector2Array()
 		for cell: Vector2i in route:
@@ -359,7 +371,10 @@ func _draw_field_cell(position: Vector2) -> void:
 
 func _draw_cursor(cell: Vector2i, color: Color, target: bool) -> void:
 	var rect := (
-		Rect2(view.screen_at(Vector2(cell)), Vector2.ONE * View.TILE_PIXELS * view.zoom)
+		Rect2(
+			view.screen_at(Vector2(cell)) + presentation_offset * view.zoom,
+			Vector2.ONE * View.TILE_PIXELS * view.zoom
+		)
 		. grow(-view.zoom)
 	)
 	var width: float = maxf(2, 2 * view.zoom)
@@ -419,6 +434,7 @@ func clear_presentation() -> void:
 	presentation_hidden_factions.clear()
 	presentation_revealed_ids.clear()
 	presentation_positions.clear()
+	presentation_offset = Vector2.ZERO
 	animation_positions.clear()
 	queue_redraw()
 

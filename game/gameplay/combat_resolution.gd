@@ -35,6 +35,39 @@ func resolve(actor: Dictionary, target: Dictionary, commander: Dictionary) -> Di
 	return {"participants": participants, "strikes": strikes}
 
 
+func resolve_map_attack(actor: Dictionary, targets: Array, commander: Dictionary) -> Dictionary:
+	var participants: Array = [actor.duplicate(true)]
+	for target: Dictionary in targets:
+		participants.append(target.duplicate(true))
+	var weapon: int = _combat.weapon_id(actor)
+	var hits: Array[Dictionary] = []
+	var any_kill: bool = false
+	for target: Dictionary in targets:
+		var forecast: Dictionary = _combat.map_attack_forecast(actor, target, commander)
+		var hit: bool = _roll.call(100) < int(forecast["hit"])
+		var before: int = int(target["hp"])
+		var damage: int = mini(int(forecast["damage"]), before) if hit else 0
+		target["hp"] -= damage
+		if hit:
+			_inventory.consume_template(target, 67)
+		any_kill = any_kill or target["hp"] <= 0
+		hits.append(
+			{
+				"attacker": actor["id"],
+				"defender": target["id"],
+				"target": target["id"],
+				"weapon": weapon,
+				"hit": hit,
+				"hpBefore": before,
+				"hpAfter": target["hp"],
+				"damage": damage
+			}
+		)
+	# The original consumes one cast even when every independent target roll misses.
+	_inventory.consume_weapon(actor)
+	return {"participants": participants, "hits": hits, "anyKill": any_kill}
+
+
 func _perform_strikes(
 	actor: Dictionary,
 	target: Dictionary,

@@ -15,7 +15,7 @@ func setup(data: Dictionary, place_name: String = "") -> void:
 	_place_name = place_name
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	var directory: String = data["entry"]["interface"].get_base_dir()
+	var directory: String = data["entry"]["resourceDirectory"]
 	for key: String in data["interface"]["textures"]:
 		_textures[key] = load(directory.path_join(data["interface"]["textures"][key]["texture"]))
 	_map_texture = load(data["entry"]["mapTexture"])

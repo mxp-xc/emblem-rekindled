@@ -13,9 +13,12 @@ import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
+import java.util.TreeMap;
 import java.util.Vector;
 import javax.imageio.ImageIO;
 import javax.microedition.lcdui.Graphics;
@@ -53,19 +56,35 @@ public final class Chapter1BattleClips {
   /** Input is the same legal deploymentId TAB weaponId,... TSV used by BattleAssets. */
   public static void export(Object game, ClassLoader loader, Path output, Path variantsFile)
     throws ReflectiveOperationException, IOException {
+    export(game, loader, output, variantsFile, null);
+  }
+
+  /** Reuse only an explicitly declared bank stage with an identical native stage contract. */
+  public static void export(
+    Object game,
+    ClassLoader loader,
+    Path output,
+    Path variantsFile,
+    Path reusePlan
+  ) throws ReflectiveOperationException, IOException {
     Chapter1BattleClips exporter = new Chapter1BattleClips(game, loader, output);
     try (State state = new State(game, loader)) {
-      exporter.export(variantsFile);
+      exporter.export(variantsFile, reusePlan);
     }
   }
 
-  private void export(Path variantsFile) throws ReflectiveOperationException, IOException {
+  private void export(Path variantsFile, Path reusePlan)
+    throws ReflectiveOperationException, IOException {
     Files.createDirectories(directory);
     Map<Integer, Object> units = new LinkedHashMap<>();
     for (Object unit : (List<?>) get(game, "as")) units.put(number(unit, "y"), unit);
     Map<String, Variant> attacks = new LinkedHashMap<>();
     Map<String, Variant> defenses = new LinkedHashMap<>();
     Map<String, Object> appearances = new LinkedHashMap<>();
+    Map<String, Object> mapAttacks = new LinkedHashMap<>();
+    Class<?> nativeUnit = Class.forName("b", true, fighterClass.getClassLoader());
+    var areaAttack = nativeUnit.getMethod("i", byte.class);
+    var earthquake = nativeUnit.getMethod("h", byte.class);
     List<String> lines = Files.readAllLines(variantsFile);
     for (String line : lines) {
       if (line.isBlank() || line.startsWith("#")) continue;
@@ -76,6 +95,10 @@ public final class Chapter1BattleClips {
       if (unit == null) throw new IOException("Unknown deployment " + id);
       for (String value : columns[1].split(",")) {
         int weapon = Integer.parseInt(value);
+        boolean mapAttack =
+          (boolean) areaAttack.invoke(unit, (byte) weapon) ||
+          (boolean) earthquake.invoke(unit, (byte) weapon);
+        boolean independentAttack = weapon > 0 && !mapAttack;
         reset();
         set(unit, "F", (byte) weapon);
         Object fighter = make(unit, null);
@@ -88,12 +111,16 @@ public final class Chapter1BattleClips {
         String attack = "action_" + digest(Chapter1Rules.json(behavior)).substring(0, 16);
         Variant variant = new Variant(unit, weapon, attack, defense, geometry, behavior);
         defenses.putIfAbsent(defense, variant);
-        if (weapon > 0) attacks.putIfAbsent(attack, variant);
+        if (independentAttack) attacks.putIfAbsent(attack, variant);
         String appearance = id + ":" + weapon;
         Map<String, Object> appearanceDefinition = new LinkedHashMap<>();
-        appearanceDefinition.put("actionGroup", weapon > 0 ? attack : null);
+        appearanceDefinition.put("actionGroup", independentAttack ? attack : null);
         appearanceDefinition.put("defenseGroup", defense);
-        appearanceDefinition.put("canAttack", weapon > 0);
+        appearanceDefinition.put("canAttack", independentAttack);
+        if (mapAttack) mapAttacks.put(
+          appearance,
+          Map.of("weapon", weapon, "defenseGroup", defense)
+        );
         if (appearances.put(appearance, appearanceDefinition) != null) {
           throw new IOException("Duplicate appearance " + appearance);
         }
@@ -103,7 +130,7 @@ public final class Chapter1BattleClips {
     for (Variant variant : attacks.values()) groups.put(variant.attack, variant.behavior);
     Map<String, Object> shapes = new LinkedHashMap<>();
     for (Variant variant : defenses.values()) shapes.put(variant.defense, variant.geometry);
-    Map<String, Object> clips = new LinkedHashMap<>();
+    Map<String, SampleRequest> candidates = new LinkedHashMap<>();
     for (Variant attacker : attacks.values()) {
       for (Variant defender : defenses.values()) {
         if (attacker.side() == defender.side()) continue;
@@ -113,17 +140,64 @@ public final class Chapter1BattleClips {
           "critical"
         )) {
           String key = attacker.attack + "/" + defender.defense + "/" + slot + "/" + outcome;
-          Map<String, Object> clip = sample(attacker, defender, outcome, slot, 0, 0);
-          Path path = directory.resolve(key + ".json");
-          Files.createDirectories(path.getParent());
-          Files.writeString(path, Chapter1Rules.json(clip) + "\n");
-          clips.put(key, key + ".json");
+          candidates.put(key, new SampleRequest(attacker, defender, outcome, slot));
         }
+      }
+    }
+    Map<String, Object> signature = stageSignature();
+    ReusePlan reuse = readReusePlan(reusePlan);
+    String stage = reuse.match(signature);
+    Set<String> reusedClips = new LinkedHashSet<>(candidates.keySet());
+    reusedClips.retainAll(reuse.clips.getOrDefault(stage, Set.of()));
+    Set<String> reusedDeaths = new LinkedHashSet<>(defenses.keySet());
+    reusedDeaths.retainAll(reuse.deaths.getOrDefault(stage, Set.of()));
+    Map<String, Object> plan = new LinkedHashMap<>();
+    plan.put("schemaVersion", 1);
+    plan.put("matchedStage", stage);
+    plan.put("nativeStage", signature);
+    plan.put("mapAttacks", mapAttacks);
+    plan.put("clips", planRows(candidates.keySet(), reusedClips));
+    plan.put("deaths", planRows(defenses.keySet(), reusedDeaths));
+    plan.put(
+      "counts",
+      Map.of(
+        "candidateClips",
+        candidates.size(),
+        "newClips",
+        candidates.size() - reusedClips.size(),
+        "reusedClips",
+        reusedClips.size(),
+        "candidateDeaths",
+        defenses.size(),
+        "newDeaths",
+        defenses.size() - reusedDeaths.size(),
+        "reusedDeaths",
+        reusedDeaths.size()
+      )
+    );
+    Files.writeString(directory.resolve("motion-plan.json"), Chapter1Rules.json(plan) + "\n");
+    Map<String, Object> clips = new LinkedHashMap<>();
+    for (var entry : candidates.entrySet()) {
+      String key = entry.getKey();
+      if (!reusedClips.contains(key)) {
+        SampleRequest request = entry.getValue();
+        Map<String, Object> clip = sample(
+          request.attacker,
+          request.defender,
+          request.outcome,
+          request.slot,
+          0,
+          0
+        );
+        Path path = directory.resolve(key + ".json");
+        Files.createDirectories(path.getParent());
+        Files.writeString(path, Chapter1Rules.json(clip) + "\n");
+        clips.put(key, key + ".json");
       }
     }
     Map<String, Object> deaths = new LinkedHashMap<>();
     for (Variant defender : defenses.values()) {
-      deaths.put(defender.defense, death(defender));
+      if (!reusedDeaths.contains(defender.defense)) deaths.put(defender.defense, death(defender));
     }
     Map<String, Object> manifest = new LinkedHashMap<>();
     manifest.put("schemaVersion", 1);
@@ -133,42 +207,24 @@ public final class Chapter1BattleClips {
       "sourceSha256",
       "67d1c77e823816e203244a15428ba9fb635d40edba04efa3180b3334025989fe"
     );
-    manifest.put("tickMillis", TICK_MILLIS);
-    manifest.put("logicTickUnits", LOGIC_TICK_UNITS);
-    manifest.put("spriteTickUnits", 50);
+    manifest.putAll(signature);
     manifest.put(
       "clock",
       "h.run targets a 65ms display period; original i.d increments bv by 50 logical units per update. J and completionWaitUnits use bv units, not wall-clock milliseconds."
     );
     manifest.put("seed", 0);
-    manifest.put("viewport", Map.of("width", width, "height", height));
-    manifest.put(
-      "stage",
-      Map.of("top", number(fighterClass, "n"), "height", number(fighterClass, "j"))
-    );
-    manifest.put(
-      "coordinates",
-      "original 240x320 screen pixels; actor x/y already include aC and sampled hit jitter; add appearance frame crop offset; no flip_h"
-    );
-    manifest.put(
-      "composition",
-      "sky, native terrain with backgroundOffset, then layers in recorded order; flash overlays entire viewport"
-    );
     manifest.put(
       "selection",
       "appearances[id:weapon] -> actionGroup/defenseGroup; clips[actionGroup/defenseGroup/sourceSlot/outcome]; sourceSlot 0 is battle initiator (bT), 1 is original defender/counterattacker (bU), independent of left/right faction"
     );
-    manifest.put(
-      "effectTails",
-      "effectTailTicks continues surviving effect instances after action completion; carry these into the next action using foreground bucket and source insertion order. Fixed-seed tail sampling has no subsequent action's extra random draws."
-    );
-    manifest.put("hpContract", hpContract());
     manifest.put("appearances", appearances);
     manifest.put("actionGroups", groups);
     manifest.put("defenseGroups", shapes);
     manifest.put("clips", clips);
     manifest.put("deaths", deaths);
     manifest.put("textures", textures);
+    manifest.put("reusedClips", new ArrayList<>(reusedClips));
+    manifest.put("reusedDeaths", new ArrayList<>(reusedDeaths));
     Files.writeString(directory.resolve("manifest.json"), Chapter1Rules.json(manifest) + "\n");
     System.out.println(
       "BATTLE_CLIPS_OK appearances=" +
@@ -183,6 +239,126 @@ public final class Chapter1BattleClips {
         textures.size()
     );
   }
+
+  private Map<String, Object> stageSignature() throws ReflectiveOperationException {
+    Map<String, Object> signature = new LinkedHashMap<>();
+    signature.put("tickMillis", TICK_MILLIS);
+    signature.put("logicTickUnits", LOGIC_TICK_UNITS);
+    signature.put("spriteTickUnits", 50);
+    signature.put("viewport", Map.of("width", width, "height", height));
+    signature.put(
+      "stage",
+      Map.of("top", number(fighterClass, "n"), "height", number(fighterClass, "j"))
+    );
+    signature.put(
+      "coordinates",
+      "original 240x320 screen pixels; actor x/y already include aC and sampled hit jitter; add appearance frame crop offset; no flip_h"
+    );
+    signature.put(
+      "composition",
+      "sky, native terrain with backgroundOffset, then layers in recorded order; flash overlays entire viewport"
+    );
+    signature.put(
+      "effectTails",
+      "effectTailTicks continues surviving effect instances after action completion; carry these into the next action using foreground bucket and source insertion order. Fixed-seed tail sampling has no subsequent action's extra random draws."
+    );
+    signature.put("hpContract", hpContract());
+    return signature;
+  }
+
+  private static Object canonical(Object value) {
+    if (value instanceof Map<?, ?> map) {
+      Map<String, Object> sorted = new TreeMap<>();
+      for (var entry : map.entrySet())
+        sorted.put((String) entry.getKey(), canonical(entry.getValue()));
+      return sorted;
+    }
+    if (value instanceof List<?> list) return list
+      .stream()
+      .map(Chapter1BattleClips::canonical)
+      .toList();
+    if (value != null && value.getClass().isArray()) {
+      List<Object> entries = new ArrayList<>();
+      for (int index = 0; index < Array.getLength(value); index++) entries.add(
+        canonical(Array.get(value, index))
+      );
+      return entries;
+    }
+    return value;
+  }
+
+  private static Map<String, Object> planRows(Set<String> candidates, Set<String> reused) {
+    List<String> pending = new ArrayList<>(candidates);
+    pending.removeAll(reused);
+    return Map.of(
+      "candidates",
+      new ArrayList<>(candidates),
+      "new",
+      pending,
+      "reused",
+      new ArrayList<>(reused)
+    );
+  }
+
+  private static ReusePlan readReusePlan(Path path) throws IOException {
+    Map<String, String> signatures = new LinkedHashMap<>();
+    Map<String, Set<String>> clips = new LinkedHashMap<>();
+    Map<String, Set<String>> deaths = new LinkedHashMap<>();
+    if (path != null) {
+      List<String> lines = Files.readAllLines(path);
+      for (int index = 0; index < lines.size(); index++) {
+        String line = lines.get(index);
+        if (line.isBlank() || line.startsWith("#")) continue;
+        String[] columns = line.split("\t", -1);
+        if (
+          columns.length != 3 || columns[1].isBlank() || columns[2].isBlank()
+        ) throw new IOException("Invalid motion reuse plan at " + path + ":" + (index + 1));
+        String stage = columns[1],
+          value = columns[2];
+        switch (columns[0]) {
+          case "stage" -> {
+            if (signatures.putIfAbsent(stage, value) != null) throw new IOException(
+              "Duplicate motion reuse stage: " + stage
+            );
+          }
+          case "clip" -> clips.computeIfAbsent(stage, ignored -> new LinkedHashSet<>()).add(value);
+          case "death" -> deaths
+            .computeIfAbsent(stage, ignored -> new LinkedHashSet<>())
+            .add(value);
+          default -> throw new IOException(
+            "Unknown motion reuse row at " + path + ":" + (index + 1)
+          );
+        }
+      }
+      Set<String> referenced = new LinkedHashSet<>(clips.keySet());
+      referenced.addAll(deaths.keySet());
+      if (!signatures.keySet().containsAll(referenced)) throw new IOException(
+        "Motion reuse keys reference an undeclared stage"
+      );
+    }
+    return new ReusePlan(signatures, clips, deaths);
+  }
+
+  private record ReusePlan(
+    Map<String, String> signatures,
+    Map<String, Set<String>> clips,
+    Map<String, Set<String>> deaths
+  ) {
+    private String match(Map<String, Object> nativeStage) throws IOException {
+      String signature = Chapter1Rules.json(canonical(nativeStage));
+      String match = null;
+      for (var entry : signatures.entrySet())
+        if (entry.getValue().equals(signature)) {
+          if (match != null) throw new IOException(
+            "Multiple bank stages match the native stage contract"
+          );
+          match = entry.getKey();
+        }
+      return match;
+    }
+  }
+
+  private record SampleRequest(Variant attacker, Variant defender, String outcome, int slot) {}
 
   private Map<String, Object> hpContract() {
     Map<String, Object> result = new LinkedHashMap<>();

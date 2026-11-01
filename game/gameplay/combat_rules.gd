@@ -1,6 +1,7 @@
 extends RefCounted
 
 const HOLY: Array[int] = [9, 18, 26, 37]
+const MapAttacks = preload("res://gameplay/map_attack_rules.gd")
 var _items: Dictionary = {}
 var _terrain: Array
 var _defense: Array
@@ -17,6 +18,31 @@ func _init(definitions: Dictionary, terrain: Array) -> void:
 
 func item_definition(id: int) -> Dictionary:
 	return _items.get(id, {})
+
+
+func action_mode(template_id: int) -> String:
+	var mode: Variant = item_definition(template_id).get("actionMode", "")
+	return mode if mode is String else ""
+
+
+func map_attack_available(template_id: int, round_number: int) -> bool:
+	return MapAttacks.round_available(item_definition(template_id), round_number)
+
+
+func map_attack_forecast(
+	actor: Dictionary, target: Dictionary, commander: Dictionary = {}
+) -> Dictionary:
+	var weapon: int = weapon_id(actor)
+	var damage: int = _damage(actor, weapon, target, false, commander)
+	return {
+		"weapon": weapon,
+		"damage": damage,
+		"criticalDamage": damage,
+		"hit": _hit(actor, weapon, target, commander),
+		"critical": 0,
+		"double": false,
+		"canCounter": false
+	}
 
 
 func can_equip(actor: Dictionary, held: Dictionary) -> bool:
@@ -66,7 +92,11 @@ func in_range(actor: Dictionary, target: Dictionary, template_id: int) -> bool:
 func can_counter(actor: Dictionary, target: Dictionary, candidate_weapon: int = -1) -> bool:
 	var weapon: int = weapon_id(actor)
 	var opposing_weapon: int = weapon_id(target) if candidate_weapon < 0 else candidate_weapon
-	if weapon == 0 or weapon in [46, 49, 50, 51] or opposing_weapon in [46, 49, 50, 51]:
+	if (
+		weapon == 0
+		or action_mode(weapon) == "map_attack"
+		or action_mode(opposing_weapon) == "map_attack"
+	):
 		return false
 	return in_range(actor, target, weapon)
 
