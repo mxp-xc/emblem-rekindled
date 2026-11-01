@@ -12,7 +12,7 @@ from serve_web import WebPreviewHandler
 
 
 class WebPreviewTest(unittest.TestCase):
-    def test_export_refresh_uses_cache_only_clearing(self) -> None:
+    def test_export_is_fresh_without_clearing_browser_data(self) -> None:
         with tempfile.TemporaryDirectory(prefix="emblem-web-preview-") as directory:
             root = Path(directory)
             root.joinpath("index.html").write_text("<canvas></canvas>")
@@ -29,8 +29,7 @@ class WebPreviewTest(unittest.TestCase):
                         response = connection.getresponse()
                         self.assertEqual(response.status, 200)
                         self.assertEqual(response.getheader("Cache-Control"), "no-store")
-                        # Never send "storage", "cookies" or "*": IDBFS holds real saves.
-                        self.assertEqual(response.getheader("Clear-Site-Data"), '"cache"')
+                        self.assertIsNone(response.getheader("Clear-Site-Data"))
                         response.read()
                     for content in (b"old game", b"updated game"):
                         pack.write_bytes(content)

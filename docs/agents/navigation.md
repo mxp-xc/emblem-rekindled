@@ -17,12 +17,15 @@
 
 路径以实际目录为准；找不到时先列出目标目录，避免猜测文件名。
 素材路径从 `chapter.json` 的对应 manifest 追踪；生成 JSON/图片不是默认搜索范围。
+扩关、改图或修改资源清理前，阅读 `docs/development.md` 的“章内共享图片与改图”；
+公共图片归章级shared所有，关卡只拥有私有输出，共享逻辑从 `tools/chapter_assets.py` 进入。
 
 ```sh
 rtk rg --files game/app game/gameplay game/features game/persistence -g '*.gd'
 rtk rg -n 'symbol' game/app game/features -g '*.gd'
-rtk uv run python tools/source_context.py build/web/index.js needle --radius 160 --limit 5
+rtk uv run python tools/source_context.py "build/web/<buildId>/index.js" needle --radius 160 --limit 5
 ```
 
 搜索大型生成文件或 minified JS 时使用最后一个命令按字符偏移输出有限片段，
 而不是输出整行。需要完整分析产物时保存到临时文件，向会话只返回结论与定位。
+Web资源位于`build/web/<buildId>/`；运行最后一条命令前，用`build/web/build-info.json`中的buildId替换路径占位符。

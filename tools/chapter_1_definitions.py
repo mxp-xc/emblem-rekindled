@@ -33,7 +33,10 @@ def _pak_member(pak: bytes, wanted: str) -> bytes:
     raise ValueError(f"Archive resource not found: {wanted}")
 
 
-def _spawn_definitions(data: bytes) -> list[dict]:
+def _spawn_definitions(data: bytes, battle: int = 0) -> list[dict]:
+    if battle not in (0, 1):
+        raise ValueError(f"Unverified chapter-1 battle: m{battle}")
+    width, height = (20, 25) if battle == 0 else (22, 22)
     position = 0
 
     def byte() -> int:
@@ -67,7 +70,7 @@ def _spawn_definitions(data: bytes) -> list[dict]:
         drop_template_id = byte()
         region_count = byte()
         if region_count != 0:
-            raise ValueError("Random deployment regions are not part of the verified first battle")
+            raise ValueError("Random deployment regions are not part of the verified deployments")
         point = [byte(), byte()]
         if random_equipment not in (0, 1):
             raise ValueError(f"Unsupported equipment selection mode: {random_equipment}")
@@ -75,22 +78,27 @@ def _spawn_definitions(data: bytes) -> list[dict]:
             raise ValueError("Invalid chapter-1 class or faction")
         if any(item < 0 or item > 87 for item in [*choices, drop_template_id]):
             raise ValueError("Invalid chapter-1 item reference")
-        if not 0 <= point[0] < 20 or not 0 <= point[1] < 25:
-            raise ValueError("Chapter-1 deployment position is outside m0")
+        if not 0 <= point[0] < width or not 0 <= point[1] < height:
+            raise ValueError(f"Chapter-1 deployment position is outside m{battle}")
         deployment_id = source_id
-        if faction == 0 and policy & 32:
-            deployment_id = next_temporary_id
-            next_temporary_id += 1
-            if deployment_id > 99:
-                raise ValueError("Unexpected temporary deployment beyond the verified first battle")
+        deployment_slot = source_id if faction == 0 and policy & 32 else None
+        if deployment_slot is not None:
+            if battle == 1 and deployment_slot in (0, 1):
+                deployment_id = (0, 9)[deployment_slot]
+                source_id = deployment_id
+            else:
+                deployment_id = next_temporary_id
+                next_temporary_id += 1
+                if deployment_id > 99:
+                    raise ValueError("Temporary deployment identities exhausted")
         if deployment_id in identities:
             raise ValueError(f"Duplicate deployment identity: {deployment_id}")
         identities.add(deployment_id)
-        if deployment_id == 10:
+        if battle == 0 and deployment_id == 10:
             point = [7, 9]
-        elif deployment_id == 11:
+        elif battle == 0 and deployment_id == 11:
             point = [10, 13]
-        if faction == 2:
+        if faction == 2 and battle == 0:
             flags &= ~1
         group = class_id // 4
         spawn = {
@@ -112,6 +120,8 @@ def _spawn_definitions(data: bytes) -> list[dict]:
             "policy": policy,
             "visible": flags & 1 == 0,
         }
+        if battle and deployment_slot is not None:
+            spawn["deploymentSlot"] = deployment_slot
         if explicit is not None:
             spawn["explicitStats"] = explicit
         else:
@@ -119,17 +129,20 @@ def _spawn_definitions(data: bytes) -> list[dict]:
         result.append(spawn)
     if position != len(data):
         raise ValueError(f"Unexpected trailing deployment bytes: {len(data) - position}")
-    if next_temporary_id != 100:
-        raise ValueError("The verified first battle must contain five temporary deployments")
+    if next_temporary_id != (100 if battle == 0 else 99):
+        raise ValueError(f"Unexpected temporary deployment count in m{battle}")
     return result
 
 
-def export_definitions(source: Path, output: Path) -> None:
+def export_definitions(source: Path, output: Path, battle: int = 0) -> None:
     """Write spawns.json under output, preserving random choices rather than sampling them."""
     if hashlib.sha256(source.read_bytes()).hexdigest() != SOURCE_SHA:
         raise ValueError("Chapter-1 source JAR SHA-256 mismatch")
     with zipfile.ZipFile(source) as archive:
-        spawns = _spawn_definitions(_pak_member(archive.read("1.pak"), "p0"))
+        data = (
+            _pak_member(archive.read("1.pak"), "p0") if battle == 0 else archive.read(f"p{battle}")
+        )
+        spawns = _spawn_definitions(data, battle)
     output.mkdir(parents=True, exist_ok=True)
     (output / "spawns.json").write_text(json.dumps(spawns, ensure_ascii=False, indent=2) + "\n")
 

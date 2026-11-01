@@ -4,6 +4,7 @@ signal intent(kind: String, details: Dictionary)
 
 const CommanderScreen = preload("res://features/menus/commander_screen.gd")
 const MenuNavigation = preload("res://ui/menu_navigation.gd")
+const GAME_SPEEDS: Array[int] = [1, 2, 4, 8, 16, 32]
 
 var page: String = "main"
 var panel: PanelContainer
@@ -15,6 +16,7 @@ var _commander_button: Button
 var _commander: Control
 var _configuration: Dictionary = {}
 var _music: Button
+var _speed: Button
 var _map_controls: VBoxContainer
 var _zoom: HSlider
 var _assisted_victory: Button
@@ -76,7 +78,21 @@ func setup(data: Dictionary, settings: Dictionary) -> void:
 	_map_controls.add_child(_zoom)
 	_map_controls.add_child(_button("查看全图", "overview"))
 	options.add_child(_button("辅助功能", "assistance"))
+	_speed = _button("", "speed")
+	_speed.name = "GameSpeed"
+	options.add_child(_speed)
+	set_game_speed(Engine.time_scale)
 	options.add_child(_button("返回", "back"))
+	var speed_options: VBoxContainer = _page(column, "speed")
+	speed_options.add_child(_label("游戏速率", true))
+	speed_options.add_child(_label("仅本次运行生效，重启恢复1×。"))
+	for rate: int in GAME_SPEEDS:
+		var choice: Button = _button(
+			"1×（正常）" if rate == 1 else "%d×" % rate, "game_speed", {"value": rate}
+		)
+		choice.name = "Speed_%d" % rate
+		speed_options.add_child(choice)
+	speed_options.add_child(_button("返回", "back"))
 	var assistance: VBoxContainer = _page(column, "assistance")
 	assistance.add_child(_label("辅助功能", true))
 	_assisted_victory = _button("直接通关", "confirm_victory")
@@ -166,7 +182,7 @@ func show_page(value: String) -> void:
 func go_back() -> bool:
 	if page == "confirm_victory":
 		show_page("assistance")
-	elif page == "assistance":
+	elif page in ["assistance", "speed"]:
 		show_page("settings")
 	elif page == "commander":
 		_commander.commit()
@@ -194,6 +210,10 @@ func handle_wheel(direction: int) -> void:
 
 func set_music_state(enabled: bool, started: bool) -> void:
 	_music.text = ("音乐 · 开" if started else "音乐 · 点按播放") if enabled else "音乐 · 关"
+
+
+func set_game_speed(value: float) -> void:
+	_speed.text = "游戏速率 · %d×" % int(value)
 
 
 func set_notice(message: String, transient: bool = false) -> void:
@@ -254,25 +274,28 @@ func _page(parent: VBoxContainer, key: String) -> VBoxContainer:
 	return column
 
 
-func _button(text: String, kind: String) -> Button:
+func _button(text: String, kind: String, details: Dictionary = {}) -> Button:
 	var button := Button.new()
 	button.text = text
 	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	button.custom_minimum_size = Vector2(220, 56)
 	button.add_theme_font_size_override("font_size", 28)
 	button.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
-	button.pressed.connect(func() -> void: _choose(kind))
+	button.pressed.connect(func() -> void: _choose(kind, details))
 	return button
 
 
-func _choose(kind: String) -> void:
-	if kind in ["settings", "objective", "help", "commander", "assistance", "confirm_victory"]:
+func _choose(kind: String, details: Dictionary) -> void:
+	if (
+		kind
+		in ["settings", "objective", "help", "commander", "assistance", "confirm_victory", "speed"]
+	):
 		show_page(kind)
 	elif kind == "back":
 		if not go_back():
 			intent.emit("close", {})
 	else:
-		intent.emit(kind, {})
+		intent.emit(kind, details)
 
 
 func _label(text: String, heading: bool = false) -> Label:

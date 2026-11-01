@@ -2,15 +2,15 @@ extends RefCounted
 
 const MapRules = preload("res://gameplay/map_rules.gd")
 var _rules: Dictionary
-var _reinforcement_ids: Array
-var _reinforcement_round: int
+var _turn_events: Array
+var _ai_changes: Array
 var _movement: RefCounted
 
 
 func _init(content: Dictionary) -> void:
 	_rules = content["story"]["outcomeRules"]
-	_reinforcement_round = int(content["story"]["reinforcementTrigger"]["afterEnemyPhaseOfRound"])
-	_reinforcement_ids = content["story"]["initialBattlePresentation"]["hiddenUnitIds"]
+	_turn_events = content["story"]["turnEvents"]
+	_ai_changes = content["story"]["aiChanges"]
 	_movement = MapRules.new(content["map"], content["rules"]["alliances"])
 
 
@@ -21,21 +21,26 @@ func outcome(units: Array) -> Dictionary:
 		indexed[int(unit["id"])] = unit
 		if unit["visible"] and unit["hp"] > 0 and unit["faction"] == _rules["enemyFaction"]:
 			enemy_count += 1
-	if enemy_count == 0:
-		return {"kind": "victory", "reason": "all_enemies_defeated"}
-	var escape: Dictionary = indexed[int(_rules["escapeUnitId"])]
-	if escape["y"] >= _rules["escapeRow"] and escape["action"] == 2:
-		return {"kind": "victory", "reason": "escaped"}
+	if _rules.has("defeatUnitId"):
+		var target: Dictionary = indexed.get(int(_rules["defeatUnitId"]), {})
+		if target.is_empty() or target["hp"] <= 0 or not target["visible"]:
+			return {"kind": "victory", "reason": "boss_defeated"}
+	else:
+		if enemy_count == 0:
+			return {"kind": "victory", "reason": "all_enemies_defeated"}
+		var escape: Dictionary = indexed[int(_rules["escapeUnitId"])]
+		if escape["y"] >= _rules["escapeRow"] and escape["action"] == 2:
+			return {"kind": "victory", "reason": "escaped"}
 	for id: Variant in _rules["requiredUnitIds"]:
 		var unit: Dictionary = indexed[int(id)]
-		if unit["hp"] <= 0 or not unit["visible"]:
+		if unit["hp"] <= 0 and not unit["visible"]:
 			return {"kind": "defeat", "reason": "required_unit_fallen", "unit": int(id)}
 	return {}
 
 
-func reinforce(units: Array) -> Array[Dictionary]:
+func reinforce(units: Array, unit_ids: Array) -> Array[Dictionary]:
 	var arrivals: Array[Dictionary] = []
-	for id: Variant in _reinforcement_ids:
+	for id: Variant in unit_ids:
 		for unit: Dictionary in units:
 			if unit["id"] != id or unit["visible"] or unit["hp"] <= 0:
 				continue
@@ -58,5 +63,20 @@ func reinforce(units: Array) -> Array[Dictionary]:
 	return arrivals
 
 
-func reinforcements_due(round_number: int) -> bool:
-	return round_number == _reinforcement_round
+func turn_events_due(round_number: int) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for event: Dictionary in _turn_events:
+		if event["afterEnemyPhaseOfRound"] == round_number:
+			result.append(event)
+	return result
+
+
+func prepare_enemy_phase(round_number: int, units: Array) -> void:
+	for change: Dictionary in _ai_changes:
+		if change["beforeEnemyPhaseOfRound"] != round_number:
+			continue
+		for id: Variant in change["unitIds"]:
+			for unit: Dictionary in units:
+				if unit["id"] == int(id):
+					unit["flags"] |= int(change["flagsSet"])
+					unit["policy"] &= ~int(change["policyClear"])

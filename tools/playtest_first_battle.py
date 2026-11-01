@@ -150,18 +150,11 @@ class Run(AndroidInput):
         )
         return state
 
-    def play(self) -> dict:
+    def play(self, speed: int = 32) -> dict:
         self.client.adb("shell", "am", "start", "-n", PACKAGE + "/com.godot.game.GodotAppLauncher")
-        state = self.client.read(timeout=90)
-        while state["ui"]["prologue"] or not state["ui"]["titleOptions"]:
-            self.key(66)
-            state = self.client.read()
-        for _ in range(5):
-            if any(item.get("text") == "开始游戏" for item in state["controls"]):
-                break
-            self.key(22)
-            state = self.client.read()
-        self.click("开始游戏")
+        self.set_speed(speed)
+        self.key(4)
+        state = self.title_entry("开始游戏")
         configured = False
         deadline = time.monotonic() + 60
         while not state["ready"]:
@@ -207,7 +200,7 @@ class Run(AndroidInput):
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--speed", type=float, default=32)
+    parser.add_argument("--speed", type=int, choices=(1, 2, 4, 8, 16, 32), default=32)
     parser.add_argument("--serial")
     parser.add_argument("--apk", type=Path, default=ROOT / "build/android/emblem-rekindled.apk")
     parser.add_argument("--keep-emulator", action="store_true")
@@ -229,8 +222,7 @@ def main() -> None:
         started = time.monotonic()
         run = Run(client, output)
         try:
-            client.enable(args.speed)
-            state = run.play()
+            state = run.play(args.speed)
             progress = state["world"]
             if progress["gold"] != 6000 or progress["route"] != 0:
                 raise AssertionError("Unexpected first-battle completion")

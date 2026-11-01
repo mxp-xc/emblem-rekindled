@@ -1,6 +1,9 @@
 {
   "id": "chapter_1",
   "firstBattle": "m0",
+  "battles": {
+    "m1": "res://content/chapter_1/generated/battles/m1/battle.json"
+  },
   "map": "res://content/chapter_1/generated/map.json",
   "units": "res://content/chapter_1/generated/units.json",
   "rules": "res://content/chapter_1/generated/rules.json",

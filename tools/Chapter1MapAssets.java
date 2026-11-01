@@ -20,7 +20,7 @@ public final class Chapter1MapAssets {
     Class<?> sprite = Class.forName("g", true, loader);
     Object raw = get(game, "as");
     if (!(raw instanceof List<?> units) || units.size() != 32) {
-      throw new IllegalArgumentException("Expected the verified 32-unit first deployment");
+      throw new IllegalArgumentException("Expected a verified 32-unit deployment");
     }
     Object[][] templates = (Object[][]) get(game, "V");
     Method mapClass = game.getClass().getMethod("r", int.class);
@@ -128,7 +128,7 @@ public final class Chapter1MapAssets {
     if (copies.containsKey(original)) return copies.get(original);
     if (number(original, "ar") != 0) {
       throw new IllegalArgumentException(
-        "A procedural sprite is not a verified first-battle map unit"
+        "A procedural sprite is not a verified chapter-1 map unit"
       );
     }
     Object copy = sprite.getConstructor(sprite).newInstance(original);

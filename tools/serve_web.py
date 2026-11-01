@@ -4,7 +4,6 @@ import argparse
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -12,9 +11,6 @@ ROOT = Path(__file__).resolve().parents[1]
 class WebPreviewHandler(SimpleHTTPRequestHandler):
     def end_headers(self) -> None:
         self.send_header("Cache-Control", "no-store")
-        if urlsplit(self.path).path in ("/", "/index.html"):
-            # Old Godot resources may still be fresh in HTTP cache. Keep IDBFS saves intact.
-            self.send_header("Clear-Site-Data", '"cache"')
         super().end_headers()
 
 

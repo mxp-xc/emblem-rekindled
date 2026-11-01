@@ -5,10 +5,26 @@ const MapView = preload("res://features/tactical_map/map_view.gd")
 
 
 # Content is validated once at the app boundary, before a scene receives it.
-func load_chapter(path: String) -> Dictionary:
+func load_chapter(path: String, battle_id: String = "") -> Dictionary:
 	var entry: Variant = _read_json(path)
 	if not entry is Dictionary:
 		return _failure("章入口无法读取: " + path)
+	if not entry.get("firstBattle") is String:
+		return _failure("章入口缺少首个关卡")
+	if battle_id.is_empty():
+		battle_id = entry["firstBattle"]
+	if battle_id != entry["firstBattle"]:
+		var catalog: Variant = entry.get("battles")
+		if not catalog is Dictionary or not catalog.get(battle_id) is String:
+			return _failure("关卡尚未接入: " + battle_id)
+		var definition: Variant = _read_json(catalog[battle_id])
+		if not definition is Dictionary or definition.get("battleId") != battle_id:
+			return _failure("关卡入口身份无效: " + battle_id)
+		var chapter_id: Variant = entry.get("id")
+		entry.merge(definition, true)
+		entry["id"] = chapter_id
+	entry["battleId"] = battle_id
+	entry["chapterPath"] = path
 	for key: String in [
 		"id",
 		"firstBattle",
@@ -174,7 +190,10 @@ func load_chapter(path: String) -> Dictionary:
 		interface_data, entry["interface"].get_base_dir(), ids.keys(), item_ids
 	):
 		return _failure("人物信息、物品说明或窗口资源无效")
-	if not _story_valid(story, entry["story"].get_base_dir(), ids, width, height):
+	if (
+		story.get("battleId") != battle_id
+		or not _story_valid(story, entry["story"].get_base_dir(), ids, width, height)
+	):
 		return _failure("剧情序列或资源引用无效")
 	if rules["nodeShopStockIndices"].size() < story["world"]["nodes"].size():
 		return _failure("世界商店地点引用无效")
@@ -577,10 +596,13 @@ func _story_valid(
 		or tutorials[6]["text"].is_empty()
 	):
 		return false
-	for sequence: String in ["boot", "newGame", "opening", "reinforcements", "victory", "defeat"]:
+	for sequence: String in ["boot", "newGame", "opening", "victory", "defeat"]:
 		if not story["sequences"].get(sequence) is Array or story["sequences"][sequence].is_empty():
 			return false
-		for step: Variant in story["sequences"][sequence]:
+	for sequence: Variant in story["sequences"].values():
+		if not sequence is Array:
+			return false
+		for step: Variant in sequence:
 			if not step is Dictionary or not _story_step_valid(step, ids, width, height):
 				return false
 	var commander_setups: int = 0
@@ -601,7 +623,8 @@ func _story_valid(
 		return false
 	if (
 		not story.get("outcomeRules") is Dictionary
-		or not story.get("reinforcementTrigger") is Dictionary
+		or not story.get("turnEvents") is Array
+		or not story.get("aiChanges") is Array
 	):
 		return false
 	var outcome: Dictionary = story["outcomeRules"]
@@ -609,24 +632,60 @@ func _story_valid(
 		not _integer(outcome.get("enemyFaction"))
 		or outcome["enemyFaction"] < 0
 		or outcome["enemyFaction"] > 2
-		or not _integer(outcome.get("escapeUnitId"))
-		or not ids.has(int(outcome["escapeUnitId"]))
-		or not _integer(outcome.get("escapeRow"))
-		or outcome["escapeRow"] < 0
-		or outcome["escapeRow"] >= height
 		or not outcome.get("requiredUnitIds") is Array
 		or outcome["requiredUnitIds"].is_empty()
 	):
 		return false
+	if outcome.has("defeatUnitId"):
+		if not _integer(outcome["defeatUnitId"]) or not ids.has(int(outcome["defeatUnitId"])):
+			return false
+	else:
+		if (
+			not _integer(outcome.get("escapeUnitId"))
+			or not ids.has(int(outcome["escapeUnitId"]))
+			or not _integer(outcome.get("escapeRow"))
+			or outcome["escapeRow"] < 0
+			or outcome["escapeRow"] >= height
+		):
+			return false
 	for id: Variant in outcome["requiredUnitIds"]:
 		if not _integer(id) or not ids.has(int(id)):
 			return false
-	var reinforcement: Dictionary = story["reinforcementTrigger"]
-	if (
-		not _positive_integer(reinforcement.get("afterEnemyPhaseOfRound"))
-		or reinforcement.get("once") != true
-	):
-		return false
+	var event_ids: Dictionary = {}
+	for event: Variant in story["turnEvents"]:
+		if (
+			not event is Dictionary
+			or not event.get("id") is String
+			or event["id"].is_empty()
+			or event_ids.has(event["id"])
+			or not _positive_integer(event.get("afterEnemyPhaseOfRound"))
+			or not event.get("sequence") is String
+			or not story["sequences"].get(event["sequence"]) is Array
+			or story["sequences"][event["sequence"]].is_empty()
+			or not event.get("unitIds") is Array
+			or event["unitIds"].is_empty()
+		):
+			return false
+		event_ids[event["id"]] = true
+		for id: Variant in event["unitIds"]:
+			if not _integer(id) or not ids.has(int(id)):
+				return false
+	for change: Variant in story["aiChanges"]:
+		if (
+			not change is Dictionary
+			or not _positive_integer(change.get("beforeEnemyPhaseOfRound"))
+			or not change.get("unitIds") is Array
+			or not _integer(change.get("flagsSet"))
+			or change["flagsSet"] < 0
+			or change["flagsSet"] > 255
+			or not _integer(change.get("policyClear"))
+			or change["policyClear"] < 0
+			or change["policyClear"] > 255
+		):
+			return false
+		for id: Variant in change["unitIds"]:
+			if not _integer(id) or not ids.has(int(id)):
+				return false
 	for image_id: String in [
 		"splash",
 		"intro0",
@@ -748,6 +807,12 @@ func _story_valid(
 		or world["tileSize"] != MapView.TILE_PIXELS
 		or not world.get("nodes") is Array
 		or world["nodes"].is_empty()
+		or not world.get("routes") is Array
+		or world["routes"].is_empty()
+		or not _integer(story.get("worldNode"))
+		or story["worldNode"] < 0
+		or story["worldNode"] >= world["nodes"].size()
+		or not _positive_integer(story.get("battleNumber"))
 	):
 		return false
 	for index: int in range(world["nodes"].size()):
@@ -758,6 +823,8 @@ func _story_valid(
 			or node["id"] != index
 			or not node.get("name") is String
 			or node["name"].is_empty()
+			or not node.get("entryNarration") is Dictionary
+			or not _story_text_valid(node["entryNarration"])
 			or not _integer(node.get("markerId"))
 			or int(node["markerId"]) not in [-1, 0, 1]
 			or not _story_cell_valid(
@@ -765,12 +832,24 @@ func _story_valid(
 			)
 		):
 			return false
+	for path: Variant in world["routes"]:
+		if not path is Array or path.size() < 2 or path[0] != 0:
+			return false
+		for node: Variant in path:
+			if not _integer(node) or node < 0 or node >= world["nodes"].size():
+				return false
 	for route: Dictionary in story["routeChoices"]:
 		if (
 			not _integer(route.get("nodeId"))
 			or route["nodeId"] <= 0
 			or route["nodeId"] >= world["nodes"].size()
+			or route["routeIndex"] < 0
+			or route["routeIndex"] >= world["routes"].size()
 		):
+			return false
+		var path: Array = world["routes"][int(route["routeIndex"])]
+		var current: int = path.find(story["worldNode"])
+		if current < 0 or current + 1 >= path.size() or path[current + 1] != route["nodeId"]:
 			return false
 	return true
 
@@ -792,7 +871,8 @@ func _story_step_valid(step: Dictionary, ids: Dictionary, width: int, height: in
 			"objective",
 			"instruction",
 			"missionComplete",
-			"gameOver"
+			"gameOver",
+			"battleTitle"
 		]
 	):
 		return (
@@ -801,6 +881,9 @@ func _story_step_valid(step: Dictionary, ids: Dictionary, width: int, height: in
 			and (
 				step.get("kind") != "missionComplete"
 				or (_integer(step.get("goldReward")) and step["goldReward"] >= 0)
+			)
+			and (
+				step["kind"] != "battleTitle" or _positive_integer(step.get("sourceDurationUnits"))
 			)
 		)
 	match step.get("kind"):

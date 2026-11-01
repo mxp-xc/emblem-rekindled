@@ -104,6 +104,7 @@ func decode(value: Dictionary, held_ids: Dictionary) -> Dictionary:
 		or current["maxHp"] < 1
 		or current["maxHp"] > int(_stat_caps["maxHp"])
 		or current["hp"] > current["maxHp"]
+		or (current["hp"] == 0 and current["visible"])
 		or current["move"] > int(_stat_caps["move"])
 		or current["experience"] > 99
 		or current["action"] not in [0, 2]

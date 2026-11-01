@@ -75,9 +75,12 @@ var _wheel_direction: int = 0
 var _wheel_last_event_millis: int = -1000
 var _wheel_last_step_millis: int = -1000
 var _wheel_distance: float = 0.0
+var _rebuilding_interface: bool = false
+var _world_transitioning: bool = false
 
 
 func _ready() -> void:
+	Engine.time_scale = 1
 	preload("res://app/build_identity.gd").publish()
 	theme = Theme.new()
 	theme.default_font = FONT
@@ -99,6 +102,33 @@ func _ready() -> void:
 	var restored: Dictionary = store.read()
 	if restored["ok"]:
 		settings = restored["settings"]
+	_build_interface()
+	var music: AudioStreamOggVorbis = load(content["entry"]["titleMusic"])
+	music.loop = true
+	# Long BGM streams avoid Web Sample loop/resume buffer duplication.
+	player.playback_type = AudioServer.PLAYBACK_TYPE_STREAM
+	player.stream = music
+	player.volume_linear = settings["volume"]
+	add_child(player)
+	if not OS.has_feature("web") and settings["music_enabled"]:
+		_unlock_music()
+	_update_music_button()
+	if not restored["ok"]:
+		_report_storage_error(restored)
+		_set_menu_visible(true)
+	resized.connect(_layout)
+	_show_title()
+	_layout()
+	var probe := preload("res://app/playtest_probe.gd").new()
+	add_child(probe)
+	var diagnostic: Dictionary = probe.setup(self)
+	if not diagnostic["ok"]:
+		push_warning(diagnostic["error"])
+	if not diagnostic.get("enabled", false):
+		probe.queue_free()
+
+
+func _build_interface() -> void:
 	_build_battlefield()
 	_build_menu()
 	map.setup(content)
@@ -151,29 +181,26 @@ func _ready() -> void:
 		unit_information, item_actions, exchange_screen, target_selection, battle_view
 	]:
 		screen.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
-	var music: AudioStreamOggVorbis = load(content["entry"]["titleMusic"])
-	music.loop = true
-	# Long BGM streams avoid Web Sample loop/resume buffer duplication.
-	player.playback_type = AudioServer.PLAYBACK_TYPE_STREAM
-	player.stream = music
-	player.volume_linear = settings["volume"]
-	add_child(player)
-	if not OS.has_feature("web") and settings["music_enabled"]:
-		_unlock_music()
-	_update_music_button()
-	if not restored["ok"]:
-		_report_storage_error(restored)
-		_set_menu_visible(true)
-	resized.connect(_layout)
-	_show_title()
+
+
+func _adopt_content(next_content: Dictionary) -> void:
+	if content["entry"]["battleId"] == next_content["entry"]["battleId"]:
+		return
+	_rebuilding_interface = true
+	for child: Node in get_children():
+		if child is Control:
+			remove_child(child)
+			child.queue_free()
+	content = next_content
+	battle = Battle.new(content)
+	battle_clips = BattleClips.new(content)
+	theme = PixelTheme.new().create(
+		content["interface"], content["entry"]["interface"].get_base_dir()
+	)
+	_build_interface()
+	_rebuilding_interface = false
 	_layout()
-	var probe := preload("res://app/playtest_probe.gd").new()
-	add_child(probe)
-	var diagnostic: Dictionary = probe.setup(self)
-	if not diagnostic["ok"]:
-		push_warning(diagnostic["error"])
-	if not diagnostic.get("enabled", false):
-		probe.queue_free()
+	_update_music_button()
 
 
 func _build_battlefield() -> void:
@@ -272,6 +299,11 @@ func _menu_intent(kind: String, details: Dictionary) -> void:
 			settings["volume"] = details["value"]
 			player.volume_linear = details["value"]
 			_save_settings()
+		"game_speed":
+			if menu_layer.page == "speed" and details.get("value") in GameMenu.GAME_SPEEDS:
+				Engine.time_scale = float(details["value"])
+				menu_layer.set_game_speed(Engine.time_scale)
+				menu_layer.show_page("settings")
 		"overview":
 			_show_overview()
 		"zoom":
@@ -305,7 +337,7 @@ func _menu_intent(kind: String, details: Dictionary) -> void:
 
 
 func _layout() -> void:
-	if map == null:
+	if map == null or _rebuilding_interface:
 		return
 	var safe := Rect2(Vector2.ZERO, size)
 	if OS.has_feature("android") or OS.has_feature("ios"):
@@ -338,7 +370,7 @@ func _layout() -> void:
 
 
 func _layout_overlays(force: bool = false) -> void:
-	if story_player == null or menu_layer == null:
+	if story_player == null or menu_layer == null or _rebuilding_interface:
 		return
 	var safe: Rect2 = _safe_area if _safe_area.has_area() else Rect2(Vector2.ZERO, size)
 	var rendered: Rect2 = map.content_rect()
@@ -751,7 +783,10 @@ func _input(event: InputEvent) -> void:
 		if _wheel_selection(-1 if event.button_index == MOUSE_BUTTON_WHEEL_UP else 1, event.factor):
 			get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("ui_cancel") and not event.is_echo():
-		_handle_back()
+		if OS.get_name() == "Android":
+			_handle_system_back()
+		else:
+			_handle_back()
 		get_viewport().set_input_as_handled()
 	elif event is InputEventKey:
 		if event.pressed:
@@ -906,11 +941,7 @@ func _report_storage_error(result: Dictionary) -> void:
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_GO_BACK_REQUEST and is_node_ready():
-		# Android 16 / Godot 4.7.2 delivers the dispatcher and key-event paths together.
-		var now: int = Time.get_ticks_msec()
-		if now - _last_system_back_millis >= 100:
-			_last_system_back_millis = now
-			_handle_back()
+		_handle_system_back()
 	elif what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_APPLICATION_FOCUS_OUT:
 		_application_paused = true
 		player.stream_paused = true
@@ -920,9 +951,17 @@ func _notification(what: int) -> void:
 			player.stream_paused = false
 
 
+func _handle_system_back() -> void:
+	# Android dispatcher/key paths can straddle synchronous save work.
+	if Time.get_ticks_msec() - _last_system_back_millis < 100:
+		return
+	_handle_back()
+	_last_system_back_millis = Time.get_ticks_msec()
+
+
 func _process(delta: float) -> void:
 	if _played_seconds >= 0 and not _application_paused and not title_screen.visible:
-		_played_seconds += delta
+		_played_seconds += delta / Engine.time_scale
 
 
 func _play_minutes() -> int:
@@ -959,6 +998,13 @@ func _show_title() -> void:
 func start_new_game() -> void:
 	if not title_screen.visible or title_screen.prologue.visible:
 		return
+	if content["entry"]["battleId"] != content["entry"]["firstBattle"]:
+		var first: Dictionary = Content.new().load_chapter(content["entry"]["chapterPath"])
+		if not first["ok"]:
+			push_error(first["error"])
+			title_screen.message.text = "首关资源无法读取，当前记录已保留。"
+			return
+		_adopt_content(first)
 	_unlock_music()
 	world_progress = {}
 	_played_seconds = 0
@@ -1009,8 +1055,7 @@ func resume_battle(restored_battle: RefCounted) -> void:
 	map.set_movement_field({})
 	map.selected = Vector2i(-1, -1)
 	map.set_units(battle.snapshot()["units"])
-	map.focus_hero(false)
-	var hero: Dictionary = battle.unit(0)
+	var hero: Dictionary = battle.unit(map.focus_hero(false))
 	map_hud.present(Vector2i(hero["x"], hero["y"]), hero)
 	map.show()
 	map_hud.show()
@@ -1025,6 +1070,7 @@ func load_game() -> void:
 	_unlock_music()
 	var result: Dictionary = battle_store.read()
 	if result["ok"]:
+		_adopt_content(result["content"])
 		if result.has("progress"):
 			_played_seconds = float(result["progress"].get("elapsedMinutes", -1)) * 60
 			await _show_completed_progress(result["progress"])
@@ -1074,7 +1120,16 @@ func _describe_save_slots() -> Array[Dictionary]:
 				{
 					"status": "world",
 					"description":
-					"第1战\n%s\n%s" % [content["story"]["world"]["nodes"][0]["name"], duration]
+					(
+						"第%d战\n%s\n%s"
+						% [
+							progress["worldStep"],
+							content["story"]["world"]["nodes"][int(
+								progress.get("worldLocation", progress["worldNode"])
+							)]["name"],
+							duration
+						]
+					)
 				}
 			)
 	return records
@@ -1097,6 +1152,7 @@ func _accept_save_slot(slot: int) -> void:
 			save_slots.show_error("存档无法读取，原记录已保留。")
 			return
 		_played_seconds = float(result["progress"].get("elapsedMinutes", -1)) * 60
+		_adopt_content(result["content"])
 		await _show_completed_progress(result["progress"])
 
 
@@ -1271,9 +1327,8 @@ func _end_turn() -> void:
 	menu_button.show()
 	map.selection_enabled = true
 	map.selected = Vector2i(-1, -1)
-	map.focus_hero(false)
 	map.set_units(battle.snapshot()["units"])
-	var hero: Dictionary = battle.unit(0)
+	var hero: Dictionary = battle.unit(map.focus_hero(false))
 	map_hud.present(Vector2i(hero["x"], hero["y"]), hero)
 
 
@@ -1281,19 +1336,27 @@ func _present_phase_events(events: Array) -> void:
 	for event: Dictionary in events:
 		if event["kind"] != "reinforcements":
 			continue
-		var sequence: Array = content["story"]["sequences"]["reinforcements"].duplicate(true)
-		var entrances: Array = []
+		var sequence: Array = content["story"]["sequences"][event["sequence"]].duplicate(true)
+		var arrivals: Dictionary = {}
 		for arrival: Dictionary in event["arrivals"]:
 			map.presentation_hidden_ids.append(int(arrival["unit"]))
-			entrances.append(
-				{
-					"kind": "unitEntrance",
-					"unitId": arrival["unit"],
-					"from": [arrival["from"].x, arrival["from"].y],
-					"to": [arrival["to"].x, arrival["to"].y]
-				}
-			)
-		sequence[0]["units"] = entrances
+			arrivals[int(arrival["unit"])] = arrival
+		for step: Dictionary in sequence:
+			if step["kind"] != "parallelEntrances":
+				continue
+			var entrances: Array = []
+			for entrance: Dictionary in step["units"]:
+				var id: int = int(entrance["unitId"])
+				if not arrivals.has(id):
+					continue
+				var destination: Vector2i = arrivals[id]["to"]
+				var origin := Vector2i(entrance["from"][0], entrance["from"][1])
+				var previous := Vector2i(entrance["to"][0], entrance["to"][1])
+				origin += destination - previous
+				entrance["from"] = [origin.x, origin.y]
+				entrance["to"] = [destination.x, destination.y]
+				entrances.append(entrance)
+			step["units"] = entrances
 		map.set_units(battle.snapshot()["units"])
 		await story_player.play(sequence)
 		map.clear_presentation()
@@ -1402,8 +1465,79 @@ func _world_snapshot() -> Dictionary:
 	return progress
 
 
-func _world_node(_node_id: int) -> void:
-	await story_player.show_world_notice("这一关卡内容尚在制作，当前进度已保留。")
+func _world_node(node_id: int) -> void:
+	if (
+		_world_transitioning
+		or world_progress.is_empty()
+		or not story_player.world_ready
+		or save_slots.visible
+		or world_inventory_screen.visible
+	):
+		return
+	var path: Array = content["story"]["world"]["routes"][int(world_progress["route"])]
+	var step: int = int(world_progress.get("worldStep", 1))
+	if path.slice(0, step).any(func(id: Variant) -> bool: return id == node_id):
+		_world_transitioning = true
+		var visited: Dictionary = world_progress.duplicate(true)
+		visited["worldLocation"] = node_id
+		var saved_location: Dictionary = _commit_world_progress(visited)
+		if saved_location["ok"]:
+			await story_player.travel_to(node_id, false)
+		else:
+			push_error(str(saved_location))
+			await story_player.show_world_notice("地点无法保存，当前进度已保留。")
+		_world_transitioning = false
+		return
+	if step >= path.size() or path[step] != node_id:
+		await story_player.show_world_notice("请选择路线中亮起的下一目标。")
+		return
+	var next_id: String = "m%d" % node_id
+	if not content["entry"].get("battles", {}).has(next_id):
+		await story_player.show_world_notice("这一关卡内容尚在制作，当前进度已保留。")
+		return
+	var next_content: Dictionary = Content.new().load_chapter(
+		content["entry"]["chapterPath"], next_id
+	)
+	if not next_content["ok"]:
+		push_error(str(next_content))
+		await story_player.show_world_notice("关卡数据无法加载，当前进度已保留。")
+		return
+	_world_transitioning = true
+	if not await story_player.confirm_travel(node_id):
+		_world_transitioning = false
+		return
+	var next_battle: RefCounted = Battle.new(next_content)
+	var entered: Dictionary = next_battle.begin_from_progress(world_progress)
+	if not entered["ok"]:
+		push_error(str(entered))
+		await story_player.show_world_notice("队伍无法进入下一战，当前记录已保留。")
+		_world_transitioning = false
+		return
+	await story_player.travel_to(node_id)
+	_adopt_content(next_content)
+	battle = next_battle
+	selected_unit = -1
+	busy = true
+	title_screen.hide()
+	map.set_units(battle.snapshot()["units"])
+	map.prepare_opening(content["story"]["initialBattlePresentation"])
+	map_hud.hide()
+	menu_button.hide()
+	await story_player.play(content["story"]["sequences"]["opening"])
+	battle.configure_commander(
+		story_player.selected_commander,
+		bool(story_player.selected_policy & 1),
+		bool(story_player.selected_policy & 4)
+	)
+	battle.complete_event("opening")
+	var saved: Dictionary = battle_store.write(battle, _play_minutes())
+	while not saved["ok"]:
+		push_error(str(saved))
+		await story_player.show_notice("下一战进度无法保存，原记录已保留。请检查存储后重试。", "重试保存")
+		saved = battle_store.write(battle, _play_minutes())
+	world_progress = {}
+	_world_transitioning = false
+	resume_battle(battle)
 
 
 func _finish_outcome() -> void:

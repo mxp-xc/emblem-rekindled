@@ -6,6 +6,7 @@ const MAX_GOLD: int = 9999999
 
 const NEIGHBORS: Array[Vector2i] = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
 const AI = preload("res://gameplay/tactical_ai.gd")
+const Campaign = preload("res://gameplay/campaign_rules.gd")
 const Events = preload("res://gameplay/battle_events.gd")
 const Resolution = preload("res://gameplay/combat_resolution.gd")
 const UnitRecord = preload("res://gameplay/unit_record.gd")
@@ -23,13 +24,14 @@ var commander_id: int = -1
 var command_policy: int = 0
 var gold: int = 0
 var outcome: Dictionary = {}
+var battle_id: String
 var _commander_candidates: Array[int] = []
 var _initial_gold: int
 var _completion: Dictionary = {}
 var _routes: Dictionary = {}
-var _gold_reward: int
 var _chapter_id: String
-var _battle_id: String
+var _campaign: Dictionary = {}
+var _campaign_rules: RefCounted
 var _chapter_events: RefCounted
 var _ai: RefCounted
 var _resolution: RefCounted
@@ -55,7 +57,7 @@ var _pending_move: Dictionary = {}
 
 func _init(content: Dictionary, random_source: Callable = Callable()) -> void:
 	_chapter_id = content["entry"]["id"]
-	_battle_id = content["entry"]["firstBattle"]
+	battle_id = content["entry"]["battleId"]
 	for step: Dictionary in content["story"]["sequences"]["opening"]:
 		if step["kind"] == "commanderSetup":
 			for id: Variant in step["candidates"]:
@@ -64,7 +66,6 @@ func _init(content: Dictionary, random_source: Callable = Callable()) -> void:
 			break
 	_initial_gold = int(content["rules"]["initialGold"])
 	gold = _initial_gold
-	_gold_reward = int(content["story"]["sequences"]["victory"][-1]["goldReward"])
 	for route: Dictionary in content["story"]["routeChoices"]:
 		_routes[int(route["routeIndex"])] = route
 	_map = content["map"].duplicate(true)
@@ -83,6 +84,7 @@ func _init(content: Dictionary, random_source: Callable = Callable()) -> void:
 	for row: Dictionary in content["rules"]["growthRates"]:
 		_growth_rates[int(row["id"])] = row.duplicate(true)
 	_unit_records = UnitRecord.new(content, _combat)
+	_campaign_rules = Campaign.new(content, _unit_records, MAX_GOLD)
 	var spawns: Dictionary = {}
 	for spawn: Dictionary in content["spawns"]:
 		spawns[int(spawn["id"])] = spawn
@@ -165,7 +167,11 @@ func _add_initial_item(current: Dictionary, template_id: int) -> void:
 		return
 	current["inventory"].append(
 		{
-			"id": "%s:unit_%d:item_%d" % [_chapter_id, current["id"], current["inventory"].size()],
+			"id":
+			(
+				"%s:%s:unit_%d:item_%d"
+				% [_chapter_id, battle_id, current["id"], current["inventory"].size()]
+			),
 			"templateId": template_id,
 			"durability": int(_combat.item_definition(template_id)["defaultDurability"])
 		}
@@ -186,7 +192,7 @@ func unit_information(id: int, instance_id: String = "") -> Dictionary:
 
 
 func snapshot() -> Dictionary:
-	return {
+	var state: Dictionary = {
 		"phase": phase,
 		"round": round_number,
 		"commander": commander_id,
@@ -199,10 +205,32 @@ func snapshot() -> Dictionary:
 		"units": _units.values().duplicate(true),
 		"pending_move": _pending_move.duplicate(true)
 	}
+	if not _campaign.is_empty():
+		state["campaign"] = _campaign.duplicate(true)
+	return state
+
+
+func begin_from_progress(progress: Dictionary) -> Dictionary:
+	if not _campaign.is_empty():
+		return {"ok": false, "error": "CAMPAIGN_ALREADY_ENTERED"}
+	var prepared: Dictionary = _campaign_rules.prepare(progress, _units)
+	if not prepared["ok"]:
+		return prepared
+	_units = prepared["units"]
+	_warehouse = prepared["warehouse"]
+	gold = prepared["gold"]
+	_campaign = prepared["campaign"]
+	_events = prepared["events"]
+	return {"ok": true}
 
 
 func can_save() -> bool:
-	return phase == 0 and _pending_move.is_empty() and outcome.is_empty()
+	return (
+		phase == 0
+		and _pending_move.is_empty()
+		and outcome.is_empty()
+		and _campaign_rules.valid_context(_campaign)
+	)
 
 
 func event_completed(event_id: String) -> bool:
@@ -214,6 +242,8 @@ func complete_event(event_id: String) -> void:
 
 
 func restore_snapshot(state: Dictionary) -> Dictionary:
+	if not _campaign_rules.valid_context(state.get("campaign", {})):
+		return _failure("INVALID_SAVE_CAMPAIGN")
 	if not state.get("events") is Dictionary:
 		return _failure("INVALID_SAVE_EVENTS")
 	for event_id: Variant in state["events"]:
@@ -285,6 +315,10 @@ func restore_snapshot(state: Dictionary) -> Dictionary:
 	_automatic_queue.clear()
 	_assignments.clear()
 	_units = candidate
+	_campaign = state.get("campaign", {}).duplicate(true)
+	for field: String in ["route", "worldStep"]:
+		if _campaign.has(field):
+			_campaign[field] = int(_campaign[field])
 	_events = state["events"].duplicate(true)
 	_warehouse = warehouse
 	phase = int(state["phase"])
@@ -857,13 +891,16 @@ func end_phase() -> Dictionary:
 	var events: Array[Dictionary] = []
 	for iteration: int in range(3):
 		if phase == 2:
-			if (
-				_chapter_events.reinforcements_due(round_number)
-				and not event_completed("reinforcements")
-			):
-				var arrivals: Array[Dictionary] = _chapter_events.reinforce(_units.values())
-				complete_event("reinforcements")
-				events.append({"kind": "reinforcements", "arrivals": arrivals})
+			for event: Dictionary in _chapter_events.turn_events_due(round_number):
+				if event_completed(event["id"]):
+					continue
+				var arrivals: Array[Dictionary] = _chapter_events.reinforce(
+					_units.values(), event["unitIds"]
+				)
+				complete_event(event["id"])
+				events.append(
+					{"kind": "reinforcements", "sequence": event["sequence"], "arrivals": arrivals}
+				)
 			round_number += 1
 		phase = (phase + 1) % 3
 		for actor: Dictionary in _units.values():
@@ -873,6 +910,8 @@ func end_phase() -> Dictionary:
 				actor["flags"] &= ~(16 | 64)
 		_assignments.clear()
 		_automatic_queue.clear()
+		if phase == 2:
+			_chapter_events.prepare_enemy_phase(round_number, _units.values())
 		if phase != 0:
 			_automatic_queue = _ai.order(_units.values(), phase)
 		if phase == 0 or not _automatic_queue.is_empty():
@@ -935,30 +974,15 @@ func complete_victory(route: int) -> Dictionary:
 		if _completion["route"] != route:
 			return _failure("ROUTE_ALREADY_CHOSEN")
 		return {"ok": true, "alreadyComplete": true, "progress": _completion.duplicate(true)}
-	gold = mini(MAX_GOLD, gold + _gold_reward)
-	var retained: Dictionary = {}
-	for actor: Dictionary in _units.values():
-		if actor["formal"]:
-			actor["hp"] = actor["maxHp"]
-			actor["flags"] = 0
-			actor["action"] = 0
-			actor["visible"] = true
-			retained[int(actor["id"])] = actor
-	_units = retained
+	var context: Dictionary = _campaign_rules.complete(snapshot(), route)
+	if not context["ok"]:
+		return context
+	_completion = context["progress"]
+	gold = _completion["gold"]
+	_units = context["party"]
 	phase = 0
 	_pending_move.clear()
 	_automatic_queue.clear()
 	_assignments.clear()
 	complete_event("settled")
-	_completion = {
-		"chapterId": _chapter_id,
-		"completedBattle": _battle_id,
-		"worldNode": 0,
-		"route": route,
-		"gold": gold,
-		"commander": commander_id,
-		"commandPolicy": command_policy,
-		"party": _units.values().duplicate(true),
-		"warehouse": _warehouse.duplicate(true)
-	}
 	return {"ok": true, "alreadyComplete": false, "progress": _completion.duplicate(true)}

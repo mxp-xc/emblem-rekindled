@@ -6,11 +6,11 @@ func _initialize() -> void:
 
 
 func run() -> void:
-	Engine.time_scale = 4
 	root.size = Vector2i(720, 1280)
 	var scene: Control = load("res://app/main.tscn").instantiate()
 	root.add_child(scene)
 	await process_frame
+	Engine.time_scale = 4
 	var battle: RefCounted = load("res://gameplay/battle_state.gd").new(
 		scene.content, func(limit: int) -> int: return limit - 1
 	)

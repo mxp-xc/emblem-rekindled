@@ -106,7 +106,7 @@ func actor(progress: Dictionary, id: int) -> Dictionary:
 
 func shop_stock(progress: Dictionary, special: bool = false) -> Array[Dictionary]:
 	var stock: Array[Dictionary] = []
-	var node: int = int(progress["worldNode"])
+	var node: int = int(progress.get("worldLocation", progress["worldNode"]))
 	var index: int = 0 if special else int(_rules["nodeShopStockIndices"][node])
 	for value: Variant in _rules["shopStocks"][index]:
 		var template: int = int(value)

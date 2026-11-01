@@ -3,44 +3,22 @@ extends Node
 var _scene: Control
 var _directory: String
 var _timer: Timer
-var _previous_speed: float = 1
 
 
-func setup(scene: Control, configuration: String = "user://playtest.json") -> Dictionary:
-	if (
-		not OS.is_debug_build()
-		or OS.has_feature("web")
-		or not FileAccess.file_exists(configuration)
-	):
+func setup(scene: Control, directory: String = "user://") -> Dictionary:
+	if not OS.is_debug_build():
 		return {"ok": true, "enabled": false}
-	var config: Variant = JSON.parse_string(FileAccess.get_file_as_string(configuration))
-	if (
-		not config is Dictionary
-		or config.keys() != ["speed"]
-		or not (config["speed"] is float or config["speed"] is int)
-		or not is_finite(float(config["speed"]))
-		or float(config["speed"]) < 1
-		or float(config["speed"]) > 32
-	):
-		return {"ok": false, "error": "INVALID_PLAYTEST_CONFIG"}
 	if _timer != null:
 		return {"ok": false, "error": "PLAYTEST_ALREADY_RUNNING"}
 	_scene = scene
-	_directory = configuration.get_base_dir()
-	_previous_speed = Engine.time_scale
-	Engine.time_scale = config["speed"]
+	_directory = directory
 	_timer = Timer.new()
-	_timer.wait_time = 0.05
+	_timer.wait_time = 0.01
 	_timer.ignore_time_scale = true
 	_timer.timeout.connect(_read_request)
 	add_child(_timer)
 	_timer.start()
 	return {"ok": true, "enabled": true}
-
-
-func _exit_tree() -> void:
-	if _timer != null:
-		Engine.time_scale = _previous_speed
 
 
 func _read_request() -> void:
@@ -81,6 +59,10 @@ func _read_request() -> void:
 
 func _snapshot() -> Dictionary:
 	var controls: Array = []
+	var title_entries: Array[String] = []
+	for control: Node in _scene.title_screen.options.get_children():
+		if control is Button and not control.text.is_empty():
+			title_entries.append(control.text)
 	for control: Node in _scene.find_children("*", "Control", true, false):
 		if not control.is_visible_in_tree() or not (control is Button or control is HSlider):
 			continue
@@ -109,7 +91,7 @@ func _snapshot() -> Dictionary:
 		{
 			"version": 1,
 			"chapterId": _scene.content["entry"]["id"],
-			"battleId": _scene.content["entry"]["firstBattle"],
+			"battleId": _scene.content["entry"]["battleId"],
 			"state": _scene.battle.snapshot()
 		},
 		"world": _scene.world_progress.duplicate(true),
@@ -120,6 +102,7 @@ func _snapshot() -> Dictionary:
 			"title": _scene.title_screen.visible,
 			"prologue": _scene.title_screen.prologue.visible,
 			"titleOptions": _scene.title_screen.options.visible,
+			"titleEntries": title_entries,
 			"story": _scene.story_player.visible,
 			"dialogue": _scene.story_player.dialogue.visible,
 			"commander": _scene.story_player.commander.is_visible_in_tree(),

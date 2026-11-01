@@ -55,8 +55,11 @@ def export(platform: str) -> dict:
                 verify_apk(output, identity["buildId"])
             destination = ROOT / "build" / platform
             destination.mkdir(parents=True, exist_ok=True)
-            for file in Path(directory).iterdir():
-                shutil.copy2(file, destination / file.name)
+            if platform == "web":
+                publish_web(Path(directory), destination, identity["buildId"])
+            else:
+                for file in Path(directory).iterdir():
+                    shutil.copy2(file, destination / file.name)
             (destination / "build-info.json").write_text(json.dumps(identity, indent=2) + "\n")
     finally:
         if previous is None:
@@ -64,6 +67,22 @@ def export(platform: str) -> dict:
         else:
             INFO.write_bytes(previous)
     return identity
+
+
+def publish_web(source: Path, destination: Path, build_id: str) -> None:
+    markup = (source / "index.html").read_text()
+    if markup.count("<head>") != 1 or "<base " in markup:
+        raise RuntimeError("Godot export must have one head and no existing asset base")
+    # The stable entry points at a new asset URL for every build, including WASM/PCK/worklets.
+    # Previous directories stay available to pages that are already running.
+    assets = destination / build_id
+    assets.mkdir(exist_ok=False)
+    for file in source.iterdir():
+        shutil.copy2(file, assets / file.name)
+    markup = markup.replace("<head>", f'<head>\n\t\t<base href="./{build_id}/">', 1)
+    temporary = destination / "index.html.tmp"
+    temporary.write_text(markup)
+    temporary.replace(destination / "index.html")
 
 
 def verify_pack(pack: Path, expected: str) -> None:
@@ -89,12 +108,18 @@ def verify_apk(apk: Path, expected: str) -> None:
 def verify_web(origin: str) -> None:
     expected = json.loads((ROOT / "build/web/build-info.json").read_text())["buildId"]
     with tempfile.TemporaryDirectory(prefix="emblem-served-pack-") as directory:
-        for resource in ("", "index.pck"):
+        for resource in ("", expected + "/index.pck"):
             with urlopen(origin.rstrip("/") + "/" + resource, timeout=30) as response:
                 if response.headers.get("Cache-Control") != "no-store":
                     raise RuntimeError("Preview server must disable HTTP caching")
-                if not resource and response.headers.get("Clear-Site-Data") != '"cache"':
-                    raise RuntimeError("Root navigation must retire old HTTP cache")
+                if response.headers.get("Clear-Site-Data") is not None:
+                    raise RuntimeError("Preview navigation must not clear browser data")
+                if not resource:
+                    markup = response.read().decode()
+                    if f'<base href="./{expected}/">' not in markup:
+                        raise RuntimeError(
+                            "Served HTML does not point at the expected build assets"
+                        )
                 if resource:
                     pack = Path(directory) / "index.pck"
                     with pack.open("wb") as output:

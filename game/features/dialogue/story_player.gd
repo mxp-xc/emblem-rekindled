@@ -57,6 +57,8 @@ var _world_wait_updates: int = 21
 var _battle_area: Rect2
 var _safe_area: Rect2
 var _world_touches: Dictionary = {}
+var _travel_confirmation: bool = false
+var _world_travel_position := Vector2(-1, -1)
 
 
 func setup(content: Dictionary, tactical_map: Control) -> void:
@@ -210,6 +212,8 @@ func _step(step: Dictionary) -> void:
 			await _speak(step["text"], "", "narration")
 		"objective":
 			await _notice(step["text"], data["story"]["battleName"]["text"])
+		"battleTitle":
+			await _notice(step["text"], "", int(step["sourceDurationUnits"]))
 		"missionComplete":
 			music_requested.emit("victoryMusic")
 			await _notice(step["text"], "", 3000)
@@ -375,6 +379,8 @@ func go_back() -> void:
 		commander.commit()
 	elif dialogue.visible and not dialogue.notice_mode:
 		dialogue.advance()
+	elif _travel_confirmation:
+		choice_selected.emit(0)
 	elif world_active and choices.visible:
 		choices.hide()
 		_route_panel.hide()
@@ -467,7 +473,12 @@ func _process(delta: float) -> void:
 
 
 func tick() -> void:
-	if world_active and world_ready and not dialogue.visible and not choices.visible:
+	if (
+		world_active
+		and (world_ready or _world_travel_position.x >= 0)
+		and not dialogue.visible
+		and not choices.visible
+	):
 		_world_idle_updates += 1
 		if _world_idle_updates >= _world_idle_interval:
 			_world_idle_updates = 0
@@ -573,7 +584,12 @@ func _layout() -> void:
 			button.custom_minimum_size = Vector2(0, 19 * factor)
 			button.add_theme_font_size_override("font_size", roundi(12 * factor))
 			button.add_theme_constant_override("icon_max_width", roundi(10 * factor))
-		if world_active:
+		if _travel_confirmation:
+			_route_panel.size = Vector2(
+				minf(220 * factor, area.size.x), (16 + choices.get_child_count() * 19) * factor
+			)
+			_route_panel.position = area.get_center() - _route_panel.size / 2
+		elif world_active:
 			_route_panel.size = Vector2(84, 16 + choices.get_child_count() * 19) * factor
 			_route_panel.position = area.position + Vector2(0, 14) * factor
 		else:
@@ -605,13 +621,14 @@ func _draw_world() -> void:
 		false
 	)
 	if world_revealed:
-		if world_active and _world_next_node in visible_world_nodes:
-			_world_layer.draw_line(
-				_world_node_origin(_world_current_node) + Vector2(12, 12) * factor,
-				_world_node_origin(_world_next_node) + Vector2(12, 12) * factor,
-				Color("ffe68c"),
-				factor
-			)
+		if world_active:
+			for index: int in range(1, visible_world_nodes.size()):
+				_world_layer.draw_line(
+					_world_node_origin(visible_world_nodes[index - 1]) + Vector2(12, 12) * factor,
+					_world_node_origin(visible_world_nodes[index]) + Vector2(12, 12) * factor,
+					Color("ffe68c"),
+					factor
+				)
 		for id: int in visible_world_nodes:
 			var node: Dictionary = data["story"]["world"]["nodes"][id]
 			var center: Vector2 = _world_node_origin(id) + Vector2(12, 12) * factor
@@ -633,6 +650,8 @@ func _draw_world() -> void:
 					false
 				)
 		var origin: Vector2 = _world_node_origin(_world_current_node)
+		if _world_travel_position.x >= 0:
+			origin = _world_view.screen_at(_world_travel_position) - _world_layer.position
 		var actor: Texture2D = _world_actor_frames[world_actor_frame if world_active else 0]
 		_world_layer.draw_texture_rect(
 			actor, Rect2(origin + _world_actor_offset * factor, actor.get_size() * factor), false
@@ -675,21 +694,21 @@ func show_world(progress: Dictionary, guidance: bool = false) -> void:
 	world_update = -1
 	world_revealed = true
 	world_circle_phase = -1
-	_world_current_node = int(progress["worldNode"])
+	_world_current_node = int(progress.get("worldLocation", progress["worldNode"]))
 	selected_world_node = _world_current_node
-	visible_world_nodes.assign([_world_current_node])
+	var path: Array = data["story"]["world"]["routes"][int(progress["route"])]
+	var step: int = int(progress.get("worldStep", 1))
+	visible_world_nodes.assign(path.slice(0, step))
 	background = load(_directory.path_join(data["story"]["world"]["texture"]))
 	music_requested.emit("worldMusic")
-	for route: Dictionary in data["story"]["routeChoices"]:
-		if route["routeIndex"] == progress["route"]:
-			_world_next_node = int(route["nodeId"])
+	_world_next_node = int(path[step]) if step < path.size() else -1
 	_world_hud.present_place(data["story"]["world"]["nodes"][_world_current_node]["name"])
 	_configure_world_view()
 	_layout()
 	queue_redraw()
-	if guidance:
+	if guidance and _world_next_node >= 0:
 		await _speak(
-			{"sourceTextIndex": -1, "portraitId": 10, "text": "首关进度已保留。菜单可记录、读取存档；已亮起的地点是队伍的下一目标。"},
+			{"sourceTextIndex": -1, "portraitId": 10, "text": "进度已保留。菜单可记录、读取存档；已亮起的地点是队伍的下一目标。"},
 			"",
 			"ally",
 			true
@@ -704,7 +723,7 @@ func show_world(progress: Dictionary, guidance: bool = false) -> void:
 		await world_entrance_completed
 		await _focus_world_node(_world_current_node)
 		await get_tree().create_timer(_tick_seconds * 5).timeout
-	else:
+	elif _world_next_node >= 0:
 		visible_world_nodes.append(_world_next_node)
 	world_ready = true
 	_confirm.show()
@@ -725,10 +744,54 @@ func show_world_notice(text: String) -> void:
 		_show_world_menu()
 
 
+func confirm_travel(node_id: int) -> bool:
+	_travel_confirmation = true
+	_world_back.show()
+	var place: String = data["story"]["world"]["nodes"][node_id]["name"]
+	var selected: int = await _choose([{"id": 1, "label": "前往" + place}, {"id": 0, "label": "返回"}])
+	_travel_confirmation = false
+	_world_back.hide()
+	_confirm.show()
+	return selected == 1
+
+
+func travel_to(node_id: int, enter_battle: bool = true) -> void:
+	world_ready = false
+	_confirm.hide()
+	_world_back.hide()
+	_cancel_world_gesture()
+	var nodes: Array = data["story"]["world"]["nodes"]
+	var from := Vector2(
+		nodes[_world_current_node]["position"][0], nodes[_world_current_node]["position"][1]
+	)
+	var to := Vector2(nodes[node_id]["position"][0], nodes[node_id]["position"][1])
+	_world_travel_position = from
+	var tween := create_tween()
+	tween.tween_method(
+		func(point: Vector2) -> void:
+			_world_travel_position = point
+			_world_layer.queue_redraw(),
+		from,
+		to,
+		maxf(_tick_seconds, from.distance_to(to) * 2 * _tick_seconds)
+	)
+	await tween.finished
+	_world_current_node = node_id
+	_world_travel_position = Vector2(-1, -1)
+	_world_hud.present_place(nodes[node_id]["name"])
+	if enter_battle:
+		await _speak(nodes[node_id]["entryNarration"], "", "ally", true)
+	else:
+		world_ready = true
+		_confirm.show()
+
+
 func leave_world() -> void:
 	world_active = false
 	world_ready = false
 	world_update = -1
+	_travel_confirmation = false
+	_world_travel_position = Vector2(-1, -1)
 	_world_focus_pending = false
 	_cancel_world_gesture()
 	choices.hide()

@@ -1,39 +1,31 @@
-"""Opt-in debug speed and read-only live state through ADB, without saving progress."""
+"""Read debug state and operate the session speed setting through real ADB input."""
 
 import argparse
 import json
+import shlex
 import subprocess
 import time
 
 from qa_records import record_name
 
 PACKAGE = "io.github.mxpxc.emblemrekindled"
-FILES = (
-    "playtest.json",
-    "playtest_request.json",
-    "playtest_state.json",
-    "playtest.json.tmp",
-    "playtest_request.json.tmp",
-    "playtest_state.json.tmp",
-)
 
 
 class Playtest:
     def __init__(self, serial: str | None = None, adb: str = "adb") -> None:
         self.command = ["rtk", "proxy", adb, *(["-s", serial] if serial else [])]
 
-    def adb(self, *args: str, data: bytes | None = None, check: bool = True) -> bytes:
+    def adb(
+        self, *args: str, data: bytes | None = None, check: bool = True, timeout: float = 15
+    ) -> bytes:
         result = subprocess.run(
-            [*self.command, *args], input=data, capture_output=True, timeout=15, check=False
+            [*self.command, *args], input=data, capture_output=True, timeout=timeout, check=False
         )
         if result.returncode:
             error = result.stderr.decode(errors="replace")
             if check or "No such file or directory" not in error:
                 raise RuntimeError(error)
         return result.stdout if result.returncode == 0 else b""
-
-    def _write(self, name: str, value: dict) -> None:
-        self.write_record(name, json.dumps(value).encode())
 
     def record_names(self) -> list[str]:
         # Shell v2 preserves remote errors. Only an explicit missing directory is empty.
@@ -83,32 +75,52 @@ class Playtest:
         )
         self.adb("shell", "run-as", PACKAGE, "mv", "files/" + name + ".tmp", "files/" + name)
 
-    def enable(self, speed: float = 32) -> None:
-        if not 1 <= speed <= 32:
-            raise ValueError("Speed must be between 1 and 32")
-        self.adb("shell", "run-as", PACKAGE, "mkdir", "-p", "files")
-        self._write(FILES[0], {"speed": speed})
-
-    def disable(self) -> None:
-        self.adb("shell", "run-as", PACKAGE, "rm", "-f", *("files/" + name for name in FILES))
-
     def read(self, *, ready: bool = False, timeout: float = 30) -> dict:
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             request = str(time.monotonic_ns())
-            self._write(FILES[1], {"requestId": request})
-            while time.monotonic() < deadline:
-                raw = self.adb("shell", "run-as", PACKAGE, "cat", "files/" + FILES[2], check=False)
-                response = json.loads(raw) if raw else {}
-                if response.get("requestId") == request:
-                    if not response["ok"]:
-                        raise RuntimeError(response["error"])
-                    if not ready or response["ready"] or response["ui"]["worldReady"]:
-                        return response
-                    break
-                time.sleep(0.03)
-            time.sleep(0.03)
-        raise TimeoutError("No ready playtest response; enable debug test mode and restart the app")
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            # One ADB round trip publishes the request and waits for its matching response.
+            # The host still parses and verifies correlation before returning authority.
+            marker = shlex.quote('"requestId":"' + request + '"')
+            script = (
+                "cat > files/playtest_request.json.tmp && "
+                "mv files/playtest_request.json.tmp files/playtest_request.json && "
+                "until=$(( SECONDS + 2 )); "
+                "while true; do "
+                "if [ -f files/playtest_state.json ] && "
+                f"grep -Fq {marker} files/playtest_state.json; then "
+                "cat files/playtest_state.json; exit 0; fi; "
+                "[ $SECONDS -ge $until ] && break; sleep 0.01; done; "
+                f'echo \'{{"pending":true,"requestId":"{request}"}}\''
+            )
+            try:
+                raw = self.adb(
+                    "shell",
+                    "run-as",
+                    PACKAGE,
+                    "sh",
+                    "-c",
+                    shlex.quote(script),
+                    data=json.dumps({"requestId": request}).encode(),
+                    timeout=remaining,
+                )
+            except subprocess.TimeoutExpired as error:
+                raise TimeoutError(
+                    "The debug app did not respond within the requested timeout"
+                ) from error
+            response = json.loads(raw)
+            if response.get("requestId") != request:
+                raise RuntimeError("Debug response does not match the current request")
+            if response.get("pending") is True:
+                continue
+            if not response["ok"]:
+                raise RuntimeError(response["error"])
+            if not ready or response["ready"] or response["ui"]["worldReady"]:
+                return response
+        raise TimeoutError("The debug app did not reach a ready input boundary")
 
 
 class AndroidInput:
@@ -117,17 +129,23 @@ class AndroidInput:
     def __init__(self, client: Playtest) -> None:
         self.client = client
 
-    def key(self, code: int) -> None:
-        self.client.adb("shell", "input", "keyevent", str(code))
+    def key(self, *codes: int) -> None:
+        if not codes:
+            return
+        if len(codes) > 1 and 4 in codes:
+            for code in codes:
+                self.key(code)
+            return
+        self.client.adb("shell", "input", "keyevent", *(str(code) for code in codes))
         # Distinct system Back presses must exceed the game's 100ms notification debounce.
-        time.sleep(0.12 if code == 4 else 0.04)
+        time.sleep(0.12 if codes[0] == 4 else 0.04)
 
     def tap(self, x: float, y: float) -> None:
         self.client.adb("shell", "input", "tap", str(round(x)), str(round(y)))
         time.sleep(0.04)
 
-    def click(self, text: str = "", *, name: str = "") -> None:
-        state = self.client.read()
+    def click(self, text: str = "", *, name: str = "", state: dict | None = None) -> None:
+        state = self.client.read() if state is None else state
         item = next(
             (
                 item
@@ -159,26 +177,62 @@ class AndroidInput:
         if double:
             self.tap(*point)
 
+    def set_speed(self, speed: int) -> dict:
+        """Select a visible rate in the game's settings, leaving that settings page open."""
+        state = self.client.read()
+        if state["ui"]["title"]:
+            self.title_entry("游戏设置")
+        else:
+            if not state["ui"]["menu"]:
+                self.click(name="Menu", state=state)
+                state = self.client.read()
+            if state["ui"]["menuPage"] != "settings":
+                self.click("游戏设置", state=state)
+        self.click(name="GameSpeed")
+        self.click(name=f"Speed_{speed}")
+        state = self.client.read()
+        if state["speed"] != speed:
+            raise RuntimeError("The game did not apply the selected session speed")
+        return state
+
+    def title_entry(self, text: str) -> dict:
+        """Use the actual title order to take the shorter real-key path to an entry."""
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            state = self.client.read()
+            if not state["ui"]["title"]:
+                raise RuntimeError("The title selector is not open")
+            if not state["ui"]["prologue"] and state["ui"]["titleOptions"]:
+                break
+            self.key(66)
+        else:
+            raise TimeoutError("The title did not become interactive")
+        entries = state["ui"]["titleEntries"]
+        current = next(c["text"] for c in state["controls"] if c.get("text") in entries)
+        forward = (entries.index(text) - entries.index(current)) % len(entries)
+        backward = (entries.index(current) - entries.index(text)) % len(entries)
+        self.key(*([22] * forward if forward <= backward else [21] * backward))
+        state = self.client.read()
+        self.click(text, state=state)
+        return self.client.read()
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--serial")
     parser.add_argument("--adb", default="adb")
     commands = parser.add_subparsers(dest="command", required=True)
-    enable = commands.add_parser("enable", help="Enable on the next debug app launch")
-    enable.add_argument("--speed", type=float, default=32)
+    speed = commands.add_parser(
+        "speed", help="Select the current session rate through game settings"
+    )
+    speed.add_argument("value", type=int)
     read = commands.add_parser("read", help="Read live state; no menu or progress write")
     read.add_argument("--ready", action="store_true", help="Wait for a player boundary or world")
     read.add_argument("--timeout", type=float, default=30)
-    commands.add_parser("disable", help="Remove test files; restart to restore normal speed")
     args = parser.parse_args()
     client = Playtest(args.serial, args.adb)
-    if args.command == "enable":
-        client.enable(args.speed)
-        print("Enabled for next debug launch; restart the app")
-    elif args.command == "disable":
-        client.disable()
-        print("Disabled; restart the app to restore normal speed")
+    if args.command == "speed":
+        print(json.dumps(AndroidInput(client).set_speed(args.value), ensure_ascii=False))
     else:
         print(json.dumps(client.read(ready=args.ready, timeout=args.timeout), ensure_ascii=False))
 

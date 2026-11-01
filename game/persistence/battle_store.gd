@@ -2,14 +2,28 @@ extends RefCounted
 
 const Inventory = preload("res://gameplay/unit_inventory.gd")
 const Battle = preload("res://gameplay/battle_state.gd")
+const Content = preload("res://app/chapter_content.gd")
 const SLOT_COUNT: int = 4
 var path: String
 var _content: Dictionary
+var _contents: Dictionary = {}
 
 
 func _init(content: Dictionary, save_path: String = "user://battle_save.json") -> void:
 	_content = content
+	_contents[content["entry"]["battleId"]] = content
 	path = save_path
+
+
+func _battle_content(battle_id: String) -> Dictionary:
+	if not _contents.has(battle_id):
+		var loaded: Dictionary = Content.new().load_chapter(
+			_content["entry"]["chapterPath"], battle_id
+		)
+		if not loaded["ok"]:
+			return {"ok": false, "error": "SAVE_CONTENT_MISMATCH"}
+		_contents[battle_id] = loaded
+	return _contents[battle_id]
 
 
 func has_save() -> bool:
@@ -100,7 +114,7 @@ func encode(battle: RefCounted, elapsed_minutes: int = -1) -> Dictionary:
 	var record: Dictionary = {
 		"version": 1,
 		"chapterId": _content["entry"]["id"],
-		"battleId": _content["entry"]["firstBattle"],
+		"battleId": battle.battle_id,
 		"state": battle.snapshot()
 	}
 	if elapsed_minutes >= 0:
@@ -123,14 +137,17 @@ func decode(record: Dictionary, random_source: Callable = Callable()) -> Diction
 		not record.get("chapterId") is String
 		or not record.get("battleId") is String
 		or record["chapterId"] != _content["entry"]["id"]
-		or record["battleId"] != _content["entry"]["firstBattle"]
 	):
 		return {"ok": false, "error": "SAVE_CONTENT_MISMATCH"}
+	var content: Dictionary = _battle_content(record["battleId"])
+	if not content["ok"]:
+		return content
 	if record.has("progress"):
 		if (
 			record.has("state")
 			or record.has("elapsedMinutes")
 			or not record["progress"] is Dictionary
+			or record["progress"].get("completedBattle") != record["battleId"]
 		):
 			return {"ok": false, "error": "INVALID_SAVE_PROGRESS"}
 		return _decode_progress(record["progress"])
@@ -138,11 +155,11 @@ func decode(record: Dictionary, random_source: Callable = Callable()) -> Diction
 		return {"ok": false, "error": "INVALID_SAVE_STATE"}
 	if record.has("elapsedMinutes") and not _minutes_valid(record["elapsedMinutes"]):
 		return {"ok": false, "error": "INVALID_SAVE_TIME"}
-	var candidate: RefCounted = Battle.new(_content, random_source)
+	var candidate: RefCounted = Battle.new(content, random_source)
 	var restored: Dictionary = candidate.restore_snapshot(record["state"])
 	if not restored["ok"]:
 		return restored
-	var result: Dictionary = {"ok": true, "battle": candidate}
+	var result: Dictionary = {"ok": true, "battle": candidate, "content": content}
 	if record.has("elapsedMinutes"):
 		result["elapsedMinutes"] = int(record["elapsedMinutes"])
 	return result
@@ -158,20 +175,26 @@ func encode_progress(progress: Dictionary) -> Dictionary:
 		{
 			"version": 1,
 			"chapterId": _content["entry"]["id"],
-			"battleId": _content["entry"]["firstBattle"],
+			"battleId": decoded["progress"]["completedBattle"],
 			"progress": decoded["progress"]
 		}
 	}
 
 
 func _decode_progress(value: Dictionary) -> Dictionary:
+	if not value.get("completedBattle") is String:
+		return {"ok": false, "error": "SAVE_PROGRESS_CONTENT_MISMATCH"}
+	var content: Dictionary = _battle_content(value["completedBattle"])
+	if not content["ok"]:
+		return content
 	if value.has("elapsedMinutes") and not _minutes_valid(value["elapsedMinutes"]):
 		return {"ok": false, "error": "INVALID_SAVE_TIME"}
+	if value.has("levelTutorialSeen") and not value["levelTutorialSeen"] is bool:
+		return {"ok": false, "error": "INVALID_SAVE_TUTORIAL_STATE"}
 	if (
 		value.get("chapterId") != _content["entry"]["id"]
-		or value.get("completedBattle") != _content["entry"]["firstBattle"]
 		or not _integer(value.get("worldNode"))
-		or value["worldNode"] != 0
+		or value["worldNode"] != content["story"].get("worldNode", 0)
 	):
 		return {"ok": false, "error": "SAVE_PROGRESS_CONTENT_MISMATCH"}
 	if (
@@ -185,7 +208,7 @@ func _decode_progress(value: Dictionary) -> Dictionary:
 	):
 		return {"ok": false, "error": "INVALID_SAVE_PROGRESS"}
 	var route_valid: bool = false
-	for route: Dictionary in _content["story"]["routeChoices"]:
+	for route: Dictionary in content["story"]["routeChoices"]:
 		if route["routeIndex"] == value["route"]:
 			route_valid = true
 	if (
@@ -195,16 +218,31 @@ func _decode_progress(value: Dictionary) -> Dictionary:
 		or value["warehouse"].size() > Inventory.WAREHOUSE_CAPACITY
 	):
 		return {"ok": false, "error": "INVALID_SAVE_PROGRESS"}
+	var world_step: Variant = value.get(
+		"worldStep", 1 if value["completedBattle"] == _content["entry"]["firstBattle"] else null
+	)
+	var routes: Array = content["story"]["world"]["routes"]
+	if not _integer(world_step) or world_step < 1 or value["route"] >= routes.size():
+		return {"ok": false, "error": "INVALID_SAVE_WORLD_STEP"}
+	var route: Array = routes[int(value["route"])]
+	if world_step >= route.size() or route[int(world_step) - 1] != value["worldNode"]:
+		return {"ok": false, "error": "INVALID_SAVE_WORLD_STEP"}
+	if value.has("worldLocation"):
+		if not _integer(value["worldLocation"]):
+			return {"ok": false, "error": "INVALID_SAVE_WORLD_LOCATION"}
+		var visited: Array = route.slice(0, int(world_step))
+		if not visited.any(func(id: Variant) -> bool: return id == value["worldLocation"]):
+			return {"ok": false, "error": "INVALID_SAVE_WORLD_LOCATION"}
 	var expected: Dictionary = {}
-	for unit: Dictionary in _content["units"]:
+	for unit: Dictionary in content["units"]:
 		if unit["formal"]:
 			expected[int(unit["id"])] = true
 	if value["party"].size() != expected.size() or not expected.has(int(value["commander"])):
 		return {"ok": false, "error": "INVALID_SAVE_PARTY"}
 	var combat: RefCounted = load("res://gameplay/combat_rules.gd").new(
-		_content["rules"], _content["map"]["terrain"]
+		content["rules"], content["map"]["terrain"]
 	)
-	var decoder: RefCounted = load("res://gameplay/unit_record.gd").new(_content, combat)
+	var decoder: RefCounted = load("res://gameplay/unit_record.gd").new(content, combat)
 	var held_ids: Dictionary = {}
 	var party: Array[Dictionary] = []
 	for raw: Variant in value["party"]:
@@ -230,8 +268,9 @@ func _decode_progress(value: Dictionary) -> Dictionary:
 		return {"ok": false, "error": "INVALID_SAVE_WAREHOUSE"}
 	var progress: Dictionary = {
 		"chapterId": _content["entry"]["id"],
-		"completedBattle": _content["entry"]["firstBattle"],
-		"worldNode": 0,
+		"completedBattle": value["completedBattle"],
+		"worldNode": int(value["worldNode"]),
+		"worldStep": int(world_step),
 		"route": int(value["route"]),
 		"gold": int(value["gold"]),
 		"commander": int(value["commander"]),
@@ -241,7 +280,11 @@ func _decode_progress(value: Dictionary) -> Dictionary:
 	}
 	if value.has("elapsedMinutes"):
 		progress["elapsedMinutes"] = int(value["elapsedMinutes"])
-	return {"ok": true, "progress": progress}
+	if value.has("worldLocation"):
+		progress["worldLocation"] = int(value["worldLocation"])
+	if value.has("levelTutorialSeen"):
+		progress["levelTutorialSeen"] = value["levelTutorialSeen"]
+	return {"ok": true, "progress": progress, "content": content}
 
 
 func _minutes_valid(value: Variant) -> bool:

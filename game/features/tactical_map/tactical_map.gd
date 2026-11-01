@@ -133,18 +133,26 @@ func set_zoom(value: float) -> void:
 	queue_redraw()
 
 
-func focus_hero(select_unit: bool = true) -> void:
+func focus_hero(select_unit: bool = true) -> int:
 	var cell := Vector2i(-1, -1)
+	var chosen: int = -1
 	for unit: Dictionary in content["units"]:
-		if unit["id"] == 0:
+		if (
+			unit["formal"]
+			and unit["visible"]
+			and unit["hp"] > 0
+			and (chosen < 0 or unit["id"] == 0)
+		):
+			chosen = int(unit["id"])
 			cell = Vector2i(unit["x"], unit["y"])
 	if cell.x < 0:
-		return
+		return -1
 	view.focus_cell(cell)
 	if select_unit:
 		selected = cell
 		cell_selected.emit(cell)
 	queue_redraw()
+	return chosen
 
 
 func _notification(what: int) -> void:

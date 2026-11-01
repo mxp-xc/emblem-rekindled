@@ -9,10 +9,10 @@ func _initialize() -> void:
 
 func run() -> void:
 	root.size = Vector2i(720, 1280)
-	Engine.time_scale = 8
 	var scene: Control = load("res://app/main.tscn").instantiate()
 	root.add_child(scene)
 	await process_frame
+	Engine.time_scale = 8
 	var battle: RefCounted = load("res://gameplay/battle_state.gd").new(scene.content, _roll)
 	var state: Dictionary = battle.snapshot()
 	for actor: Dictionary in state["units"]:
