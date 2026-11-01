@@ -6,6 +6,7 @@ signal command_requested(operation: String, details: Dictionary)
 const PixelTheme = preload("res://ui/pixel_theme.gd")
 const ItemDetails = preload("res://features/tactical_map/item_details.gd")
 const ExchangeScreen = preload("res://features/tactical_map/exchange_screen.gd")
+const MenuNavigation = preload("res://ui/menu_navigation.gd")
 var page: String = "overview"
 var stage: String = "tabs"
 var _progress: Dictionary
@@ -499,30 +500,49 @@ func handle_key(event: InputEventKey) -> bool:
 	if stage == "confirm":
 		return true
 	if page in ["overview", "partner"] and event.keycode in [KEY_LEFT, KEY_RIGHT]:
-		_index = posmod(
-			_index + (-1 if event.keycode == KEY_LEFT else 1), _progress["party"].size()
-		)
-		if page == "partner" and _index == _source_index:
-			_index = posmod(
-				_index + (-1 if event.keycode == KEY_LEFT else 1), _progress["party"].size()
-			)
-		_item_index = 0
-		_render()
+		handle_wheel(-1 if event.keycode == KEY_LEFT else 1)
 		return true
 	if page in ["warehouse", "shop"]:
 		if stage == "tabs" and event.keycode in [KEY_LEFT, KEY_RIGHT]:
-			_change_tab(1 - _tab)
+			handle_wheel(-1 if event.keycode == KEY_LEFT else 1)
 			return true
 		if stage == "items" and event.keycode in [KEY_UP, KEY_DOWN]:
-			_item_index = posmod(
-				_item_index + (-1 if event.keycode == KEY_UP else 1), _items.size()
-			)
-			_rows.get_child(_item_index).grab_focus()
+			handle_wheel(-1 if event.keycode == KEY_UP else 1)
 			return true
 		if stage == "items" and event.keycode in [KEY_LEFT, KEY_RIGHT]:
 			_footer.cycle()
 			return true
 	return false
+
+
+func handle_wheel(direction: int) -> void:
+	if not _pending.is_empty() or stage in ["confirm", "notice"]:
+		return
+	match page:
+		"exchange":
+			_exchange.handle_wheel(direction)
+		"overview", "partner":
+			_index = posmod(_index + direction, _progress["party"].size())
+			if page == "partner" and _index == _source_index:
+				_index = posmod(_index + direction, _progress["party"].size())
+			_item_index = 0
+			_render()
+		"warehouse", "shop":
+			if stage == "tabs":
+				_change_tab(1 - _tab)
+			elif stage == "items" and not _items.is_empty():
+				_item_index = posmod(_item_index + direction, _items.size())
+				_rows.get_child(_item_index).grab_focus()
+		"operations":
+			var rows: Array[Button] = []
+			for button: Button in _operation_rows.get_children():
+				if (
+					button.is_visible_in_tree()
+					and not button.disabled
+					and button.focus_mode != FOCUS_NONE
+				):
+					rows.append(button)
+			MenuNavigation.step_buttons(rows, direction)
 
 
 func go_back() -> void:

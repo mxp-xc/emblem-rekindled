@@ -1,5 +1,8 @@
 extends RefCounted
 
+const BAG_CAPACITY: int = 6
+const WAREHOUSE_CAPACITY: int = 40
+
 # Shared item rules; battle and world progress own their mutable units and warehouses.
 var _combat: RefCounted
 var _roll: Callable
@@ -25,34 +28,28 @@ func equip(actor: Dictionary, instance_id: String) -> Dictionary:
 func candidates(actor: Dictionary, operation: String) -> Array[Dictionary]:
 	var items: Array[Dictionary] = []
 	for held: Dictionary in actor["inventory"]:
-		var template: int = int(held["templateId"])
 		var eligible: bool = false
 		match operation:
 			"use":
-				eligible = held["durability"] > 0 and template in [9, 18, 26, 37, 60, 61, 62]
+				eligible = _can_use(held)
 			"equip":
 				eligible = can_equip(actor, held)
 			"discard":
-				eligible = template != 50
+				eligible = _can_discard(held)
 		if eligible:
 			items.append(held.duplicate(true))
 	return items
 
 
 func can_equip(actor: Dictionary, held: Dictionary) -> bool:
-	var definition: Dictionary = _combat.item_definition(int(held["templateId"]))
-	return (
-		held["durability"] > 0
-		and definition["damageKind"] in ["physical", "magic"]
-		and (int(definition["categoryMask"]) & int(actor["equipMask"])) != 0
-	)
+	return _combat.can_equip(actor, held)
 
 
 func discard(actor: Dictionary, instance_id: String) -> Dictionary:
 	var held: Dictionary = held_item(actor, instance_id)
 	if held.is_empty():
 		return _failure("ITEM_NOT_OWNED")
-	if int(held["templateId"]) == 50:
+	if not _can_discard(held):
 		return _failure("ITEM_CANNOT_BE_DISCARDED")
 	actor["inventory"].erase(held)
 	auto_equip(actor)
@@ -93,12 +90,7 @@ func consume_weapon(actor: Dictionary) -> void:
 func auto_equip(actor: Dictionary) -> void:
 	actor["equippedInstanceId"] = ""
 	for held: Dictionary in actor["inventory"]:
-		var template: Dictionary = _combat.item_definition(int(held["templateId"]))
-		if (
-			held["durability"] > 0
-			and template["damageKind"] in ["physical", "magic"]
-			and int(template["categoryMask"]) & int(actor["equipMask"])
-		):
+		if can_equip(actor, held):
 			actor["equippedInstanceId"] = held["id"]
 			actor["inventory"].erase(held)
 			actor["inventory"].push_front(held)
@@ -123,9 +115,9 @@ func transfer_drop(dead: Dictionary, recipient: Dictionary, warehouse: Array) ->
 		if held["templateId"] != marked:
 			continue
 		var destination: String = "inventory"
-		if recipient["inventory"].size() < 6:
+		if recipient["inventory"].size() < BAG_CAPACITY:
 			recipient["inventory"].append(held)
-		elif warehouse.size() < 40:
+		elif warehouse.size() < WAREHOUSE_CAPACITY:
 			warehouse.append(held)
 			destination = "warehouse"
 		else:
@@ -148,15 +140,20 @@ func held_item(actor: Dictionary, instance_id: String) -> Dictionary:
 	return {}
 
 
+func can_heal_with(actor: Dictionary, held: Dictionary) -> bool:
+	return (
+		not held.is_empty()
+		and held["durability"] > 0
+		and int(held["templateId"]) in [53, 54]
+		and (int(actor["equipMask"]) & 32) != 0
+	)
+
+
 func can_heal(actor: Dictionary, target: Dictionary, instance_id: String) -> bool:
 	var held: Dictionary = held_item(actor, instance_id)
-	if held.is_empty() or held["durability"] <= 0 or int(held["templateId"]) not in [53, 54]:
+	if not can_heal_with(actor, held):
 		return false
-	return (
-		(int(actor["equipMask"]) & 32) != 0
-		and actor["id"] != target["id"]
-		and _combat.in_range(actor, target, int(held["templateId"]))
-	)
+	return actor["id"] != target["id"] and _combat.in_range(actor, target, int(held["templateId"]))
 
 
 func heal(actor: Dictionary, target: Dictionary, instance_id: String) -> Dictionary:
@@ -187,17 +184,10 @@ func use_item(actor: Dictionary, instance_id: String) -> Dictionary:
 	var held: Dictionary = held_item(actor, instance_id)
 	if held.is_empty() or held["durability"] <= 0:
 		return _failure("ITEM_NOT_OWNED")
-	var template: int = int(held["templateId"])
-	if template not in [9, 18, 26, 37, 60, 61, 62]:
+	if not _can_use(held):
 		return _failure("ITEM_NOT_USABLE")
 	var before: int = int(actor["hp"])
-	var amount: int = int(_combat.item_definition(template)["power"])
-	if template == 60:
-		amount = 10
-	elif template == 61:
-		amount = 20
-	elif template == 62:
-		amount = int(actor["maxHp"]) - before
+	var amount: int = _self_heal_amount(actor, held)
 	var consumed: bool = before < int(actor["maxHp"])
 	var expired: Dictionary = {}
 	if consumed:
@@ -214,6 +204,25 @@ func use_item(actor: Dictionary, instance_id: String) -> Dictionary:
 		"consumed": consumed,
 		"expiredItem": expired
 	}
+
+
+func _can_use(held: Dictionary) -> bool:
+	return held["durability"] > 0 and int(held["templateId"]) in [9, 18, 26, 37, 60, 61, 62]
+
+
+func _can_discard(held: Dictionary) -> bool:
+	return int(held["templateId"]) != 50
+
+
+func _self_heal_amount(actor: Dictionary, held: Dictionary) -> int:
+	var template: int = int(held["templateId"])
+	if template == 60:
+		return 10
+	if template == 61:
+		return 20
+	if template == 62:
+		return int(actor["maxHp"]) - int(actor["hp"])
+	return int(_combat.item_definition(template)["power"])
 
 
 func _consume_held(actor: Dictionary, held: Dictionary) -> Dictionary:
@@ -236,7 +245,7 @@ func trade(
 	)
 	if held.is_empty() or (not exchange_id.is_empty() and exchanged.is_empty()):
 		return _failure("ITEM_NOT_OWNED")
-	if exchanged.is_empty() and recipient["inventory"].size() >= 6:
+	if exchanged.is_empty() and recipient["inventory"].size() >= BAG_CAPACITY:
 		return _failure("INVENTORY_FULL")
 	if exchanged.is_empty():
 		actor["inventory"].erase(held)

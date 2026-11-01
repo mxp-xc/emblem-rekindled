@@ -44,11 +44,15 @@ func run() -> void:
 	if scene.story_player.choices.visible:
 		fail("The item screen replaces the world menu rather than overlaying two actionable lists")
 		return
-	await key(KEY_RIGHT)
+	await wheel(MOUSE_BUTTON_WHEEL_DOWN)
 	await key(KEY_ENTER)
 	var warehouse: Button = view.find_child("Warehouse", true, false)
 	if warehouse == null or view.page != "operations":
 		fail("Confirming the world character must expose Shop, Warehouse and Trade operations")
+		return
+	await wheel(MOUSE_BUTTON_WHEEL_DOWN)
+	if root.gui_get_focus_owner() != warehouse or view.page != "operations":
+		fail("World operation wheel must choose the next command without opening it")
 		return
 	warehouse.pressed.emit()
 	await process_frame
@@ -63,6 +67,10 @@ func run() -> void:
 		or FileAccess.get_file_as_string(path) != initial_bytes
 	):
 		fail("Preparing a deposit confirmation must not change or save either inventory")
+		return
+	await wheel(MOUSE_BUTTON_WHEEL_DOWN)
+	if view.stage != "confirm" or scene.world_progress != progress:
+		fail("Wheel input must not commit or cancel a world item confirmation")
 		return
 	await key(KEY_ESCAPE)
 	if view.stage != "items" or scene.world_progress != progress:
@@ -154,7 +162,17 @@ func run() -> void:
 		return
 	var hero_before: Dictionary = scene.world_inventory.actor(scene.world_progress, 0)
 	var iron: Dictionary = hero_before["inventory"][0].duplicate(true)
+	var active_list: Node = root.gui_get_focus_owner().get_parent()
+	await wheel(MOUSE_BUTTON_WHEEL_DOWN)
+	if root.gui_get_focus_owner().get_parent() != active_list:
+		fail("Exchange wheel must remain in the currently selected inventory")
+		return
 	exchange.find_child("Owner0_Item1", true, false).pressed.emit()
+	active_list = root.gui_get_focus_owner().get_parent()
+	await wheel(MOUSE_BUTTON_WHEEL_DOWN)
+	if root.gui_get_focus_owner().get_parent() != active_list:
+		fail("A locked exchange source must keep wheel navigation in the receiving inventory")
+		return
 	exchange.find_child("Owner1_Item53", true, false).pressed.emit()
 	await process_frame
 	var celica: Dictionary = scene.world_inventory.actor(scene.world_progress, 9)
@@ -211,5 +229,16 @@ func key(code: int) -> void:
 	var event := InputEventKey.new()
 	event.pressed = true
 	event.keycode = code
+	Input.parse_input_event(event)
+	await process_frame
+
+
+func wheel(button: MouseButton) -> void:
+	# Each call represents a separate wheel gesture; bursts have their own regression test.
+	await create_timer(0.25).timeout
+	var event := InputEventMouseButton.new()
+	event.button_index = button
+	event.pressed = true
+	event.position = Vector2(360, 500)
 	Input.parse_input_event(event)
 	await process_frame

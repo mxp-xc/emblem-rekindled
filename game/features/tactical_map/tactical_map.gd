@@ -282,7 +282,7 @@ func _draw() -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), Color("111e24"))
 	if content.is_empty() or map_texture == null:
 		return
-	var tile_pixels: float = 24.0 * view.zoom
+	var tile_pixels: float = View.TILE_PIXELS * view.zoom
 	var origin: Vector2 = view.screen_at(Vector2.ZERO)
 	draw_texture_rect(map_texture, Rect2(origin, Vector2(view.grid_size) * tile_pixels), false)
 	for cell: Vector2i in movement:
@@ -339,14 +339,17 @@ func _draw_field_cell(position: Vector2) -> void:
 	var rect := Rect2(position + Vector2.ONE * view.zoom, Vector2.ONE * 22 * view.zoom)
 	draw_texture_rect(
 		_range_textures.get(range_kind, _range_textures["move"]),
-		Rect2(position, Vector2.ONE * 24 * view.zoom),
+		Rect2(position, Vector2.ONE * View.TILE_PIXELS * view.zoom),
 		false
 	)
 	draw_rect(rect, Color(color.lightened(0.35), 0.9), false, maxf(1, view.zoom))
 
 
 func _draw_cursor(cell: Vector2i, color: Color, target: bool) -> void:
-	var rect := Rect2(view.screen_at(Vector2(cell)), Vector2.ONE * 24 * view.zoom).grow(-view.zoom)
+	var rect := (
+		Rect2(view.screen_at(Vector2(cell)), Vector2.ONE * View.TILE_PIXELS * view.zoom)
+		. grow(-view.zoom)
+	)
 	var width: float = maxf(2, 2 * view.zoom)
 	for corner: Vector2 in [Vector2.ZERO, Vector2.RIGHT, Vector2.DOWN, Vector2.ONE]:
 		var point: Vector2 = rect.position + rect.size * corner
@@ -416,5 +419,7 @@ func show_overview() -> void:
 
 
 func content_rect() -> Rect2:
-	var rendered := Rect2(view.screen_at(Vector2.ZERO), Vector2(view.grid_size) * 24 * view.zoom)
+	var rendered := Rect2(
+		view.screen_at(Vector2.ZERO), Vector2(view.grid_size) * View.TILE_PIXELS * view.zoom
+	)
 	return rendered.intersection(Rect2(view.viewport_origin, view.viewport_size))

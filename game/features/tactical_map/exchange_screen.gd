@@ -3,6 +3,8 @@ extends Control
 signal intent(kind: String, details: Dictionary)
 
 const PixelTheme = preload("res://ui/pixel_theme.gd")
+const MenuNavigation = preload("res://ui/menu_navigation.gd")
+const UnitInventory = preload("res://gameplay/unit_inventory.gd")
 var page: String = "targets"
 var source_locked: bool = false
 var target_id: int = -1
@@ -102,17 +104,29 @@ func handle_key(event: InputEventKey) -> bool:
 			select_target(target_id)
 			return true
 		if event.keycode in [KEY_UP, KEY_LEFT, KEY_DOWN, KEY_RIGHT] and not _targets.is_empty():
-			var index: int = 0
-			for candidate: int in range(_targets.size()):
-				if int(_targets[candidate]["id"]) == target_id:
-					index = candidate
-			var direction: int = -1 if event.keycode in [KEY_UP, KEY_LEFT] else 1
-			_highlight(int(_targets[posmod(index + direction, _targets.size())]["id"]))
+			handle_wheel(-1 if event.keycode in [KEY_UP, KEY_LEFT] else 1)
 			return true
 	elif event.keycode in [KEY_LEFT, KEY_RIGHT]:
 		_focus_owner(1 - _active_owner)
 		return true
 	return false
+
+
+func handle_wheel(direction: int) -> void:
+	if page == "targets":
+		if _targets.is_empty():
+			return
+		var index: int = 0
+		for candidate: int in range(_targets.size()):
+			if int(_targets[candidate]["id"]) == target_id:
+				index = candidate
+		_highlight(int(_targets[posmod(index + direction, _targets.size())]["id"]))
+		return
+	var rows: Array[Button] = []
+	for button: Button in _lists[_active_owner].get_children():
+		if button.is_visible_in_tree() and not button.disabled and button.focus_mode != FOCUS_NONE:
+			rows.append(button)
+	MenuNavigation.step_buttons(rows, direction)
 
 
 func _highlight(id: int) -> void:
@@ -152,7 +166,11 @@ func _render_inventories() -> void:
 			if source_locked and owner == _source_owner:
 				row.focus_mode = Control.FOCUS_NONE
 			_lists[owner].add_child(row)
-		if source_locked and owner != _source_owner and _parties[owner]["inventory"].size() < 6:
+		if (
+			source_locked
+			and owner != _source_owner
+			and _parties[owner]["inventory"].size() < UnitInventory.BAG_CAPACITY
+		):
 			var empty: Button = _row(owner, "", "（空位）", "", null)
 			empty.name = "TransferHere"
 			_lists[owner].add_child(empty)

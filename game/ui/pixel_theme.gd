@@ -19,13 +19,15 @@ static func sprite_icon(texture: Texture2D) -> Texture2D:
 	return icon
 
 
-static func wrap_text(text: String, width: int, font_size: int) -> PackedStringArray:
+static func wrap_text(
+	text: String, width: float, font_size: int, font: Font = FONT
+) -> PackedStringArray:
 	var lines: PackedStringArray = []
 	for paragraph: String in text.split("\n"):
 		var line: String = ""
 		for character: String in paragraph:
 			if (
-				FONT.get_string_size(line + character, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+				font.get_string_size(line + character, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
 				> width
 			):
 				lines.append(line)

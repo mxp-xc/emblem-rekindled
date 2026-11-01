@@ -369,8 +369,7 @@ func advance() -> void:
 
 
 func go_back() -> void:
-	_world_view.cancel_pointer()
-	_world_touches.clear()
+	_cancel_world_gesture()
 	if commander.visible:
 		commander.commit()
 	elif dialogue.visible and not dialogue.notice_mode:
@@ -385,10 +384,7 @@ func handle_key(event: InputEventKey) -> bool:
 	if commander.visible:
 		return commander.handle_key(event)
 	if choices.visible and event.pressed and not event.echo and event.keycode in [KEY_UP, KEY_DOWN]:
-		_choice_index = posmod(
-			_choice_index + (-1 if event.keycode == KEY_UP else 1), choices.get_child_count()
-		)
-		choices.get_child(_choice_index).grab_focus()
+		handle_wheel(-1 if event.keycode == KEY_UP else 1)
 		return true
 	if world_active and not dialogue.visible and not choices.visible:
 		if not event.pressed or event.echo:
@@ -416,6 +412,14 @@ func handle_key(event: InputEventKey) -> bool:
 	return false
 
 
+func handle_wheel(direction: int) -> void:
+	if commander.visible:
+		commander.handle_wheel(direction)
+	elif choices.visible and choices.get_child_count() > 0:
+		_choice_index = posmod(_choice_index + direction, choices.get_child_count())
+		choices.get_child(_choice_index).grab_focus()
+
+
 func _handle_touch(event: InputEvent) -> void:
 	if world_active and not dialogue.visible:
 		_handle_world_pointer(event)
@@ -430,6 +434,16 @@ func _handle_touch(event: InputEvent) -> void:
 	):
 		if dialogue.visible:
 			dialogue.advance()
+
+
+func _notification(what: int) -> void:
+	if what in [NOTIFICATION_APPLICATION_FOCUS_OUT, NOTIFICATION_APPLICATION_PAUSED]:
+		_cancel_world_gesture()
+
+
+func _cancel_world_gesture() -> void:
+	_world_view.cancel_pointer()
+	_world_touches.clear()
 
 
 func _process(delta: float) -> void:
@@ -652,8 +666,7 @@ func show_world(progress: Dictionary, guidance: bool = false) -> void:
 	_route_panel.hide()
 	_world_back.hide()
 	_confirm.hide()
-	_world_view.cancel_pointer()
-	_world_touches.clear()
+	_cancel_world_gesture()
 	world_update = -1
 	world_revealed = true
 	world_circle_phase = -1
@@ -712,8 +725,7 @@ func leave_world() -> void:
 	world_ready = false
 	world_update = -1
 	_world_focus_pending = false
-	_world_view.cancel_pointer()
-	_world_touches.clear()
+	_cancel_world_gesture()
 	choices.hide()
 	_route_panel.hide()
 	_world_back.hide()

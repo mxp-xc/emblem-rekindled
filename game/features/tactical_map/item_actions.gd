@@ -4,6 +4,7 @@ signal intent(kind: String, details: Dictionary)
 
 const PixelTheme = preload("res://ui/pixel_theme.gd")
 const Details = preload("res://features/tactical_map/item_details.gd")
+const MenuNavigation = preload("res://ui/menu_navigation.gd")
 const NAMES: Dictionary = {"use": "使用", "equip": "装备", "discard": "丢弃"}
 var page: String = "operations"
 var operation: String = ""
@@ -92,6 +93,16 @@ func handle_key(event: InputEventKey) -> bool:
 		_accept()
 		return true
 	return false
+
+
+func handle_wheel(direction: int) -> void:
+	if page == "confirm":
+		return
+	var rows: Array[Button] = []
+	for button: Button in _rows.get_children():
+		if button.is_visible_in_tree() and not button.disabled and button.focus_mode != FOCUS_NONE:
+			rows.append(button)
+	MenuNavigation.step_buttons(rows, direction)
 
 
 func _render() -> void:

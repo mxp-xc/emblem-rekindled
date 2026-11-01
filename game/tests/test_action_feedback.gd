@@ -24,6 +24,11 @@ func run() -> void:
 	if not scene.busy or view.current_step.get("text") != "没有生命损失，无法使用":
 		fail("Full HP failure must show the source timed strip while map input is locked")
 		return
+	for code: int in [KEY_ENTER, KEY_DOWN]:
+		await key(code)
+		if not scene.busy or view.current_step.get("text") != "没有生命损失，无法使用":
+			fail("Confirmation keys cannot accelerate an automatically timed reward step")
+			return
 	for tick: int in range(25):
 		view.advance()
 	await process_frame
@@ -73,6 +78,10 @@ func run() -> void:
 				if view.get("_tutorial_row") != row_before:
 					fail("A canceled touch cannot advance the first-experience tutorial")
 					return
+				await key(KEY_ENTER)
+				if view.get("_tutorial_row") != row_before + 1:
+					fail("The active feedback owner must accept tutorial confirmation exactly once")
+					return
 				for press: int in range(20):
 					view.go_back()
 				if view.current_step.get("kind") != "tutorial":
@@ -81,11 +90,7 @@ func run() -> void:
 					)
 					return
 				checked_scroll_lock = true
-			var event := InputEventKey.new()
-			event.keycode = KEY_ESCAPE
-			event.pressed = true
-			Input.parse_input_event(event)
-			await process_frame
+			await key([KEY_ESCAPE, KEY_DOWN, KEY_ENTER][tick % 3])
 			view.set_process(false)
 			view.advance()
 		else:
@@ -119,3 +124,11 @@ func run() -> void:
 func fail(message: String) -> void:
 	push_error(message)
 	quit(1)
+
+
+func key(code: int) -> void:
+	var event := InputEventKey.new()
+	event.pressed = true
+	event.keycode = code
+	Input.parse_input_event(event)
+	await process_frame

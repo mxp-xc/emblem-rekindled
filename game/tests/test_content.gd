@@ -63,7 +63,7 @@ func run() -> void:
 	missing_speaker["speakers"].erase("9")
 	var ids: Dictionary = {}
 	for unit: Dictionary in units:
-		ids[int(unit["id"])] = true
+		ids[int(unit["id"])] = unit
 	for key: String in [
 		"sourceWaitTicks",
 		"sourceWaitTicksAfter",

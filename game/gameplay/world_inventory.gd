@@ -42,8 +42,8 @@ func apply(progress: Dictionary, operation: String, details: Dictionary) -> Dict
 		var price: int = int(_items[template]["price"])
 		if int(next["gold"]) < price:
 			return {"ok": false, "error": "INSUFFICIENT_GOLD"}
-		var in_bag: bool = owner["inventory"].size() < 6
-		if not in_bag and next["warehouse"].size() >= 40:
+		var in_bag: bool = owner["inventory"].size() < Inventory.BAG_CAPACITY
+		if not in_bag and next["warehouse"].size() >= Inventory.WAREHOUSE_CAPACITY:
 			return {"ok": false, "error": "WAREHOUSE_FULL"}
 		var item: Dictionary = {
 			"id": _new_item_id(next),
@@ -83,7 +83,10 @@ func apply(progress: Dictionary, operation: String, details: Dictionary) -> Dict
 			break
 	if held.is_empty():
 		return {"ok": false, "error": "ITEM_NOT_OWNED"}
-	if destination.size() >= (40 if operation == "deposit" else 6):
+	if (
+		destination.size()
+		>= (Inventory.WAREHOUSE_CAPACITY if operation == "deposit" else Inventory.BAG_CAPACITY)
+	):
 		return {
 			"ok": false, "error": "WAREHOUSE_FULL" if operation == "deposit" else "INVENTORY_FULL"
 		}

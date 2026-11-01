@@ -94,13 +94,17 @@ func handle_key(event: InputEventKey) -> bool:
 	if not event.pressed or event.echo:
 		return false
 	if event.keycode in [KEY_UP, KEY_DOWN]:
-		_row = posmod(_row + (-1 if event.keycode == KEY_UP else 1), 3)
-		_refresh()
+		handle_wheel(-1 if event.keycode == KEY_UP else 1)
 	elif event.keycode in [KEY_LEFT, KEY_RIGHT]:
 		change(_row, -1 if event.keycode == KEY_LEFT else 1)
 	return (
 		event.keycode in [KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_ENTER, KEY_KP_ENTER, KEY_SPACE]
 	)
+
+
+func handle_wheel(direction: int) -> void:
+	_row = posmod(_row + direction, 3)
+	_refresh()
 
 
 func _refresh() -> void:

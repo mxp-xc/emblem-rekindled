@@ -3,6 +3,7 @@ extends ColorRect
 signal intent(kind: String, details: Dictionary)
 
 const CommanderScreen = preload("res://features/menus/commander_screen.gd")
+const MenuNavigation = preload("res://ui/menu_navigation.gd")
 
 var page: String = "main"
 var panel: PanelContainer
@@ -178,6 +179,17 @@ func go_back() -> bool:
 
 func handle_key(event: InputEventKey) -> bool:
 	return _commander.handle_key(event) if page == "commander" else false
+
+
+func handle_wheel(direction: int) -> void:
+	if page == "commander":
+		_commander.handle_wheel(direction)
+		return
+	var rows: Array[Button] = []
+	for button: Node in _pages[page].find_children("*", "Button", true, false):
+		if button.is_visible_in_tree() and not button.disabled and button.focus_mode != FOCUS_NONE:
+			rows.append(button)
+	MenuNavigation.step_buttons(rows, direction)
 
 
 func set_music_state(enabled: bool, started: bool) -> void:

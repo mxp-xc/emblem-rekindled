@@ -144,24 +144,29 @@ func handle_key(event: InputEventKey) -> bool:
 			_footer.cycle()
 			return true
 		if event.keycode in [KEY_UP, KEY_DOWN]:
-			var direction: int = -1 if event.keycode == KEY_UP else 1
-			_item_index = posmod(_item_index + direction, _items.size())
-			_rows.get_child(_item_index).grab_focus()
+			handle_wheel(-1 if event.keycode == KEY_UP else 1)
 			return true
 		return false
 	if event.keycode in [KEY_ENTER, KEY_KP_ENTER, KEY_SPACE]:
 		_confirm_current()
 		return true
 	if event.keycode in [KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT]:
-		if page == "targets" and not _targets.is_empty():
-			var index: int = 0
-			for candidate: int in range(_targets.size()):
-				if int(_targets[candidate]["id"]) == target_id:
-					index = candidate
-			var direction: int = -1 if event.keycode in [KEY_UP, KEY_LEFT] else 1
-			_highlight(int(_targets[posmod(index + direction, _targets.size())]["id"]))
+		handle_wheel(-1 if event.keycode in [KEY_UP, KEY_LEFT] else 1)
 		return true
 	return false
+
+
+func handle_wheel(direction: int) -> void:
+	if page == "items":
+		if not _items.is_empty():
+			_item_index = posmod(_item_index + direction, _items.size())
+			_rows.get_child(_item_index).grab_focus()
+	elif page == "targets" and not _targets.is_empty():
+		var index: int = 0
+		for candidate: int in range(_targets.size()):
+			if int(_targets[candidate]["id"]) == target_id:
+				index = candidate
+		_highlight(int(_targets[posmod(index + direction, _targets.size())]["id"]))
 
 
 func _confirm_current() -> void:

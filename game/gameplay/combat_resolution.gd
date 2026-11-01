@@ -65,10 +65,7 @@ func _perform_strikes(
 			damage = mini(
 				int(forecast["criticalDamage"] if critical else forecast["damage"]), target["hp"]
 			)
-			if (
-				weapon == 47
-				and not (target["faction"] == 2 and target["id"] >= 80 and target["id"] <= 94)
-			):
+			if weapon == 47 and not _combat.is_named_boss(target):
 				damage = maxi(0, int(target["hp"]) - 1)
 			target["hp"] -= damage
 			if _combat.item_definition(weapon)["drainsHp"]:

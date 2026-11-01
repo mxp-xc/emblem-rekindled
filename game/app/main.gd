@@ -9,6 +9,7 @@ const UnitInformation = preload("res://features/tactical_map/unit_information.gd
 const ItemActions = preload("res://features/tactical_map/item_actions.gd")
 const ExchangeScreen = preload("res://features/tactical_map/exchange_screen.gd")
 const PixelTheme = preload("res://ui/pixel_theme.gd")
+const MapView = preload("res://features/tactical_map/map_view.gd")
 const TacticalMap = preload("res://features/tactical_map/tactical_map.gd")
 const MapHud = preload("res://features/tactical_map/map_hud.gd")
 const BattleStore = preload("res://persistence/battle_store.gd")
@@ -27,6 +28,8 @@ const FONT = preload("res://ui/fonts/NotoSansCJKsc-Regular.otf")
 const INK := Color("e8eadb")
 const GOLD := Color("e6c48b")
 const WORLD_GOLD_BENEFIT: int = 1000
+const WHEEL_IDLE_MILLIS: int = 180
+const WHEEL_STEP_MILLIS: int = 140
 
 var content: Dictionary
 var world_progress: Dictionary = {}
@@ -65,6 +68,11 @@ var _application_paused: bool = false
 var _safe_area: Rect2
 var _overlay_area: Rect2
 var _full_screen_menu: bool = false
+var _wheel_owner: Control
+var _wheel_direction: int = 0
+var _wheel_last_event_millis: int = -1000
+var _wheel_last_step_millis: int = -1000
+var _wheel_distance: float = 0.0
 
 
 func _ready() -> void:
@@ -331,7 +339,7 @@ func _layout_overlays(force: bool = false) -> void:
 		unit_panel.place_near(
 			Rect2(
 				map.view.screen_at(Vector2(actor["x"], actor["y"])),
-				Vector2.ONE * 24 * map.view.zoom
+				Vector2.ONE * MapView.TILE_PIXELS * map.view.zoom
 			),
 			rendered.grow(-8)
 		)
@@ -690,137 +698,95 @@ func _set_menu_visible(value: bool) -> void:
 	_layout()
 
 
+func _active_navigation_target() -> Control:
+	for screen: Control in [
+		world_inventory_screen, save_slots, menu_layer, story_player, title_screen
+	]:
+		if screen != null and screen.is_visible_in_tree():
+			return screen
+	if action_feedback != null and action_feedback.playing:
+		return action_feedback
+	for screen: Control in [
+		battle_view, target_selection, exchange_screen, item_actions, unit_information, unit_panel
+	]:
+		if screen != null and screen.is_visible_in_tree():
+			return screen
+	return null
+
+
 func _input(event: InputEvent) -> void:
 	if (
 		event is InputEventMouseButton
 		and event.pressed
 		and event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]
-		and _wheel_selection(-1 if event.button_index == MOUSE_BUTTON_WHEEL_UP else 1)
 	):
-		get_viewport().set_input_as_handled()
+		if _wheel_selection(-1 if event.button_index == MOUSE_BUTTON_WHEEL_UP else 1, event.factor):
+			get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("ui_cancel") and not event.is_echo():
 		_handle_back()
 		get_viewport().set_input_as_handled()
-	elif event is InputEventKey and save_slots != null and save_slots.visible:
-		if save_slots.handle_key(event):
+	elif event is InputEventKey:
+		if event.pressed:
+			_wheel_owner = null
+		var owner: Control = _active_navigation_target()
+		if owner != null and owner != battle_view and owner.handle_key(event):
 			get_viewport().set_input_as_handled()
-	elif (
-		event is InputEventKey and world_inventory_screen != null and world_inventory_screen.visible
-	):
-		if world_inventory_screen.handle_key(event):
-			get_viewport().set_input_as_handled()
-	elif event is InputEventKey and menu_layer != null and menu_layer.visible:
-		if menu_layer.handle_key(event):
-			get_viewport().set_input_as_handled()
-	elif event is InputEventKey and title_screen != null and title_screen.visible:
-		if title_screen.handle_key(event):
-			get_viewport().set_input_as_handled()
-	elif (
-		event is InputEventKey
-		and story_player != null
-		and story_player.visible
-		and not menu_layer.visible
-	):
-		if story_player.handle_key(event):
-			get_viewport().set_input_as_handled()
-	elif event is InputEventKey and target_selection != null and target_selection.visible:
-		if target_selection.handle_key(event):
-			get_viewport().set_input_as_handled()
-	elif event is InputEventKey and item_actions != null and item_actions.visible:
-		if item_actions.handle_key(event):
-			get_viewport().set_input_as_handled()
-	elif event is InputEventKey and exchange_screen != null and exchange_screen.visible:
-		if exchange_screen.handle_key(event):
-			get_viewport().set_input_as_handled()
-	elif (
-		event is InputEventKey
-		and event.pressed
-		and not event.echo
-		and (
-			event.unicode == 35
-			or event.keycode == KEY_NUMBERSIGN
-			or (event.keycode == KEY_3 and event.shift_pressed)
-		)
-	):
+			return
 		if (
-			not busy
+			(owner == null or owner == unit_panel)
+			and not busy
 			and selected_unit >= 0
-			and not menu_layer.visible
-			and not unit_information.visible
+			and event.pressed
+			and not event.echo
+			and (
+				event.unicode == 35
+				or event.keycode == KEY_NUMBERSIGN
+				or (event.keycode == KEY_3 and event.shift_pressed)
+			)
 		):
 			_show_information()
 			get_viewport().set_input_as_handled()
-
-
-func _wheel_selection(direction: int) -> bool:
-	var key := InputEventKey.new()
-	key.pressed = true
-	key.keycode = KEY_UP if direction < 0 else KEY_DOWN
-	for screen: Control in [
-		world_inventory_screen,
-		save_slots,
-		menu_layer,
-		unit_information,
-		title_screen,
-		story_player,
-		target_selection,
-		item_actions,
-		exchange_screen,
-		unit_panel
-	]:
-		if screen == null or not screen.is_visible_in_tree():
-			continue
-		if screen == unit_information:
-			if not unit_information.detail_visible:
-				unit_information.show_page(unit_information.page + direction)
-		elif screen == save_slots:
-			save_slots.change(direction)
-		elif screen == title_screen:
-			if not title_screen.prologue.visible and title_screen.options.visible:
-				key.keycode = KEY_LEFT if direction < 0 else KEY_RIGHT
-				title_screen.handle_key(key)
-		elif screen == story_player:
-			if story_player.choices.visible or story_player.commander.visible:
-				story_player.handle_key(key)
-		else:
-			if (
-				screen == world_inventory_screen
-				and (
-					world_inventory_screen.page in ["overview", "partner"]
-					or world_inventory_screen.stage == "tabs"
-				)
-			):
-				key.keycode = KEY_LEFT if direction < 0 else KEY_RIGHT
-			if not screen.has_method("handle_key") or not screen.handle_key(key):
-				_step_menu_focus(screen, direction)
-		return true
-	return busy
-
-
-func _step_menu_focus(screen: Control, direction: int) -> void:
-	var rows: Array[Control] = []
-	var focused: Control = get_viewport().gui_get_focus_owner()
-	var scope: Node = screen
-	# Only an exchange has independent lists; ordinary menus include nested controls.
-	if (
-		(
-			screen == exchange_screen
-			or (screen == world_inventory_screen and screen.page == "exchange")
-		)
-		and focused != null
-		and screen.is_ancestor_of(focused)
-	):
-		scope = focused.get_parent()
-	for control: Node in scope.find_children("*", "Button", true, false):
+			return
+		var focused: Control = get_viewport().gui_get_focus_owner()
 		if (
-			control.is_visible_in_tree()
-			and not control.disabled
-			and control.focus_mode != Control.FOCUS_NONE
+			(owner == null and busy)
+			or owner == battle_view
+			or (
+				owner != null
+				and (focused == null or (focused != owner and not owner.is_ancestor_of(focused)))
+			)
 		):
-			rows.append(control)
-	if not rows.is_empty():
-		var index: int = rows.find(focused)
-		rows[posmod(index + direction, rows.size()) if index >= 0 else 0].grab_focus()
+			get_viewport().set_input_as_handled()
+	elif (event is InputEventMouseButton or event is InputEventScreenTouch) and event.pressed:
+		_wheel_owner = null
+
+
+func _wheel_selection(direction: int, factor: float) -> bool:
+	var owner: Control = _active_navigation_target()
+	if owner == null:
+		_wheel_owner = null
+		return busy
+	var now: int = Time.get_ticks_msec()
+	var beginning: bool = (
+		owner != _wheel_owner
+		or direction != _wheel_direction
+		or now - _wheel_last_event_millis >= WHEEL_IDLE_MILLIS
+	)
+	_wheel_owner = owner
+	_wheel_direction = direction
+	_wheel_last_event_millis = now
+	if beginning:
+		_wheel_distance = 0.0
+	else:
+		# Smooth devices send many fractional detents; never queue a later replay.
+		_wheel_distance = minf(1.0, _wheel_distance + absf(factor))
+		if _wheel_distance < 1.0 or now - _wheel_last_step_millis < WHEEL_STEP_MILLIS:
+			return true
+		_wheel_distance = 0.0
+	_wheel_last_step_millis = now
+	if owner != battle_view:
+		owner.handle_wheel(direction)
+	return true
 
 
 func _show_information() -> void:
@@ -842,51 +808,34 @@ func _show_information() -> void:
 
 
 func _handle_back() -> void:
-	if world_inventory_screen != null and world_inventory_screen.visible:
-		world_inventory_screen.go_back()
-		return
-	if save_slots != null and save_slots.visible:
-		save_slots.go_back()
-		return
-	if action_feedback.playing:
-		action_feedback.go_back()
-		return
-	if story_player.visible and not menu_layer.visible:
-		story_player.go_back()
-		return
-	if exchange_screen.visible and not busy:
-		exchange_screen.go_back()
-		return
-	if item_actions.visible and not busy:
-		item_actions.go_back()
-		return
-	if target_selection.visible and not busy:
-		target_selection.go_back()
-		return
-	if unit_information.visible:
-		unit_information.go_back()
-		return
-	if menu_layer.visible:
+	_wheel_owner = null
+	var owner: Control = _active_navigation_target()
+	if owner == menu_layer:
 		if not menu_layer.go_back():
 			_set_menu_visible(false)
 		return
-	if title_screen.visible:
-		title_screen.go_back()
+	if owner == unit_panel:
+		_back_from_unit_menu()
+		return
+	if owner != null:
+		if owner != battle_view:
+			owner.go_back()
 		return
 	if busy:
-		return
-	if unit_panel.visible:
-		unit_panel.hide()
-		if (
-			"cancel_move" in battle.actions_for(selected_unit)
-			or battle.movement_committed(selected_unit)
-		):
-			_cancel_selection()
 		return
 	if selected_unit >= 0:
 		_cancel_selection()
 	else:
 		_set_menu_visible(true)
+
+
+func _back_from_unit_menu() -> void:
+	unit_panel.hide()
+	if (
+		"cancel_move" in battle.actions_for(selected_unit)
+		or battle.movement_committed(selected_unit)
+	):
+		_cancel_selection()
 
 
 func _toggle_music() -> void:
@@ -995,7 +944,9 @@ func start_new_game() -> void:
 	map.clear_presentation()
 	map.prepare_opening(content["story"]["initialBattlePresentation"])
 	map.show()
-	var fill_height: float = map.view.viewport_size.y / (24.0 * map.view.grid_size.y)
+	var fill_height: float = (
+		map.view.viewport_size.y / (float(MapView.TILE_PIXELS) * map.view.grid_size.y)
+	)
 	map.set_zoom(maxf(3.0, fill_height))
 	busy = true
 	await story_player.play(content["story"]["sequences"]["newGame"])
@@ -1363,29 +1314,26 @@ func _world_action(kind: String) -> void:
 		_open_save_slots(kind)
 	elif kind == "inventory":
 		story_player.go_back()
-		world_inventory_screen.present(_world_snapshot())
+		world_inventory_screen.present(world_progress)
 	elif kind == "gold":
-		var progress: Dictionary = _world_snapshot()
+		var progress: Dictionary = world_progress.duplicate(true)
 		var received: int = mini(WORLD_GOLD_BENEFIT, Battle.MAX_GOLD - int(progress["gold"]))
 		if received == 0:
 			await story_player.show_world_notice("资金已达到上限。")
 			return
 		progress["gold"] += received
-		var saved: Dictionary = battle_store.write_progress(progress)
+		var saved: Dictionary = _commit_world_progress(progress)
 		if not saved["ok"]:
 			push_warning(str(saved))
 			await story_player.show_world_notice("领取未完成，当前进度未改变，请重试。")
 			return
-		world_progress = progress
 		await story_player.show_world_notice("获得%d金币。现有资金：%d。" % [received, int(progress["gold"])])
 	elif kind == "title":
-		var progress: Dictionary = _world_snapshot()
-		var saved: Dictionary = battle_store.write_progress(progress)
+		var saved: Dictionary = _commit_world_progress(world_progress)
 		if not saved["ok"]:
 			push_warning(str(saved))
 			await story_player.show_world_notice("保存未完成，当前进度仍在，请重试。")
 			return
-		world_progress = progress
 		_show_title()
 
 
@@ -1396,17 +1344,26 @@ func _world_inventory_command(operation: String, details: Dictionary) -> void:
 	if result["ok"]:
 		var progress: Dictionary = result["progress"]
 		if progress != world_progress:
-			if _play_minutes() >= 0:
-				progress["elapsedMinutes"] = _play_minutes()
-			var saved: Dictionary = battle_store.write_progress(progress)
+			var saved: Dictionary = _commit_world_progress(progress)
 			if not saved["ok"]:
 				push_warning("World inventory save failed: " + str(saved))
 				world_inventory_screen.complete(
 					{"ok": false, "error": "SAVE_FAILED"}, world_progress
 				)
 				return
-			world_progress = progress
 	world_inventory_screen.complete(result, world_progress)
+
+
+func _commit_world_progress(candidate: Dictionary) -> Dictionary:
+	var progress: Dictionary = candidate.duplicate(true)
+	var minutes: int = _play_minutes()
+	if minutes >= 0:
+		progress["elapsedMinutes"] = minutes
+	var saved: Dictionary = battle_store.write_progress(progress)
+	if not saved["ok"]:
+		return saved
+	world_progress = progress
+	return {"ok": true}
 
 
 func _world_snapshot() -> Dictionary:
@@ -1438,8 +1395,9 @@ func _finish_outcome() -> void:
 			_show_title()
 			return
 		var progress: Dictionary = completed["progress"].duplicate(true)
-		if _play_minutes() >= 0:
-			progress["elapsedMinutes"] = _play_minutes()
+		var minutes: int = _play_minutes()
+		if minutes >= 0:
+			progress["elapsedMinutes"] = minutes
 		var saved: Dictionary = battle_store.write_progress(progress)
 		while not saved["ok"]:
 			push_error(saved["error"])

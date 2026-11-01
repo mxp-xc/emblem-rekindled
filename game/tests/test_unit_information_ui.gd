@@ -28,6 +28,23 @@ func run() -> void:
 	if info.get_global_rect() != Rect2(0, 0, 720, 1280):
 		fail("Character information must follow the original full-screen layout")
 		return
+	var page_focus: Control = root.gui_get_focus_owner()
+	if page_focus == null or not info.is_ancestor_of(page_focus):
+		fail("Character information must establish its own keyboard focus")
+		return
+	await _key(KEY_TAB)
+	if (
+		root.gui_get_focus_owner() == page_focus
+		or not info.is_ancestor_of(root.gui_get_focus_owner())
+	):
+		fail("Native keyboard navigation must remain inside the information screen")
+		return
+	await _key(KEY_TAB, true)
+	await _key(KEY_ENTER)
+	if info.page != 2 or root.gui_get_focus_owner() != page_focus:
+		fail("Keyboard page changes must preserve a valid focused page arrow")
+		return
+	info.show_page(1)
 	_swipe(Vector2(520, 650), Vector2(200, 650))
 	await process_frame
 	await process_frame
@@ -75,6 +92,17 @@ func run() -> void:
 	if info.visible or not scene.choosing_destination or scene.battle.snapshot() != before:
 		fail("Inspecting information must preserve selection and all battle state")
 		return
+	scene._show_unit_menu(Vector2i(8, 11))
+	var return_focus: Control = root.gui_get_focus_owner()
+	Input.parse_input_event(shortcut)
+	await process_frame
+	if not info.visible or not info.is_ancestor_of(root.gui_get_focus_owner()):
+		fail("The information shortcut from the action menu must transfer keyboard focus")
+		return
+	await _key(KEY_ESCAPE)
+	if info.visible or root.gui_get_focus_owner() != return_focus:
+		fail("Keyboard Back must restore the original action-menu focus")
+		return
 	scene.queue_free()
 	await process_frame
 	await process_frame
@@ -82,6 +110,16 @@ func run() -> void:
 		"PASS information UI: # shortcut, basic stats, equipment swipe, original detail, layered back"
 	)
 	quit(0)
+
+
+func _key(code: int, shift: bool = false) -> void:
+	for pressed: bool in [true, false]:
+		var event := InputEventKey.new()
+		event.keycode = code
+		event.shift_pressed = shift
+		event.pressed = pressed
+		Input.parse_input_event(event)
+		await process_frame
 
 
 func _tap(point: Vector2) -> void:

@@ -19,10 +19,11 @@ const INITIAL_NOISE: Array[int] = [3, 2, 2, 2, 2, 5, 2, 0]
 
 var phase: int = 0
 var round_number: int = 1
-var commander_id: int = 9
+var commander_id: int = -1
 var command_policy: int = 0
 var gold: int = 0
 var outcome: Dictionary = {}
+var _commander_candidates: Array[int] = []
 var _initial_gold: int
 var _completion: Dictionary = {}
 var _routes: Dictionary = {}
@@ -55,6 +56,12 @@ var _pending_move: Dictionary = {}
 func _init(content: Dictionary, random_source: Callable = Callable()) -> void:
 	_chapter_id = content["entry"]["id"]
 	_battle_id = content["entry"]["firstBattle"]
+	for step: Dictionary in content["story"]["sequences"]["opening"]:
+		if step["kind"] == "commanderSetup":
+			for id: Variant in step["candidates"]:
+				_commander_candidates.append(int(id))
+			commander_id = int(step["defaultCommanderId"])
+			break
 	_initial_gold = int(content["rules"]["initialGold"])
 	gold = _initial_gold
 	_gold_reward = int(content["story"]["sequences"]["victory"][-1]["goldReward"])
@@ -158,7 +165,7 @@ func _add_initial_item(current: Dictionary, template_id: int) -> void:
 		return
 	current["inventory"].append(
 		{
-			"id": "chapter_1:unit_%d:item_%d" % [current["id"], current["inventory"].size()],
+			"id": "%s:unit_%d:item_%d" % [_chapter_id, current["id"], current["inventory"].size()],
 			"templateId": template_id,
 			"durability": int(_combat.item_definition(template_id)["defaultDurability"])
 		}
@@ -175,7 +182,7 @@ func unit_information(id: int, instance_id: String = "") -> Dictionary:
 		return {}
 	if not instance_id.is_empty() and not _inventory.equip(actor, instance_id)["ok"]:
 		return {}
-	return {} if actor.is_empty() else _combat.information(actor, _commander())
+	return _combat.information(actor, _commander())
 
 
 func snapshot() -> Dictionary:
@@ -215,7 +222,9 @@ func restore_snapshot(state: Dictionary) -> Dictionary:
 	if (
 		not _integer_in(state.get("phase"), 0, 0)
 		or not _integer_in(state.get("round"), 1, 2147483647)
-		or not _integer_in(state.get("commander"), -1, 9)
+		or not (
+			_integer_in(state.get("commander"), -1, -1) or _declared_unit_id(state.get("commander"))
+		)
 		or not _integer_in(state.get("nextActionId"), 1, 2147483647)
 	):
 		return _failure("INVALID_SAVE_FLOW")
@@ -225,7 +234,7 @@ func restore_snapshot(state: Dictionary) -> Dictionary:
 		or not state.get("units") is Array
 		or state["units"].size() != _units.size()
 		or not state.get("warehouse") is Array
-		or state["warehouse"].size() > 40
+		or state["warehouse"].size() > Inventory.WAREHOUSE_CAPACITY
 	):
 		return _failure("INVALID_SAVE_STATE")
 	if not state.get("outcome", {}) is Dictionary or not state.get("outcome", {}).is_empty():
@@ -236,7 +245,7 @@ func restore_snapshot(state: Dictionary) -> Dictionary:
 	var occupied: Dictionary = {}
 	var held_ids: Dictionary = {}
 	for value: Variant in state["units"]:
-		if not value is Dictionary or not _integer_in(value.get("id"), 0, 126):
+		if not value is Dictionary or not _declared_unit_id(value.get("id")):
 			return _failure("INVALID_SAVE_UNIT")
 		var id: int = int(value["id"])
 		if not _units.has(id) or candidate.has(id):
@@ -286,6 +295,16 @@ func restore_snapshot(state: Dictionary) -> Dictionary:
 	_next_action_id = int(state["nextActionId"])
 	_pending_move.clear()
 	return {"ok": true}
+
+
+func _declared_unit_id(value: Variant) -> bool:
+	return (
+		(value is int or value is float)
+		and is_finite(float(value))
+		and float(value) == floorf(float(value))
+		and value >= 0
+		and _units.has(int(value))
+	)
 
 
 func _integer_in(value: Variant, minimum: int, maximum: int) -> bool:
@@ -599,7 +618,7 @@ func configure_commander(id: int, follow: bool, defend: bool) -> Dictionary:
 		not outcome.is_empty()
 		or phase != 0
 		or not _pending_move.is_empty()
-		or id not in [0, 9]
+		or id not in _commander_candidates
 		or not _alive(_units[id])
 	):
 		return _failure("INVALID_COMMANDER")
@@ -610,7 +629,7 @@ func configure_commander(id: int, follow: bool, defend: bool) -> Dictionary:
 
 func command_configuration() -> Dictionary:
 	var candidates: Array[Dictionary] = []
-	for id: int in [9, 0]:
+	for id: int in _commander_candidates:
 		if _alive(_units.get(id, {})):
 			candidates.append({"id": id, "name": _units[id]["name"]})
 	return {"commander": commander_id, "policy": command_policy, "candidates": candidates}
@@ -690,12 +709,7 @@ func healing_field(id: int, instance_id: String) -> Dictionary:
 		return field
 	var actor: Dictionary = _units[id]
 	var held: Dictionary = _inventory.held_item(actor, instance_id)
-	if (
-		held.is_empty()
-		or held["durability"] <= 0
-		or int(held["templateId"]) not in [53, 54]
-		or (int(actor["equipMask"]) & 32) == 0
-	):
+	if not _inventory.can_heal_with(actor, held):
 		return field
 	return _item_field(actor, int(held["templateId"]))
 

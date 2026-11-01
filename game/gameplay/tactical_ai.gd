@@ -275,7 +275,7 @@ func _score(
 		):
 			score += 400
 	if not heal.is_empty():
-		if heal["faction"] == 2 and heal["id"] >= 80 and heal["id"] <= 94:
+		if _combat.is_named_boss(heal):
 			score += 500
 		score += 200 + (int(heal["maxHp"]) - int(heal["hp"])) * 15
 	score += int(_rules["terrainDefense"][terrain]) * 8 + int(_rules["terrainEvasion"][terrain])

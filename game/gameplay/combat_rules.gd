@@ -19,6 +19,20 @@ func item_definition(id: int) -> Dictionary:
 	return _items.get(id, {})
 
 
+func can_equip(actor: Dictionary, held: Dictionary) -> bool:
+	var definition: Dictionary = item_definition(int(held["templateId"]))
+	return (
+		not definition.is_empty()
+		and held["durability"] > 0
+		and definition["damageKind"] in ["physical", "magic"]
+		and (int(definition["categoryMask"]) & int(actor["equipMask"])) != 0
+	)
+
+
+func is_named_boss(actor: Dictionary) -> bool:
+	return actor["faction"] == 2 and actor["id"] >= 80 and actor["id"] <= 94
+
+
 func weapon_id(unit: Dictionary) -> int:
 	for item: Dictionary in unit["inventory"]:
 		if item["id"] == unit["equippedInstanceId"] and item["durability"] > 0:
@@ -278,20 +292,24 @@ func _advantage(actor: Dictionary, target: Dictionary) -> int:
 		return 1
 	if [second_type, first_type] in [[1, 4], [4, 2], [2, 1]]:
 		return -1
-	var first_magic: int = (
-		0 if first in [40, 41] else (1 if first in [44, 45] else (2 if first in [42, 43] else -1))
-	)
-	var second_magic: int = (
-		0
-		if second in [40, 41]
-		else (1 if second in [44, 45] else (2 if second in [42, 43] else -1))
-	)
+	var first_magic: int = _magic_group(first)
+	var second_magic: int = _magic_group(second)
 	if first_magic >= 0 and second_magic >= 0:
 		if (first_magic + 1) % 3 == second_magic:
 			return 1
 		if (second_magic + 1) % 3 == first_magic:
 			return -1
 	return 0
+
+
+func _magic_group(template_id: int) -> int:
+	if template_id in [40, 41]:
+		return 0
+	if template_id in [44, 45]:
+		return 1
+	if template_id in [42, 43]:
+		return 2
+	return -1
 
 
 func _effective(weapon: int, target: Dictionary) -> bool:
@@ -328,7 +346,7 @@ func experience_gain(
 	var gains: Array[int] = [12, 11, 11, 10, 10, 9, 9, 8, 8, 7, 7, 6, 6, 5, 4, 3, 2, 2, 1, 1]
 	var amount: int = gains[int(actor["level"]) - 1]
 	if killed and not target.is_empty():
-		var named_boss: bool = target["faction"] == 2 and target["id"] >= 80 and target["id"] <= 94
+		var named_boss: bool = is_named_boss(target)
 		var difference: int = _quotient(power(target, commander) - power(actor, commander), 3)
 		amount = maxi((40 if named_boss else 30) + difference, 30 if named_boss else 10)
 		var divisor: int = int(actor["level"]) - int(target["level"]) - 1

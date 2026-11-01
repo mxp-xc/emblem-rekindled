@@ -122,6 +122,10 @@ func handle_key(event: InputEventKey) -> bool:
 	return true
 
 
+func handle_wheel(direction: int) -> void:
+	change(direction)
+
+
 func _accept() -> void:
 	if page == "overwrite":
 		accepted.emit(slot)

@@ -148,6 +148,11 @@ func handle_key(event: InputEventKey) -> bool:
 	return true
 
 
+func handle_wheel(direction: int) -> void:
+	if not prologue.visible and options.visible:
+		_change(direction)
+
+
 func _handle_touch(event: InputEvent) -> void:
 	if (
 		(event is InputEventScreenTouch and not event.pressed and not event.canceled)

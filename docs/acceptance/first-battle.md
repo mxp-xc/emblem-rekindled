@@ -5,6 +5,8 @@
 
 首关开发及本轮自测已完成，可集中验收。[第二轮12项反馈](https://github.com/mxp-xc/emblem-rekindled/issues/21)、[内部API与快速回归](https://github.com/mxp-xc/emblem-rekindled/issues/22)、[敌军掉落名称高亮](https://github.com/mxp-xc/emblem-rekindled/issues/23)均已完成对应验证。新增[滚轮导航与通关辅助](https://github.com/mxp-xc/emblem-rekindled/issues/24)已补齐相关自动与两端验证。
 
+[架构改进与滚轮频率修复](https://github.com/mxp-xc/emblem-rekindled/issues/26)已完成自动与两端定向验证：132份脚本解析、86项游戏行为测试及15项工具测试通过，两个独立审查轴均无未解决发现。菜单连续滚轮合并与限速、人物资料焦点恢复及世界失焦手势取消已覆盖；本轮没有重跑自然整关。两端原JSON均已逐字节恢复，Android模拟器已关闭。
+
 ## 验收条件
 
 - Android 使用既有 `Emblem_API_36`，Android 16 / API 36 / ARM64，540×960。
@@ -25,6 +27,7 @@
 | 新游戏、世界入场、对白、配置、教学、部队显隐与等待 | `test_entry_ui.gd`、`test_story_timing.gd`、`test_opening_visibility.gd`、`test_world_intro.gd`；最新版两端实际新游戏开场通过，动画完成后才推进对白。 |
 | 单屏选人、移动、寻路、拖动、缩放、取消与人物资料 | `test_movement*.gd`、`test_battlefield_ui.gd`、`test_map_input.gd`、`test_unit_information_ui.gd`、`test_back_navigation.gd`；两端真实输入与系统 Back / Esc 分层验证通过。 |
 | 滚轮平移、菜单选项、人物属性翻页及行动优先项 | `test_battlefield_ui.gd`、`test_menu_wheel.gd`、`test_unit_menu_ui.gd`；Web真实滚轮确认地图仅垂直平移，菜单不穿透，资料页前后切换，设置嵌套控件可连续导航；行动默认优先可执行交互。 |
+| 连续滚轮频率、输入归属与世界失焦取消 | `test_wheel_pacing.gd`、`test_navigation_ownership.gd`、`test_world_focus.gd`；Web原地址实际8次微小滚动仅切一项/一页，详情不翻、地图连续；受控漏release回归通过，未声称OS实际丢事件已复现。 |
 | 设置辅助与确认式直接通关 | `test_assisted_victory.gd`、`test_assistance_ui.gd`；Web/APK真实确认/取消和Esc/系统Back逐层返回通过，路线0/6000金币，原队伍持有物品不变；正常胜利剧情与世界保存复用，不额外发击杀掉落。 |
 | 攻击公式、反击、命中、未中、必杀、成长与耐久 | `test_combat_forecast.gd`、`test_combat_round.gd`、`test_rewards.gd`、`test_combat_rewards.gd`、`test_experience_limits.gd`；独立原来源样本覆盖公式与关键分支。耗尽异常另由本页明确的批准差异处理。 |
 | 物品、装备、丢弃、治疗、交换与行动限制 | `test_item_operations.gd`、`test_equipment.gd`、`test_staff_ui.gd`、`test_exchange_ui.gd`、`test_trade_commit.gd`；真实 APK / Web 操作、当前次数与默认详情耐久均已核对。 |
@@ -41,7 +44,7 @@
 | 地图内对白、菜单、资料与 HUD；宽屏、长屏和安全区 | `test_dialogue_layout.gd`、`test_desktop_layout.gd`、`test_map_hud_ui.gd`；540×960、1280×720、2048×1152、1080×2400、1440×3200布局回归通过，两端实际画面复核限定在中央游戏区域。 |
 | 音乐循环、切项/指针不重播、后台恢复 | `test_music_continuity.gd`、`test_title_music.gd`；Web 实际110秒、跨两循环与 PCM 信号通过，无长 Sample 重复分配；模拟器 AudioTrack 未静音且帧计数前进。 |
 | Android 前后台与战斗恢复不重复结算 | APK 实际 Home→恢复 PID 不变，稳定战局状态不变；战斗中切后台后返回，行动编号只增加一次，可继续保存。 |
-| 格式、lint、脚本解析、全部行为测试及审查 | 最终121份脚本解析、79项行为测试及lint/格式/工具/启动检查通过；Standards/Spec与后续修正复审零未解决发现。 |
+| 格式、lint、脚本解析、全部行为测试及审查 | 当前132份脚本解析、86项行为测试、15项工具测试及lint/格式/启动检查通过；Standards/Spec与后续修正复审零未解决发现。 |
 
 自动测试文件均位于 `game/tests/`，执行方式见[开发说明](../development.md)。
 受控位置、HP、随机源或时钟仅用于对应验证，不属于正式游戏运行路径。

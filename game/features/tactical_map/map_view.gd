@@ -1,5 +1,7 @@
 extends RefCounted
 
+const TILE_PIXELS: int = 24
+
 var grid_size := Vector2i(20, 25)
 var viewport_size := Vector2(720, 720)
 var viewport_origin := Vector2.ZERO
@@ -25,7 +27,7 @@ func focus_cell(cell: Vector2i) -> void:
 
 
 func world_at(position: Vector2) -> Vector2:
-	return center + (position - viewport_origin - viewport_size / 2.0) / (24.0 * zoom)
+	return center + (position - viewport_origin - viewport_size / 2.0) / (TILE_PIXELS * zoom)
 
 
 func cell_at(position: Vector2) -> Vector2i:
@@ -38,22 +40,24 @@ func cell_at(position: Vector2) -> Vector2i:
 
 
 func screen_at(world: Vector2) -> Vector2:
-	return (world - center) * (24.0 * zoom) + viewport_origin + viewport_size / 2.0
+	return (world - center) * (TILE_PIXELS * zoom) + viewport_origin + viewport_size / 2.0
 
 
 func zoom_at(value: float, anchor: Vector2) -> void:
 	var world_anchor := world_at(anchor)
 	zoom = clampf(value, minimum_zoom(), maxf(6.0, minimum_zoom()))
-	center = world_anchor - (anchor - viewport_origin - viewport_size / 2.0) / (24.0 * zoom)
+	center = world_anchor - (anchor - viewport_origin - viewport_size / 2.0) / (TILE_PIXELS * zoom)
 	_clamp_center()
 
 
 func minimum_zoom() -> float:
-	return maxf(0.5, minf(viewport_size.x / grid_size.x, viewport_size.y / grid_size.y) / 24.0)
+	return maxf(
+		0.5, minf(viewport_size.x / grid_size.x, viewport_size.y / grid_size.y) / float(TILE_PIXELS)
+	)
 
 
 func pan_by(delta: Vector2) -> void:
-	center -= delta / (24.0 * zoom)
+	center -= delta / (TILE_PIXELS * zoom)
 	_clamp_center()
 
 
@@ -90,7 +94,7 @@ func cancel_pointer() -> void:
 
 
 func _clamp_center() -> void:
-	var half_view := viewport_size / (48.0 * zoom)
+	var half_view := viewport_size / (2.0 * TILE_PIXELS * zoom)
 	for axis: int in [0, 1]:
 		if half_view[axis] * 2.0 >= grid_size[axis]:
 			center[axis] = grid_size[axis] / 2.0

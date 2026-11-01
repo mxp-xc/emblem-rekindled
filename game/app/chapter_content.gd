@@ -1,6 +1,7 @@
 extends RefCounted
 
 const BattleClips = preload("res://app/battle_clip_library.gd")
+const MapView = preload("res://features/tactical_map/map_view.gd")
 
 
 # Content is validated once at the app boundary, before a scene receives it.
@@ -69,7 +70,8 @@ func load_chapter(path: String) -> Dictionary:
 	if (
 		not _positive_integer(map.get("width"))
 		or not _positive_integer(map.get("height"))
-		or not _positive_integer(map.get("tileSize"))
+		or not _integer(map.get("tileSize"))
+		or map["tileSize"] != MapView.TILE_PIXELS
 	):
 		return _failure("地图尺寸无效")
 	var width: int = int(map["width"])
@@ -122,9 +124,11 @@ func load_chapter(path: String) -> Dictionary:
 		]:
 			if not _integer(unit.get(key)):
 				return _failure("单位字段无效: " + key)
+		if unit["id"] < 0:
+			return _failure("单位身份无效: " + str(unit["id"]))
 		if ids.has(int(unit["id"])):
 			return _failure("重复单位身份: " + str(unit["id"]))
-		ids[int(unit["id"])] = true
+		ids[int(unit["id"])] = unit
 		if unit["move"] < 0 or not map["movementCosts"].has(str(int(unit["classGroup"]))):
 			return _failure("单位职业移动定义无效")
 		if (
@@ -162,7 +166,13 @@ func load_chapter(path: String) -> Dictionary:
 			return _failure("可见单位位置重叠: " + str(cell))
 		if unit["visible"]:
 			occupied[cell] = true
-	if not _interface_valid(interface_data, entry["interface"].get_base_dir(), ids.keys()):
+	var item_ids: Array[int] = []
+	for item: Dictionary in rules["itemTemplates"]:
+		if item["id"] > 0:
+			item_ids.append(int(item["id"]))
+	if not _interface_valid(
+		interface_data, entry["interface"].get_base_dir(), ids.keys(), item_ids
+	):
 		return _failure("人物信息、物品说明或窗口资源无效")
 	if not _story_valid(story, entry["story"].get_base_dir(), ids, width, height):
 		return _failure("剧情序列或资源引用无效")
@@ -187,7 +197,7 @@ func load_chapter(path: String) -> Dictionary:
 	}
 
 
-func _interface_valid(value: Variant, directory: String, unit_ids: Array = []) -> bool:
+func _interface_valid(value: Variant, directory: String, unit_ids: Array, item_ids: Array) -> bool:
 	if (
 		not value is Dictionary
 		or not value.get("items") is Dictionary
@@ -199,7 +209,7 @@ func _interface_valid(value: Variant, directory: String, unit_ids: Array = []) -
 		or not value.get("equipMaskIcons") is Dictionary
 	):
 		return false
-	for id: int in range(1, 88):
+	for id: int in item_ids:
 		var item: Variant = value["items"].get(str(id))
 		if (
 			not item is Dictionary
@@ -208,6 +218,10 @@ func _interface_valid(value: Variant, directory: String, unit_ids: Array = []) -
 			or item["name"]["text"].is_empty()
 			or not item.get("description") is Dictionary
 			or not item["description"].get("text") is String
+			or (
+				item.get("detailAttributes")
+				not in [["durability"], ["attack", "hit", "critical", "range", "durability"]]
+			)
 		):
 			return false
 		var icon: Variant = item.get("icon")
@@ -569,6 +583,12 @@ func _story_valid(
 		for step: Variant in story["sequences"][sequence]:
 			if not step is Dictionary or not _story_step_valid(step, ids, width, height):
 				return false
+	var commander_setups: int = 0
+	for step: Dictionary in story["sequences"]["opening"]:
+		if step["kind"] == "commanderSetup":
+			commander_setups += 1
+	if commander_setups != 1:
+		return false
 	var boot: Array = story["sequences"]["boot"]
 	if boot.size() != 1 or boot[0]["kind"] != "prologue" or boot[0].get("image") != "intro0":
 		return false
@@ -724,6 +744,8 @@ func _story_valid(
 	if (
 		not _positive_integer(world.get("width"))
 		or not _positive_integer(world.get("height"))
+		or not _integer(world.get("tileSize"))
+		or world["tileSize"] != MapView.TILE_PIXELS
 		or not world.get("nodes") is Array
 		or world["nodes"].is_empty()
 	):
@@ -809,13 +831,22 @@ func _story_step_valid(step: Dictionary, ids: Dictionary, width: int, height: in
 		"revealFaction":
 			return _integer(step.get("faction")) and step["faction"] >= 0 and step["faction"] <= 2
 		"commanderSetup":
-			return (
-				step.get("candidates") is Array
-				and step["candidates"].size() == 2
-				and step["candidates"][0] == 9
-				and step["candidates"][1] == 0
-				and step.get("defaultCommanderId") in step["candidates"]
-			)
+			if (
+				not step.get("candidates") is Array
+				or step["candidates"].is_empty()
+				or not _integer(step.get("defaultCommanderId"))
+				or step["defaultCommanderId"] not in step["candidates"]
+			):
+				return false
+			var candidates: Dictionary = {}
+			for id: Variant in step["candidates"]:
+				if not _integer(id) or candidates.has(int(id)) or not ids.has(int(id)):
+					return false
+				var candidate: Dictionary = ids[int(id)]
+				if candidate.get("formal") != true or candidate.get("faction") != 0:
+					return false
+				candidates[int(id)] = true
+			return true
 		"tutorial":
 			return step.get("tutorialId") == 0
 		"worldMarker":

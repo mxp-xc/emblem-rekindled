@@ -79,6 +79,49 @@ func run() -> void:
 	if scene.save_slots.slot != 1 or scene.map.view.center != center:
 		fail("Slot selector wheel must change slots without loading, saving or panning")
 		return
+	slots[0] = {"status": "world", "description": "已有记录"}
+	scene.save_slots.present("save", slots)
+	await key(KEY_ENTER)
+	await wheel(MOUSE_BUTTON_WHEEL_DOWN)
+	if scene.save_slots.page != "overwrite" or scene.save_slots.slot != 0:
+		fail("Wheel input must leave overwrite confirmation and its selected slot intact")
+		return
+	scene.save_slots.hide()
+	scene.title_screen.show()
+	scene.title_screen.prologue.show()
+	await wheel(MOUSE_BUTTON_WHEEL_DOWN)
+	if not scene.title_screen.prologue.visible or scene.title_screen.options.visible:
+		fail("Wheel input must not skip the title prologue or open title options")
+		return
+	scene.title_screen.prologue.hide()
+	await wheel(MOUSE_BUTTON_WHEEL_DOWN)
+	if scene.title_screen.options.visible:
+		fail("Wheel input must not open collapsed title options")
+		return
+	await key(KEY_ENTER)
+	var title_before: String = title_label(scene.title_screen)
+	await wheel(MOUSE_BUTTON_WHEEL_DOWN)
+	var title_labels: Array[String] = ["开始游戏", "读取进度", "读取存档", "游戏设置", "游戏帮助"]
+	if (
+		not scene.title_screen.options.visible
+		or (
+			title_label(scene.title_screen)
+			!= title_labels[(title_labels.find(title_before) + 1) % 5]
+		)
+	):
+		fail("Wheel input must move the title selector without activating the selected entry")
+		return
+	scene.title_screen.hide()
+	scene._show_unit_menu(Vector2i(8, 11))
+	scene._unit_intent("inventory", {})
+	scene.item_actions.find_child("Discard", true, false).pressed.emit()
+	scene.item_actions.find_child("Item_9", true, false).pressed.emit()
+	before = scene.battle.snapshot()
+	await wheel(MOUSE_BUTTON_WHEEL_DOWN)
+	if scene.item_actions.page != "confirm" or scene.battle.snapshot() != before:
+		fail("Wheel input cannot confirm or leave an item operation prompt")
+		return
+
 	scene.queue_free()
 	await process_frame
 	print("PASS menu wheel: item selection, context priority, settings focus and slot selection")
@@ -86,12 +129,29 @@ func run() -> void:
 
 
 func wheel(button: MouseButton) -> void:
+	# Each call represents a separate wheel gesture; bursts have their own regression test.
+	await create_timer(0.25).timeout
 	var event := InputEventMouseButton.new()
 	event.button_index = button
 	event.pressed = true
 	event.position = Vector2(360, 500)
 	Input.parse_input_event(event)
 	await process_frame
+
+
+func key(code: int) -> void:
+	var event := InputEventKey.new()
+	event.pressed = true
+	event.keycode = code
+	Input.parse_input_event(event)
+	await process_frame
+
+
+func title_label(screen: Control) -> String:
+	for button: Button in screen.options.get_children():
+		if button.visible and not button.text.is_empty():
+			return button.text
+	return ""
 
 
 func fail(message: String) -> void:

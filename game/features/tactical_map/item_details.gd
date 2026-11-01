@@ -1,5 +1,7 @@
 extends Control
 
+const PixelTheme = preload("res://ui/pixel_theme.gd")
+
 var description_mode: bool = false
 var _interface: Dictionary
 var _definitions: Dictionary = {}
@@ -12,6 +14,7 @@ var _derived: Dictionary
 var _full_description: String
 var _description_pages: Array[String] = []
 var _description_page: int = 0
+var _durability_description: bool = false
 
 
 func setup(content: Dictionary) -> void:
@@ -53,14 +56,16 @@ func present(held: Dictionary, derived: Dictionary = {}, description_first: bool
 	_description_page = 0
 	var template: int = int(held["templateId"])
 	var definition: Dictionary = _definitions[template]
-	var description: String = _interface["items"][str(template)]["description"]["text"]
+	var metadata: Dictionary = _interface["items"][str(template)]
+	var description: String = metadata["description"]["text"]
+	_durability_description = metadata["detailAttributes"] == ["durability"]
 	var durability: String = (
 		"-" if definition["defaultDurability"] == 0 else str(int(definition["defaultDurability"]))
 	)
-	_full_description = (("耐久%s\n" % durability if template >= 53 else "") + description)
+	_full_description = (("耐久%s\n" % durability if _durability_description else "") + description)
 	description_mode = (
 		not _full_description.is_empty()
-		and (description_first or (derived.is_empty() and template >= 53))
+		and (description_first or (derived.is_empty() and _durability_description))
 	)
 	var values: Array
 	if not derived.is_empty():
@@ -94,7 +99,7 @@ func present(held: Dictionary, derived: Dictionary = {}, description_first: bool
 func cycle() -> void:
 	if _full_description.is_empty():
 		return
-	if _derived.is_empty() and int(_held["templateId"]) >= 53:
+	if _derived.is_empty() and _durability_description:
 		_description_page = posmod(_description_page + 1, maxi(1, _description_pages.size()))
 	elif description_mode and _description_page + 1 < _description_pages.size():
 		_description_page += 1
@@ -120,23 +125,12 @@ func _layout() -> void:
 	_description.size = Vector2(size.x - 30 * factor, size.y)
 	_description.add_theme_font_size_override("font_size", roundi(13 * factor))
 	if not _held.is_empty() and size.x > 30 * factor:
-		var lines: Array[String] = []
 		var font: Font = _description.get_theme_font("font")
 		var font_size: int = _description.get_theme_font_size("font_size")
 		var available_width: float = size.x - 30 * factor
-		for paragraph: String in _full_description.split("\n"):
-			var line: String = ""
-			for character: String in paragraph:
-				var width: float = (
-					font
-					. get_string_size(line + character, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size)
-					. x
-				)
-				if width > available_width:
-					lines.append(line)
-					line = ""
-				line += character
-			lines.append(line)
+		var lines: PackedStringArray = PixelTheme.wrap_text(
+			_full_description, available_width, font_size, font
+		)
 		_description_pages.clear()
 		for index: int in range(0, lines.size(), 2):
 			_description_pages.append("\n".join(lines.slice(index, index + 2)))
@@ -146,7 +140,7 @@ func _layout() -> void:
 			not _full_description.is_empty()
 			and (
 				not _derived.is_empty()
-				or int(_held["templateId"]) < 53
+				or not _durability_description
 				or _description_pages.size() > 1
 			)
 		)

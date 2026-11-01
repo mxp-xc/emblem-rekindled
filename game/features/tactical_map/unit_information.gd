@@ -25,10 +25,10 @@ var _directory: String
 var _textures: Dictionary = {}
 var _portrait: TextureRect
 var _items: Dictionary = {}
-var _selected_item: Dictionary = {}
 var _pointer: int = -2
 var _origin: Vector2
 var _swiped: bool = false
+var _return_focus: Control
 
 
 func setup(data: Dictionary) -> void:
@@ -85,6 +85,7 @@ func setup(data: Dictionary) -> void:
 
 
 func present(actor: Dictionary, combat: Dictionary, portrait: Texture2D) -> void:
+	_return_focus = get_viewport().gui_get_focus_owner()
 	_actor = actor
 	_combat = combat
 	_portrait.texture = portrait
@@ -96,13 +97,13 @@ func present(actor: Dictionary, combat: Dictionary, portrait: Texture2D) -> void
 	show_page(1)
 	show()
 	_layout()
+	_focus_page_if_needed()
 
 
 func show_page(index: int) -> void:
 	page = posmod(index, 3)
 	detail_visible = false
 	detail.hide()
-	_selected_item = {}
 	_clear()
 	_heading.text = _interface["unitInformation"]["pages"][page]["title"]
 	if page < 2:
@@ -154,13 +155,21 @@ func show_page(index: int) -> void:
 		if _actor["inventory"].is_empty():
 			body.add_child(_label("背包为空"))
 	_layout()
+	_focus_page_if_needed()
+
+
+func _focus_page_if_needed() -> void:
+	if not is_visible_in_tree():
+		return
+	var focused: Control = get_viewport().gui_get_focus_owner()
+	if focused == null or (focused != self and not is_ancestor_of(focused)):
+		_right.grab_focus()
 
 
 func show_item(held: Dictionary) -> void:
 	# The original keeps the equipment list and opens a bottom detail strip.
 	if page != 2:
 		show_page(2)
-	_selected_item = held
 	for button: Node in body.get_children():
 		if button is Button:
 			var style: StyleBox = StyleBoxEmpty.new()
@@ -179,12 +188,23 @@ func go_back() -> void:
 	if detail_visible:
 		detail_visible = false
 		detail.hide()
-		_selected_item = {}
 		_layout()
 	else:
 		hide()
 		_pointer = -2
+		if is_instance_valid(_return_focus) and _return_focus.is_visible_in_tree():
+			_return_focus.grab_focus()
+		_return_focus = null
 		closed.emit()
+
+
+func handle_key(_event: InputEventKey) -> bool:
+	return false
+
+
+func handle_wheel(direction: int) -> void:
+	if not detail_visible:
+		show_page(page + direction)
 
 
 func _input(event: InputEvent) -> void:

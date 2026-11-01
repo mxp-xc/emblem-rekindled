@@ -1,5 +1,6 @@
 extends RefCounted
 
+const Inventory = preload("res://gameplay/unit_inventory.gd")
 const Battle = preload("res://gameplay/battle_state.gd")
 const SLOT_COUNT: int = 4
 var path: String
@@ -191,7 +192,7 @@ func _decode_progress(value: Dictionary) -> Dictionary:
 		not route_valid
 		or not value.get("party") is Array
 		or not value.get("warehouse") is Array
-		or value["warehouse"].size() > 40
+		or value["warehouse"].size() > Inventory.WAREHOUSE_CAPACITY
 	):
 		return {"ok": false, "error": "INVALID_SAVE_PROGRESS"}
 	var expected: Dictionary = {}

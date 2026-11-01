@@ -1,5 +1,7 @@
 extends RefCounted
 
+const Inventory = preload("res://gameplay/unit_inventory.gd")
+
 # One canonical unit-record validator serves battle saves and completed campaign progress.
 var _blueprints: Dictionary = {}
 var _jobs: Dictionary = {}
@@ -22,7 +24,7 @@ func _init(content: Dictionary, combat: RefCounted) -> void:
 
 
 func decode(value: Dictionary, held_ids: Dictionary) -> Dictionary:
-	if not _integer_in(value.get("id"), 0, 126) or not _blueprints.has(int(value["id"])):
+	if not _nonnegative_integer(value.get("id")) or not _blueprints.has(int(value["id"])):
 		return _failure("INVALID_SAVE_IDENTITY")
 	var id: int = int(value["id"])
 	var current: Dictionary = _blueprints[id].duplicate(true)
@@ -60,8 +62,8 @@ func decode(value: Dictionary, held_ids: Dictionary) -> Dictionary:
 			if value[key] is Dictionary or value[key] is Array
 			else value[key]
 		)
+	current["id"] = id
 	for key: String in [
-		"id",
 		"sourceId",
 		"faction",
 		"classId",
@@ -116,7 +118,7 @@ func decode(value: Dictionary, held_ids: Dictionary) -> Dictionary:
 		current["attributes"][stat] = int(current["attributes"][stat])
 	if (
 		not current.get("inventory") is Array
-		or current["inventory"].size() > 6
+		or current["inventory"].size() > Inventory.BAG_CAPACITY
 		or not validate_inventory(current["inventory"], held_ids)
 		or not current.get("equippedInstanceId") is String
 	):
@@ -124,12 +126,7 @@ func decode(value: Dictionary, held_ids: Dictionary) -> Dictionary:
 	var equipped_valid: bool = current["equippedInstanceId"].is_empty()
 	for item: Dictionary in current["inventory"]:
 		if item["id"] == current["equippedInstanceId"]:
-			var definition: Dictionary = _combat.item_definition(int(item["templateId"]))
-			equipped_valid = (
-				item["durability"] > 0
-				and definition["damageKind"] in ["physical", "magic"]
-				and int(definition["categoryMask"]) & int(current["equipMask"])
-			)
+			equipped_valid = _combat.can_equip(current, item)
 	if not equipped_valid:
 		return _failure("INVALID_SAVE_EQUIPMENT")
 	return {"ok": true, "unit": current}
@@ -142,7 +139,8 @@ func validate_inventory(inventory: Array, ids: Dictionary) -> bool:
 			or not value.get("id") is String
 			or value["id"].is_empty()
 			or ids.has(value["id"])
-			or not _integer_in(value.get("templateId"), 1, 87)
+			or not _nonnegative_integer(value.get("templateId"))
+			or value["templateId"] <= 0
 			or not _integer_in(value.get("durability"), 0, 127)
 		):
 			return false
@@ -152,6 +150,15 @@ func validate_inventory(inventory: Array, ids: Dictionary) -> bool:
 			return false
 		ids[value["id"]] = true
 	return true
+
+
+func _nonnegative_integer(value: Variant) -> bool:
+	return (
+		(value is int or value is float)
+		and is_finite(float(value))
+		and float(value) == floorf(float(value))
+		and value >= 0
+	)
 
 
 func _integer_in(value: Variant, minimum: int, maximum: int) -> bool:

@@ -2,6 +2,8 @@ extends PanelContainer
 
 signal intent(kind: String, details: Dictionary)
 
+const MenuNavigation = preload("res://ui/menu_navigation.gd")
+
 var _actions: VBoxContainer
 var _buttons: Dictionary = {}
 var _finger: Texture2D
@@ -42,6 +44,18 @@ func present(available: Array) -> void:
 	for kind: String in _buttons:
 		_buttons[kind].visible = kind == "information" or kind in available
 	_actions.show()
+
+
+func handle_key(_event: InputEventKey) -> bool:
+	return false
+
+
+func handle_wheel(direction: int) -> void:
+	var rows: Array[Button] = []
+	for button: Button in _actions.get_children():
+		if button.is_visible_in_tree() and not button.disabled and button.focus_mode != FOCUS_NONE:
+			rows.append(button)
+	MenuNavigation.step_buttons(rows, direction)
 
 
 func place_near(cell: Rect2, bounds: Rect2) -> void:

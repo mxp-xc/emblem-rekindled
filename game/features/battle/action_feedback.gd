@@ -120,6 +120,20 @@ func go_back() -> void:
 	queue_redraw()
 
 
+func handle_key(event: InputEventKey) -> bool:
+	if (
+		(event.is_action_pressed("ui_accept") or event.is_action_pressed("ui_down"))
+		and not event.is_echo()
+	):
+		go_back()
+		return true
+	return false
+
+
+func handle_wheel(_direction: int) -> void:
+	pass
+
+
 func _process(delta: float) -> void:
 	_elapsed += delta
 	while _elapsed >= _tick_seconds and playing:
@@ -153,23 +167,7 @@ func _start_next() -> void:
 			_tutorial_lines = []
 			for tutorial: Dictionary in _content["story"]["tutorials"]:
 				if tutorial["id"] == 6:
-					for paragraph: String in tutorial["text"].split("\n"):
-						var row: String = ""
-						for character: String in paragraph:
-							if (
-								(
-									FONT
-									. get_string_size(
-										row + character, HORIZONTAL_ALIGNMENT_LEFT, -1, 12
-									)
-									. x
-								)
-								> 232
-							):
-								_tutorial_lines.append(row)
-								row = ""
-							row += character
-						_tutorial_lines.append(row)
+					_tutorial_lines.append_array(PixelTheme.wrap_text(tutorial["text"], 232.0, 12))
 			_tutorial_text.text = "\n".join(_tutorial_lines)
 			_tutorial_clip.show()
 		_:
@@ -201,15 +199,6 @@ func _handle_touch(event: InputEvent) -> void:
 		)
 	):
 		go_back()
-
-
-func _unhandled_key_input(event: InputEvent) -> void:
-	if (
-		(event.is_action_pressed("ui_accept") or event.is_action_pressed("ui_down"))
-		and not event.is_echo()
-	):
-		go_back()
-		get_viewport().set_input_as_handled()
 
 
 func set_content_area(area: Rect2) -> void:

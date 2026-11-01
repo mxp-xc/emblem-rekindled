@@ -11,6 +11,10 @@ func _initialize() -> void:
 	var ids: Array = []
 	for unit: Dictionary in content["units"]:
 		ids.append(unit["id"])
+	var item_ids: Array[int] = []
+	for item: Dictionary in content["rules"]["itemTemplates"]:
+		if item["id"] > 0:
+			item_ids.append(int(item["id"]))
 	var cases: Array[Dictionary] = []
 	var broken: Dictionary = content["interface"].duplicate(true)
 	broken["textures"].erase("button_1")
@@ -67,7 +71,7 @@ func _initialize() -> void:
 	broken["battleHud"]["nativeReferenceLayout"]["bottomRect"] = [0, 1, 240]
 	cases.append(broken)
 	for index: int in range(cases.size()):
-		if loader._interface_valid(cases[index], directory, ids):
+		if loader._interface_valid(cases[index], directory, ids, item_ids):
 			fail("Invalid interface references must fail at content loading, case " + str(index))
 			return
 	print(
