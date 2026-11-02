@@ -13,7 +13,7 @@ PACKAGE = "io.github.mxpxc.emblemrekindled"
 
 class Playtest:
     def __init__(self, serial: str | None = None, adb: str = "adb") -> None:
-        self.command = ["rtk", "proxy", adb, *(["-s", serial] if serial else [])]
+        self.command = [adb, *(["-s", serial] if serial else [])]
 
     def adb(
         self, *args: str, data: bytes | None = None, check: bool = True, timeout: float = 15

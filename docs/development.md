@@ -13,8 +13,8 @@ Android 随系统方向切换横竖屏，Web 随窗口比例适配；逻辑画�
 横屏验收入口见 [横屏布局与旋转验收](acceptance/landscape.md)。
 
 ```sh
-rtk godot --path game --editor
-rtk godot --path game
+godot --path game --editor
+godot --path game
 ```
 
 战场占满游戏窗口。手机滑动、电脑鼠标拖动或滚轮上下移动视野；缩放只通过游戏设置的滑块或“查看全图”调整，滚轮与双指手势不缩放。
@@ -98,7 +98,7 @@ Back收起菜单，子页返回保留选中项。
 已有 checkout 需要复用另一份已安装环境时，先准备好目标目录，再运行：
 
 ```sh
-rtk uv run python tools/prepare_workspace.py /path/to/existing-checkout --source /path/to/installed-checkout
+uv run python tools/prepare_workspace.py /path/to/existing-checkout --source /path/to/installed-checkout
 ```
 
 工具只创建 `.venv` 和 `node_modules` 链接，不创建 Git 分支或 worktree，也不安装依赖。
@@ -109,11 +109,11 @@ rtk uv run python tools/prepare_workspace.py /path/to/existing-checkout --source
 先决定是否独立安装新环境；不要直接复用不匹配的依赖。
 
 ```sh
-rtk bun install --frozen-lockfile
-rtk uv sync --locked
-rtk bun run format
-rtk bun run lint
-rtk bun run check
+bun install --frozen-lockfile
+uv sync --locked
+bun run format
+bun run lint
+bun run check
 ```
 
 - `format`：gdformat 格式化 GDScript，Ruff 整理 Python imports 并格式化，Prettier 格式化 Java 和 JSON。
@@ -135,10 +135,10 @@ pre-push 完整检查较久时，可在本次推送的环境中设置
 日常单文件验证和脚本检查：
 
 ```sh
-rtk uv run python tools/check_godot.py --test test_map_input.gd
-rtk uv run python tools/check_godot.py --parse-only
-rtk uv run python tools/check_godot.py --test test_map_input.gd --timings temp/<batch>/godot.json
-rtk uv run python tools/run_check.py --output temp/<batch>/check
+uv run python tools/check_godot.py --test test_map_input.gd
+uv run python tools/check_godot.py --parse-only
+uv run python tools/check_godot.py --test test_map_input.gd --timings temp/<batch>/godot.json
+uv run python tools/run_check.py --output temp/<batch>/check
 ```
 
 检查器会识别 Godot 的错误输出，即使引擎返回 0 也判失败；每次引擎调用有 60 秒超时，中断时会清理其拥有的引擎进程组。
@@ -152,15 +152,15 @@ Godot 4.7.2 / Android 16 / targetSDK36 实测一次系统 Back 会重复发出�
 
 ## 快速回归与内部状态读取
 
-章内 Android 批次复用 `rtk uv run python tools/chapter_android_qa.py --help`，
-Web 隔离桥复用 `rtk uv run python tools/chapter_qa_bridge.py --help`；
+章内 Android 批次复用 `uv run python tools/chapter_android_qa.py --help`，
+Web 隔离桥复用 `uv run python tools/chapter_qa_bridge.py --help`；
 关卡只提供 fixture 和差异 case，历史 `temp/` 证据继续保留在原批次。
 写入前的备份、真实输入与恢复约定见 [验证与复核](agents/verification.md)。
 
 最新debug APK已导出且模拟器已启动时，可运行完整首关的实际ADB回归：
 
 ```sh
-rtk uv run python tools/playtest_first_battle.py --speed 32
+uv run python tools/playtest_first_battle.py --speed 32
 ```
 
 驱动先安装当前`build/android/emblem-rekindled.apk`（也可用`--apk`指定），再从新游戏开始。
@@ -177,8 +177,8 @@ AVD Quick Boot可能恢复快照中的旧安装，不能以已有图标判断包
 完成标题序文后，可通过只读接口查看状态，并从游戏界面选择测试速率：
 
 ```sh
-rtk uv run python tools/android_playtest.py read
-rtk uv run python tools/android_playtest.py speed 32
+uv run python tools/android_playtest.py read
+uv run python tools/android_playtest.py speed 32
 ```
 
 游戏设置中的“游戏速率”提供1、2、4、8、16和32倍，仅当前应用会话生效；切换关卡与返回标题保留，每次重新启动或刷新回到1倍。
@@ -196,9 +196,9 @@ Android请求发布与匹配响应等待在一次ADB调用中完成；未就绪�
 章入口显式引用生成结果；生成器只发布已声明拥有的生成文件，并登记关卡入口，不覆盖 `authored/`。
 
 ```sh
-rtk uv run python tools/import_chapter_1.py --plan
-rtk uv run python tools/import_chapter_1.py --emulator /path/to/freej2me_plus.jar --battle m6 --report temp/m6-import.json
-rtk godot --headless --path game --import
+uv run python tools/import_chapter_1.py --plan
+uv run python tools/import_chapter_1.py --emulator /path/to/freej2me_plus.jar --battle m6 --report temp/m6-import.json
+godot --headless --path game --import
 ```
 
 输入为本地 `reference/original-jars/chapter-1.jar`，SHA-256：
@@ -306,10 +306,10 @@ JSON中的图片路径可以引用shared目录。相同PNG字节与相同导入�
 `Godot_v4.7.2-stable_export_templates.tpz`，然后验证并只提取所需平台：
 
 ```sh
-rtk uv run tools/prepare_templates.py /path/to/Godot_v4.7.2-stable_export_templates.tpz
-rtk bun run build:web
-rtk bun run build:android
-rtk bun run serve
+uv run tools/prepare_templates.py /path/to/Godot_v4.7.2-stable_export_templates.tpz
+bun run build:web
+bun run build:android
+bun run serve
 ```
 
 模板放在忽略的 `build/templates/4.7.2.stable/`，不修改全局模板安装。

@@ -42,7 +42,7 @@ JAVA_SOURCES = (
 
 
 def run(*args: str | Path, cwd: Path) -> None:
-    subprocess.run(["rtk", *map(str, args)], cwd=cwd, check=True)
+    subprocess.run(list(map(str, args)), cwd=cwd, check=True)
 
 
 def variant_requests(records: list[dict]) -> str:

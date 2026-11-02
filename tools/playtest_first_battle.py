@@ -61,8 +61,6 @@ class Run(AndroidInput):
         snapshot.write_text(json.dumps(state["snapshot"], ensure_ascii=False))
         result = subprocess.run(
             [
-                "rtk",
-                "proxy",
                 "godot",
                 "--headless",
                 "--path",

@@ -31,13 +31,14 @@ CLI 只加载测试人员指定的可信模块。批次使用新的输出目录�
 Web 存储 API 的 `preserveStorage` 要求 `stop` 回调在备份前和恢复前停止游戏写入，
 同时保留当前 origin 的存储 API 可用；`persistBackup` 必须将完整快照写入新的
 `backup.json` 并从证据服务读回其内容，验证一致后才进入 `run`，退出时恢复并核对原记录。
-这三个 Web 模块可以按相对路径导入；Cua 中按工具约束静态声明 factory，浏览器页面仅加载
-存储 API。公共入口不依赖 `temp/code/` 的历史脚本，旧批次作为证据保留。
+这三个 Web 模块可以按相对路径导入。harness 的浏览器操作契约见
+`docs/agents/verification.md`；具体客户端的接口映射由执行环境提供。
+公共入口不依赖 `temp/code/` 的历史脚本，旧批次作为证据保留。
 
 ```sh
-rtk rg --files game/app game/gameplay game/features game/persistence -g '*.gd'
-rtk rg -n 'symbol' game/app game/features -g '*.gd'
-rtk uv run python tools/source_context.py "build/web/<buildId>/index.js" needle --radius 160 --limit 5
+rg --files game/app game/gameplay game/features game/persistence -g '*.gd'
+rg -n 'symbol' game/app game/features -g '*.gd'
+uv run python tools/source_context.py "build/web/<buildId>/index.js" needle --radius 160 --limit 5
 ```
 
 搜索大型生成文件或 minified JS 时使用最后一个命令按字符偏移输出有限片段，

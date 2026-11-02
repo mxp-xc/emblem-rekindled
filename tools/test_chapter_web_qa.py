@@ -8,7 +8,7 @@ from pathlib import Path
 class ChapterWebQaTest(unittest.TestCase):
     def test_shared_web_contracts(self):
         result = subprocess.run(
-            ["rtk", "bun", str(Path(__file__).with_suffix(".mjs"))],
+            ["bun", str(Path(__file__).with_suffix(".mjs"))],
             capture_output=True,
             text=True,
             timeout=30,

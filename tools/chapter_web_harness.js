@@ -1,8 +1,21 @@
-// Declare this factory statically in Cua; never eval this file in the Cua context.
 // One fresh factory per fixed package avoids retained helpers closing over an old build.
-export function createChapterWebHarness({ tab, cdp, buildId, artifactOrigin }) {
+// browser supplies page evaluation, native input, settling, startup readiness and
+// PNG screenshot capture; client-specific handles stay in the execution environment.
+export function createChapterWebHarness({ browser, buildId, artifactOrigin }) {
   if (!buildId || !/^http:\/\/127\.0\.0\.1:\d+$/.test(artifactOrigin))
     throw Error("Explicit fixed buildId and loopback artifact origin required");
+  for (const method of [
+    "evaluate",
+    "key",
+    "click",
+    "drag",
+    "settle",
+    "reload",
+    "ready",
+    "screenshot",
+  ])
+    if (typeof browser?.[method] !== "function")
+      throw Error("Browser operation required: " + method);
   const inputs = [],
     timings = {};
   const prefix = "/userfs/godot/app_userdata/纹章传说：重燃/";
@@ -17,15 +30,7 @@ export function createChapterWebHarness({ tab, cdp, buildId, artifactOrigin }) {
           )
         : value;
   const equal = (a, b) => JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
-  const evaluate = async (expression) => {
-    const value = await cdp.send("Runtime.evaluate", {
-      expression,
-      awaitPromise: true,
-      returnByValue: true,
-    });
-    if (value.exceptionDetails) throw Error(JSON.stringify(value.exceptionDetails));
-    return value.result.value;
-  };
+  const evaluate = (expression) => browser.evaluate(expression);
   const saveArtifact = async (name, value) => {
     if (!/^[A-Za-z0-9_-]+$/.test(name)) throw Error("Invalid artifact name");
     return evaluate(
@@ -45,13 +50,13 @@ export function createChapterWebHarness({ tab, cdp, buildId, artifactOrigin }) {
   };
   const key = async (value) => {
     inputs.push({ key: value, at: Date.now() });
-    await tab.pressKey(null, value);
-    await tab.getAXState({ emit: false });
+    await browser.key(value);
+    await browser.settle();
   };
   const click = async (point) => {
     inputs.push({ click: point, at: Date.now() });
-    await tab.click(point);
-    await tab.getAXState({ emit: false });
+    await browser.click(point);
+    await browser.settle();
   };
   const control = async (label, byName = false) => {
     const state = await read();
@@ -101,16 +106,16 @@ export function createChapterWebHarness({ tab, cdp, buildId, artifactOrigin }) {
       );
       const end = start.map((value, axis) => value + delta[axis]);
       inputs.push({ drag: [start, end], purpose: "Bring cell into map viewport", at: Date.now() });
-      await tab.drag(start, end);
-      await tab.getAXState({ emit: false });
+      await browser.drag(start, end);
+      await browser.settle();
       if (attempt === 4) throw Error("Target cell is outside the map viewport");
     }
     if (double) {
-      // TacticalMap accepts two taps within350ms. A read/AX round trip between
+      // TacticalMap accepts two taps within350ms. A state read round trip between
       // separate clicks can exceed that limit on a busy host.
       inputs.push({ click: point, clickCount: 2, at: Date.now() });
-      await tab.click(point, { clickCount: 2 });
-      await tab.getAXState({ emit: false });
+      await browser.click(point, { clickCount: 2 });
+      await browser.settle();
     } else await click(point);
   };
   const wait = async (predicate, { advance = false, timeout = 30000 } = {}) => {
@@ -170,8 +175,8 @@ export function createChapterWebHarness({ tab, cdp, buildId, artifactOrigin }) {
     );
   };
   const capture = async (name, state) => {
-    const shot = await cdp.send("Page.captureScreenshot", { format: "png" });
-    await saveArtifact(name, { png: shot.data });
+    const png = await browser.screenshot();
+    await saveArtifact(name, { png });
     if (state) await saveArtifact(name + "-state", state);
   };
   const saveCold = async (name) => {
@@ -188,9 +193,8 @@ export function createChapterWebHarness({ tab, cdp, buildId, artifactOrigin }) {
     if (!saved || !equal(saved.record.state, expected))
       throw Error("Requested state did not persist");
     await saveArtifact(name + "-saved", saved);
-    await tab.reload();
-    await tab.getAXState({ emit: false });
-    await tab.playwright.locator("#status").waitFor({ state: "hidden", timeoutMs: 15000 });
+    await browser.reload();
+    await browser.ready({ timeout: 15000 });
     await title("游戏设置");
     if ((await read()).speed !== 1) throw Error("Cold startup did not use1x");
     await speed(32);

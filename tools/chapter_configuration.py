@@ -259,7 +259,6 @@ def format_changed_json(chapter: Path, before: dict) -> int:
     for start in range(0, len(paths), 128):
         result = subprocess.run(
             [
-                "rtk",
                 "bun",
                 "x",
                 "prettier",

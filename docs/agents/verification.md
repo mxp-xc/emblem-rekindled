@@ -4,7 +4,7 @@
 
 日常运行 `bun run check:quick`、`bun run check:parse` 和相关的定向行为测试；
 `check_godot.py --test` 可以重复指定文件。每个阶段完成后运行一次完整检查，
-需要保留耗时时用 `rtk uv run python tools/run_check.py --output temp/<batch>/check`；
+需要保留耗时时用 `uv run python tools/run_check.py --output temp/<batch>/check`；
 它顺序执行既有 lint、工具测试和游戏测试各一次，等价覆盖 `bun run check`。
 后续只有新增修改或失败才补跑相关检查。批量解析共享一个引擎，行为测试仍逐个隔离。
 检查器显示阶段进度；运行故障清理测试先等待引擎就绪，再计运行超时。
@@ -24,7 +24,7 @@
 残留恢复材料会阻止后续检查，使用以下入口恢复：
 
 ```sh
-rtk uv run python tools/check_godot.py --restore-config
+uv run python tools/check_godot.py --restore-config
 ```
 
 恢复入口取得同一把锁，确认记录的持有者已退出，且当前配置仍等于保留的隔离配置或原件，
@@ -33,8 +33,8 @@ rtk uv run python tools/check_godot.py --restore-config
 
 Godot从JSON读取的数字数组，按元素显式`int`后核对值和源顺序；不要直接与int字面量数组整体比较，
 否则float/int Variant差异可能造成错误失败。浏览器地图需要双击时，使用一次原生
-`tab.click(point, {clickCount: 2})`，调用后再读取状态；地图双击窗口为350ms，
-不要在两次单击之间插入AX或业务轮询后，仍将其当作可靠双击。
+双击操作（一次调用携带 `clickCount: 2`），调用后再读取状态；地图双击窗口为350ms，
+不要在两次单击之间插入可访问性或业务状态轮询后，仍将其当作可靠双击。
 
 `bun run setup:hooks` 为当前 checkout 安装 pre-commit 快速检查及 pre-push 完整检查；
 已有自定义 hooks 或配置时保留并报出需要手动整合的位置，不写全局 Git 配置。
@@ -67,14 +67,14 @@ Godot从JSON读取的数字数组，按元素显式`int`后核对值和源顺序
    HTTP 验证只能证明服务器返回的 PCK，不能代替浏览器实际加载验证。
 3. Android 每批安装当前 APK，运行 `bun run verify:android` 核对已安装包；
    内部只读响应的 `build` 字段还可核对当前进程。图标存在不能证明安装版本。
-4. 记录命令、结果、证据路径与未测项；本轮平台范围见 `docs/acceptance/first-battle.md`。
+4. 记录命令、结果、证据路径与未测项；本轮平台范围以当前实施票及其关联的验收页为准。
 
 Android 破坏性测试先 force-stop，再使用 `tools/qa_records.py` 的完整快照保护全部 JSON。
 `tools/playtest_first_battle.py` 已接入保护，默认32倍并按回合保存；真实节奏另用1倍验证。
 备份失败不继续，恢复失败不输出成功。保留的 `backup.json` 可恢复：
 
 ```sh
-rtk uv run python tools/qa_records.py temp/playtest/<batch>/records/backup.json --serial <serial>
+uv run python tools/qa_records.py temp/playtest/<batch>/records/backup.json --serial <serial>
 ```
 
 恢复命令先停止应用，逐字节核对恢复结果后写 `restored.json`；故障时保留备份供重试。
@@ -85,3 +85,21 @@ rtk uv run python tools/qa_records.py temp/playtest/<batch>/records/backup.json 
 历史 `temp/` 场景和证据不会自动迁移。Web 的 `preserveStorage` 只有在
 `persistBackup` 将备份落盘、读回并确认 `verified` 后才能继续测试写入；
 真实输入、buildId 核对和完整恢复仍按本节执行。
+
+`createChapterWebHarness` 接收固定 `buildId`、证据服务的 `artifactOrigin` 和 `browser` 操作对象。
+执行环境将已有浏览器客户端映射到以下异步接口；输入接口使用真实浏览器输入，
+页面求值仅用于只读探针、存储读取和证据服务通信：
+
+| 接口 | 完成条件 |
+| --- | --- |
+| `evaluate(expression)` | 在当前页面等待表达式（含 Promise）完成，返回可序列化的值；页面异常向外抛出 |
+| `key(value)` | 发送按键；接受 `Escape`、`Return`、`Left`、`Right` |
+| `click([x, y], options?)` | 在 CSS 坐标点击；`clickCount: 2` 使用一次原生双击调用完成 |
+| `drag(start, end)` | 在 CSS 坐标间完成鼠标拖动 |
+| `settle()` | 输入提交后等待客户端完成处理，再允许读取结果 |
+| `reload()` | 重新加载当前页面 |
+| `ready({timeout})` | 等待游戏启动加载完成，超时（毫秒）或启动失败时抛出；之后才能发起游戏状态探针 |
+| `screenshot()` | 返回当前页面的 PNG base64 字符串 |
+
+每个固定运行包新建 harness。适配器负责将客户端返回值和异常转换为上述契约；
+fixture 只验证公共调用顺序，具体客户端仍需验证真实输入、加载就绪和截图行为。

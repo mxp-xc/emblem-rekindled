@@ -213,58 +213,173 @@ corruptWrites = false;
 await restore(persisted);
 assert.deepEqual(await snapshot(), saved);
 
-// Harness performs native input and checks captured runtime identity. No browser
-// or origin is opened: CDP returns only the supplied read-only fixture.
+// The browser contract fixture opens no browser or origin. It checks public
+// operation ordering and supplies captured state, storage and artifact responses.
 let runtimeBuild = "fixed";
-const clicks = [],
-  keys = [];
-const tab = {
-  async click(...args) {
-    clicks.push(args);
-  },
-  async pressKey(...args) {
-    keys.push(args);
-  },
-  async getAXState() {},
-};
-const cdp = {
-  async send(method, { expression }) {
-    assert.equal(method, "Runtime.evaluate");
-    return {
-      result: {
-        value:
-          expression === "[innerWidth,innerHeight]"
-            ? [200, 200]
-            : {
-                ok: true,
-                build: { buildId: runtimeBuild },
-                viewport: [200, 200],
-                map: { origin: [0, 0], size: [200, 200], center: [0, 0], zoom: 1 },
-              },
-      },
-    };
-  },
-};
-assert.throws(
-  () => createChapterWebHarness({ tab, cdp, buildId: "", artifactOrigin: "http://127.0.0.1:1234" }),
-  /Explicit/,
-);
-const h = createChapterWebHarness({
-  tab,
-  cdp,
-  buildId: "fixed",
-  artifactOrigin: "http://127.0.0.1:1234",
+const calls = [];
+let readStates = [],
+  loading = false,
+  startupError = null;
+const battle = { turn: 3, units: [{ id: 1, hp: 7 }] };
+const storedBattle = { record: { state: battle }, bytes: [0, 128, 255] };
+const state = (ui = {}, extra = {}) => ({
+  ok: true,
+  build: { buildId: runtimeBuild },
+  viewport: [200, 200],
+  map: { origin: [0, 0], size: [200, 200], center: [0, 0], zoom: 1 },
+  ui,
+  snapshot: { state: battle },
+  controls: ["保存进度", "游戏设置", "读取进度", "GameSpeed", "Speed_32"].map((text) => ({
+    text,
+    name: text,
+    rect: [10, 10, 20, 20],
+  })),
+  ...extra,
 });
+const browser = {
+  async evaluate(expression) {
+    assert.equal(loading, false, "page reads must wait for startup readiness");
+    if (expression === "[innerWidth,innerHeight]") {
+      calls.push(["viewport"]);
+      return [200, 200];
+    }
+    if (expression.includes("playtest_request.json")) {
+      calls.push(["read"]);
+      return readStates.length ? readStates.shift() : state();
+    }
+    if (expression.includes("battle_save.json")) {
+      calls.push(["stored"]);
+      return structuredClone(storedBattle);
+    }
+    if (expression.includes("fetch(")) {
+      calls.push(["artifact"]);
+      return { ok: true };
+    }
+    throw Error("Unexpected page expression");
+  },
+  async key(value) {
+    calls.push(["key", value]);
+  },
+  async click(...args) {
+    calls.push(["click", ...args]);
+  },
+  async drag(...args) {
+    calls.push(["drag", ...args]);
+  },
+  async settle() {
+    calls.push(["settle"]);
+  },
+  async reload() {
+    calls.push(["reload"]);
+    loading = true;
+  },
+  async ready(options) {
+    calls.push(["ready", options]);
+    assert.equal(loading, true);
+    if (startupError) throw startupError;
+    loading = false;
+  },
+  async screenshot() {
+    calls.push(["screenshot"]);
+    return "fixture-png";
+  },
+};
+const options = { browser, buildId: "fixed", artifactOrigin: "http://127.0.0.1:1234" };
+assert.throws(() => createChapterWebHarness({ ...options, buildId: "" }), /Explicit/);
+assert.throws(() => createChapterWebHarness({ ...options, browser: {} }), /Browser operation/);
+const h = createChapterWebHarness(options);
 await h.cell(0, 0, true);
-assert.deepEqual(clicks, [[[112, 112], { clickCount: 2 }]]);
+assert.deepEqual(calls, [
+  ["read"],
+  ["viewport"],
+  ["click", [112, 112], { clickCount: 2 }],
+  ["settle"],
+]);
+calls.length = 0;
 await h.key("Escape");
-assert.deepEqual(keys, [[null, "Escape"]]);
+assert.deepEqual(calls, [["key", "Escape"], ["settle"]]);
+
+// An offscreen target is brought into view by native drag before the click.
+calls.length = 0;
+readStates = [
+  state({}, { map: { origin: [0, 0], size: [200, 200], center: [100, 100], zoom: 1 } }),
+  state(),
+];
+await h.cell(0, 0);
+assert.deepEqual(
+  calls.map((call) => call[0]),
+  ["read", "viewport", "drag", "settle", "read", "viewport", "click", "settle"],
+);
+
+const coldReads = () => {
+  const menu = state({ menu: true, menuPage: "settings" }, { speed: 1 });
+  const title = state(
+    { title: true, titleOptions: true, titleEntries: ["游戏设置", "读取进度"] },
+    { speed: 1 },
+  );
+  return [
+    menu,
+    menu,
+    menu,
+    menu,
+    title,
+    title,
+    menu,
+    menu,
+    menu,
+    menu,
+    state(menu.ui, { speed: 32 }),
+    { ...title, controls: [...title.controls].reverse() },
+    title,
+    state({}, { ready: true }),
+  ];
+};
+calls.length = 0;
+readStates = coldReads();
+const continued = await h.saveCold("fixture");
+assert.deepEqual(continued.snapshot.state, battle);
+assert.equal(readStates.length, 0);
+const reloadIndex = calls.findIndex((call) => call[0] === "reload");
+assert.deepEqual(calls.slice(reloadIndex, reloadIndex + 3), [
+  ["reload"],
+  ["ready", { timeout: 15000 }],
+  ["read"],
+]);
+assert.ok(calls.some((call) => call[0] === "screenshot"));
+
+// Startup failure stops cold continuation before any new game probe.
+calls.length = 0;
+readStates = coldReads();
+startupError = Error("startup timed out");
+await assert.rejects(h.saveCold("failed-start"), /startup timed out/);
+assert.deepEqual(calls.slice(-2), [["reload"], ["ready", { timeout: 15000 }]]);
+startupError = null;
+loading = false;
+// Reloading into another package must fail before selecting a title option.
+calls.length = 0;
+readStates = coldReads();
+readStates[4].build = { buildId: "another-package" };
+await assert.rejects(h.saveCold("wrong-package"), /Unexpected captured build/);
+assert.deepEqual(calls.slice(-2), [["ready", { timeout: 15000 }], ["read"]]);
+readStates = [];
 runtimeBuild = "stale";
 await assert.rejects(h.read(), /Unexpected captured build/);
 await assert.rejects(
   h.wait(() => true),
   /Unexpected captured build/,
 );
+runtimeBuild = "fixed";
+const pageError = Error("page evaluation failed");
+const failingPage = createChapterWebHarness({
+  ...options,
+  browser: {
+    ...browser,
+    evaluate: async () => {
+      throw pageError;
+    },
+  },
+});
+await assert.rejects(failingPage.read(), (error) => error === pageError);
 const originalPerformance = globalThis.performance;
 let tick = 0;
 globalThis.performance = { now: () => tick++ };
@@ -284,5 +399,5 @@ try {
   globalThis.performance = originalPerformance;
 }
 console.log(
-  "PASS isolated chapter QA: codec, recovery, backup failures, build identity, real-input adapter",
+  "PASS isolated chapter QA: codec, recovery, backup failures, build identity, browser contract and cold continuation",
 );

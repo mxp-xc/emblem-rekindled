@@ -19,8 +19,8 @@
 已有 `test_dialogue_layout.gd`、`test_desktop_layout.gd`、`test_world_focus.gd` 继续覆盖多比例、全图、菜单/资料布局及焦点恢复。
 
 ```sh
-rtk uv run python tools/check_godot.py --test test_rotation.gd --test test_rotation_confirmation.gd
-rtk bun run check
+uv run python tools/check_godot.py --test test_rotation.gd --test test_rotation_confirmation.gd
+bun run check
 ```
 
 ## 平台复核
