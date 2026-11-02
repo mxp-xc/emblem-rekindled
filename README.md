@@ -11,9 +11,13 @@
 
 [查看三章连续主线重制：逐关推进的决策地图](https://github.com/mxp-xc/emblem-rekindled/issues/1#overall-todo)。
 
-整体清单直接放在该 issue 正文，包含已完成决策、当前待办、首关开发与验收、
-后续章节和自定义玩法；当前阶段与下一入口也在同一 issue 中。
-具体规格、裁决和实施证据保存在对应子 issue。
+总体 issue 维护章级进展、全局决定和索引；各章地图清单、完成计数、TODO 与下一入口由章级子 issue 承载：
+
+- [第1章：初章地图与关卡进度](https://github.com/mxp-xc/emblem-rekindled/issues/32)
+- [第2章：第二章地图与关卡进度](https://github.com/mxp-xc/emblem-rekindled/issues/33)
+- [第3章：终章地图与关卡进度](https://github.com/mxp-xc/emblem-rekindled/issues/34)
+
+具体关卡的规格、裁决和实施证据保存在对应章下的子 issue。
 
 ## 设计与调研
 
@@ -31,6 +35,7 @@
 入口位于 `game/project.godot`，命令和资源准备见[开发说明](docs/development.md)。
 首关的验收条件、逐项证据和平台范围见[首关验收](docs/acceptance/first-battle.md)。
 福尔斯路线第二战与世界往返见[索菲亚山脉第二战验收](docs/acceptance/second-battle.md)。
+后续初章关卡的开发自测证据见[逐关验收](docs/acceptance/chapter-content.md)。
 
 ```sh
 bun install --frozen-lockfile
