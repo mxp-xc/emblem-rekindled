@@ -275,6 +275,13 @@ func _step(step: Dictionary) -> void:
 				tween.kill()
 			if step.get("sourceHoldTicksAfter", 0) > 0:
 				await get_tree().create_timer(step["sourceHoldTicksAfter"] * _tick_seconds).timeout
+		"revealUnits":
+			for value: Variant in step["unitIds"]:
+				var id: int = int(value)
+				map.presentation_hidden_ids.erase(id)
+				if id not in map.presentation_revealed_ids:
+					map.presentation_revealed_ids.append(id)
+			map.queue_redraw()
 		"revealFaction":
 			map.presentation_hidden_factions.erase(int(step["faction"]))
 			map.queue_redraw()

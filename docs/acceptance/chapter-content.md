@@ -3,7 +3,7 @@
 本轮范围为[配置驱动扩关](https://github.com/mxp-xc/emblem-rekindled/issues/36)、
 [迷雾森林边缘m2](https://github.com/mxp-xc/emblem-rekindled/issues/35)，再逐关推进到m7（含）。
 章级地图清单与完成计数由[初章进度](https://github.com/mxp-xc/emblem-rekindled/issues/32)维护。
-本页记录验收门槛、m0/m1候选与m2集成包的实际回归；m3～m7的平台验收仍须逐关执行。
+本页记录验收门槛、m0/m1候选与m2/m3集成包的实际回归；m4～m7的平台验收仍须逐关执行。
 开发自测与用户集中验收分别记录。默认推荐竖屏，横屏作为可选能力保留回归。
 
 ## m0/m1候选回归（2026-11-02）
@@ -206,6 +206,61 @@ Android协议/保存/冷读样本12.033秒；Web同类实际输入与保存冷�
 不与自然整关或含视频传输的旧批次作严格同比。最终8766/18765/18866已关闭，QA标签与AVD已关闭，
 8765原服务保留，原用户视口1336×747、音乐与设置未改。当前m0/m1/m2所需实际平台链已收齐，
 后续关卡与用户集中验收单独推进。
+
+## m3南部平原实际验收（2026-11-02）
+
+[实施票#37](https://github.com/mxp-xc/emblem-rekindled/issues/37)对应固定Web
+`20261102-111242-9ed7065b`、Android `20261102-111252-652ddcc7`，
+导出9.424/15.940秒；实际PCK/canvas/只读响应与安装APK/进程身份分别一致。
+协调者的完整检查为61工具、181解析、121行为与Main smoke通过，两轴审查无未解决项，
+见`temp/m3/integrated-check.log`及同目录审查报告；本批没有重跑已过检查或Probe诊断。
+实际平台汇总为`temp/qa-chapter-content/m3-platform-summary.json`，所约定范围通过。
+
+| 范围 | 实际输入与结果 |
+| --- | --- |
+| 两端真实入口 | 复用实际m2命名世界档route0/step3、队伍0/9/6/7，经当前Session/Store复核；取消前往保持继续字节，再真实前往m3，完整开场与指挥官3，39条部署、初始19可见。前序m2战斗数值为明确受控，未称自然培养。 |
+| 第2轮 | 当前合法phase0/round2受控快照，保留三组14名敌军及原格、6个slot和选择器；仅隐藏无关初始AI、限制boss无关行动。真实结束回合完成三组原地显现、511、北入、512/513；实际位置与一次性标记保持，菜单保存/cold1→UI32完整state及字节相等，不重播。 |
+| 新独立战斗 | 两端均真实攻击107/class32，看到红色魔物独立场景及反击，HP/耐久/行动结束正确，再菜单保存冷恢复；Web另补63/class24的实际独立场景。新演出关键帧临时用UI4倍，其余bulk UI32。 |
+| 两端515/516 | 514首战后，515期间HP0的83本体仍在、镜头聚焦83；退场后516聚焦当前0的位置，原83格已空；随后奖励。权威snapshot已hidden不等同显示副本，不以其否定对白画面。 |
+| Android固定结算 | 明确先清除其他可见敌人，再由普通战斗击杀最后83；不是bossHP1单独判胜。保持route0、step4、8000→9000金；命名世界档cold读取不重奖、不改继续档。 |
+| Web初次分支 | 只从真实m0代表choice2的合法route2/step1世界进入m3；517后实际选择鲁卡/next2，得到route3/step2、6000→7000金。named cold保持结果且继续字节不变。未伪造m0/route3世界档；next4→route2另由headless覆盖。 |
+| 布局与返回 | 默认推荐竖屏；Android等待系统RotationLayer/animator退出后，实际查看完整水平横屏地图/HUD及一次菜单系统Back，之后恢复竖屏与原方向。 |
+
+Android的1倍原视频为
+`android-m3-20261102-111252-652ddcc7/m3-controlled-round2-reveal-north-entry-1x.mp4`，
+位于`temp/qa-chapter-content/`，长11.020秒；同目录`m3-reveal-video-3.40s.png`、
+`4.50s.png`、`5.90s.png`、`8.00s.png`（后三者同`m3-reveal-video-`前缀）是保留的原视频提取帧，已实际查看。
+511与512实际画面分别为`m3-round2-dialogue-01.png`、`02.png`；完整逐帧mask计数0→4→7→14、
+同步无Tween及纯显示/RNG不变由运行时真实Main检查补足，不从Probe的已提交可见状态推断中间显示mask。
+两端515/516关键图分别是Android的`m3-fixed-death-dialogue-02.png`、`03.png`和
+Web的`m3-branch-death-dialogue-2.png`、`3.png`，均已实际看图确认body、空格与不同焦点。
+
+Web第一批已经过合法step1入口及515/516，到真实517选项后，临时manifest却从fixed内容投影取得
+“黑暗森林”作为按钮文案，导致QA点击停止；实际UI正确给出鲁卡/莎尼亚。
+该失败、截图与完整恢复凭证保留。后续先新完整备份，只从实际失败快照构造受控尾段：
+保留已发生boss事件、库存和XP，仅将非boss63复活为HP1、重置人物3行动并清outcome，
+经Session/Store JSON及实际`attack_options=[63]`验证，真实清除最后敌人后再选择当前控件name对应的next2。
+没有重演已通过开场或死亡，也没有把受控重构称为连续自然战。
+尾段来源及往返证明在`m3-choice-tail-20261102/`，通过结果在Web批次的`attempt-2/tail-result.json`。
+后续关卡应从当前分支投影和实际控件取得选择语义，不能复用fixed投影的label。
+
+7项首批fixtures在`m3-fixtures-20261102-integrated/`，由当前统一入口及公开domain waits/end_phase生成，
+没有使用非法phase2存档；恢复不重抽初始化随机。生成期的两个QA假设已修正：
+编译后turnEvent.unitIds含14敌人及6个解析后的slot，不能把总长度当14；maxHp须遵守当前上限60。
+没有因此修改生产保存校验。通用Web临时driver按每批buildId创建新闭包，并按CSS viewport换算Retina坐标，
+不再复用闭合旧build的helper；Android沿用同一受保护runner与m3用例配置。
+
+Android一次新完整备份后安装，finally逐字节恢复全部原JSON和方向，模拟器关闭。
+Web两个子批各有独立新完整35项备份，finally先恢复并验证全部原键、实际view类型/offset/length、字节、Date/mode，
+再删除新增项，正常启动后再次全等；音乐/原设置字节恢复、视口覆盖清除为1336×747。
+原地址保留新Web ID，8766等临时服务关闭，8765保留。两端`summary.json`列出输入、证据与恢复凭证。
+六上下文、失败优先、隐藏未来援军不阻止早胜和另一条初次分支由headless矩阵承担，未称自然重打整章。
+
+Android分项为真实入口10.829秒、横屏/Back2.159秒、1倍事件及冷恢复27.789秒、
+怪物独立战斗及冷恢复18.711秒、固定结算及命名冷读17.186秒。
+Web入口12.854秒、事件及冷恢复16.177秒、怪物及冷恢复20.529秒、额外class24场景11.196秒，
+受控选择尾段含命名cold21.499秒；失败尝试单列，不能混入通过样本。
+这些是不同业务边界的绝对样本，不与自然整关或不同地图作严格速度同比；用户集中验收单独记录。
 
 通过的Android分项为light17.161秒、世界进入/援军/冷恢复21.018秒、普通战斗/冷恢复15.664秒，
 回合限制7.507秒、地图50/46/51各17.494/24.610/17.023秒（包括各自重新启动、UI调速与冷恢复）。

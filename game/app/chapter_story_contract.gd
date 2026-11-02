@@ -413,6 +413,15 @@ static func _story_step_valid(step: Dictionary, ids: Dictionary, width: int, hei
 				):
 					return false
 			return true
+		"revealUnits":
+			if step.size() != 2 or not step.get("unitIds") is Array or step["unitIds"].is_empty():
+				return false
+			var revealed: Dictionary = {}
+			for id: Variant in step["unitIds"]:
+				if not _integer(id) or revealed.has(int(id)) or not ids.has(int(id)):
+					return false
+				revealed[int(id)] = true
+			return true
 		"revealFaction":
 			return _integer(step.get("faction")) and step["faction"] >= 0 and step["faction"] <= 2
 		"commanderSetup":

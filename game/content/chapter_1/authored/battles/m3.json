@@ -1,0 +1,286 @@
+{
+  "battleId": "m3",
+  "worldNode": 3,
+  "battleName": {
+    "sourceTextIndex": 142
+  },
+  "objective": {
+    "sourceTextIndex": 159
+  },
+  "initialBattlePresentation": {
+    "hiddenUnitIds": [],
+    "hiddenFactions": [],
+    "unitPositionOverrides": {}
+  },
+  "turnEvents": [
+    {
+      "id": "ambush_and_party_arrival",
+      "afterEnemyPhaseOfRound": 2,
+      "unitIds": [63, 64, 65, 66, 38, 48, 49, 44, 30, 47, 107, 108, 109, 110],
+      "deploymentSlots": [0, 1, 2, 3, 4, 5],
+      "sequence": "ambush_and_party_arrival",
+      "source": "i.k:604..890; reveal three enemy groups in order, then existing party slots"
+    }
+  ],
+  "aiChanges": [],
+  "routeChoices": [
+    {
+      "kind": "route",
+      "nodeId": 2,
+      "characterId": 7,
+      "name": "鲁卡",
+      "nameTextIndex": 181,
+      "className": "贤者",
+      "classTextIndex": 218,
+      "label": "鲁卡(贤者)",
+      "portraitId": 7,
+      "routeIndex": 3
+    },
+    {
+      "kind": "route",
+      "nodeId": 4,
+      "characterId": 8,
+      "name": "莎尼亚",
+      "nameTextIndex": 182,
+      "className": "贤者",
+      "classTextIndex": 218,
+      "label": "莎尼亚(贤者)",
+      "portraitId": 8,
+      "routeIndex": 2
+    }
+  ],
+  "speakers": {
+    "0": {
+      "id": 0,
+      "name": "雅木",
+      "faction": 0,
+      "portraitId": 0
+    },
+    "9": {
+      "id": 9,
+      "name": "赛丽卡",
+      "faction": 0,
+      "portraitId": 9
+    },
+    "3": {
+      "id": 3,
+      "name": "派森",
+      "faction": 0,
+      "portraitId": 3
+    },
+    "83": {
+      "id": 83,
+      "name": "洛森",
+      "faction": 2,
+      "portraitId": 14
+    }
+  },
+  "sequences": {
+    "opening": [
+      {
+        "kind": "battleTitle",
+        "text": {
+          "sourceTextIndex": 142
+        },
+        "sourceDurationUnits": 2000
+      },
+      {
+        "kind": "focus",
+        "cell": [11, 20],
+        "instant": true,
+        "sourceWaitTicks": 12
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 509,
+          "speakerId": 3
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 510,
+          "speakerId": 83
+        },
+        "sourceWaitTicksAfter": 10
+      },
+      {
+        "kind": "objective",
+        "text": {
+          "sourceTextIndex": 159
+        }
+      },
+      {
+        "kind": "commanderSetup",
+        "candidates": [3],
+        "defaultCommanderId": 3,
+        "defaultMode": "automatic",
+        "defaultStance": "attack"
+      }
+    ],
+    "ambush_and_party_arrival": [
+      {
+        "kind": "focus",
+        "cell": [11, 5]
+      },
+      {
+        "kind": "revealUnits",
+        "unitIds": [63, 64, 65, 66]
+      },
+      {
+        "kind": "focus",
+        "cell": [7, 16]
+      },
+      {
+        "kind": "revealUnits",
+        "unitIds": [38, 48, 49]
+      },
+      {
+        "kind": "focus",
+        "cell": [15, 16]
+      },
+      {
+        "kind": "revealUnits",
+        "unitIds": [44, 30, 47, 107, 108, 109, 110]
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 511,
+          "speakerId": 3
+        }
+      },
+      {
+        "kind": "parallelEntrances",
+        "focus": [16, 3],
+        "deploymentSlots": [0, 1, 2, 3, 4, 5],
+        "offset": [0, -3],
+        "source": "i.k:m3/bo2; existing slot entrance to actual deployment cell"
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 512,
+          "speakerId": 3
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 513,
+          "speakerId": 0
+        }
+      }
+    ],
+    "boss_first_combat": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 514,
+          "speakerId": 83
+        },
+        "source": "i.b(b,b); enemy flag mask 4 once, ordinary attack or defense"
+      }
+    ],
+    "boss_before_retirement": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 515,
+          "speakerId": 83
+        },
+        "source": "i.d:3305..3319; aa83 ab0 before retirement/hide"
+      }
+    ],
+    "boss_after_retirement": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 516,
+          "speakerId": 0
+        },
+        "source": "i.d:3644..3672; after boss retirement/hide and ab2..9 gate"
+      }
+    ],
+    "victory": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 517,
+          "speakerId": 3
+        },
+        "whenWorldStep": 1,
+        "sourceWaitTicksAfter": 15,
+        "source": "i.z:1882..1904; dD == 1"
+      },
+      {
+        "kind": "routeChoice",
+        "options": [
+          {
+            "kind": "route",
+            "nodeId": 2,
+            "characterId": 7,
+            "name": "鲁卡",
+            "nameTextIndex": 181,
+            "className": "贤者",
+            "classTextIndex": 218,
+            "label": "鲁卡(贤者)",
+            "portraitId": 7,
+            "routeIndex": 3
+          },
+          {
+            "kind": "route",
+            "nodeId": 4,
+            "characterId": 8,
+            "name": "莎尼亚",
+            "nameTextIndex": 182,
+            "className": "贤者",
+            "classTextIndex": 218,
+            "label": "莎尼亚(贤者)",
+            "portraitId": 8,
+            "routeIndex": 2
+          }
+        ],
+        "whenWorldStep": 1,
+        "source": "i.z:1920..1946; next node2 selects route3, node4 selects route2"
+      },
+      {
+        "kind": "missionComplete",
+        "text": {
+          "sourceTextIndex": 34
+        },
+        "goldReward": 1000
+      }
+    ]
+  },
+  "combatEvents": [
+    {
+      "id": "boss_first_combat",
+      "trigger": "firstCombat",
+      "unitId": 83,
+      "sequence": "boss_first_combat"
+    },
+    {
+      "id": "boss_death",
+      "trigger": "unitDeath",
+      "unitId": 83,
+      "beforeRetirement": "boss_before_retirement",
+      "afterRetirement": "boss_after_retirement"
+    }
+  ],
+  "outcomeRules": {
+    "checks": [
+      {
+        "kind": "defeat",
+        "condition": "requiredUnitFallen",
+        "unitIds": [0, 3]
+      },
+      {
+        "kind": "victory",
+        "condition": "noVisibleEnemies",
+        "faction": 2
+      }
+    ]
+  }
+}
