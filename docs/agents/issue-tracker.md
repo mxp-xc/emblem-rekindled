@@ -1,9 +1,11 @@
 # Issue tracker: GitHub
 
-本仓库的任务和规格使用 GitHub Issues，通过 `gh` CLI 操作。
-在仓库目录内运行命令，由 Git remote 确定目标仓库。
+本仓库的任务和规格使用 GitHub Issues。先发现 `mcp__codex_apps__github_`
+前缀的相关工具，只返回候选名称，再读取所需工具的完整定义。
+优先使用支持当前操作的 MCP 工具；插件不可用或不支持该操作时，回退到 `gh` CLI。
+CLI 在仓库目录运行，由 Git remote 确定目标仓库；MCP 显式填写对应仓库。
 
-## 常用操作
+## CLI 回退操作
 
 - 创建：`gh issue create --title "..." --body-file <path>`
 - 读取：`gh issue view <number> --comments`
@@ -41,21 +43,32 @@ skill 要求“发布到 issue tracker”时，创建 GitHub issue；
 **PRs as a request surface: no.**
 
 GitHub 的 issue 和 PR 共用编号空间。裸编号类型不明确时，
-先尝试 `gh pr view <number>`，再尝试读取 issue。
+先通过工具确认 PR 类型，再尝试读取 issue；CLI 回退时使用 `gh pr view <number>`。
 
 ## Wayfinding
 
 - Map：使用一个带 `wayfinder:map` 标签的 issue，
   正文包含 Notes、Decisions-so-far 和 Fog。
 - Child ticket：优先通过 GitHub sub-issue 关联到 map。
-  不支持时，在 map 正文使用任务列表，child 正文顶部写 `Part of #<map>`。
+  MCP 不支持时先用 `gh api` 调原生 API；原生 API 不可用时，
+  在 map 正文使用任务列表，child 正文顶部写 `Part of #<map>`。
 - Ticket 类型标签：`wayfinder:research`、`wayfinder:prototype`、
   `wayfinder:grilling`、`wayfinder:task`。
 - 阻塞关系：优先使用 GitHub 原生 issue dependencies。
-  API 使用 issue 的数字数据库 id；不支持时，在 child 正文顶部写
-  `Blocked by: #<number>, #<number>`。所有 blocker 关闭后才能推进。
-- Frontier：按 map 顺序选择首个未关闭、无未关闭 blocker、
-  且未分配负责人的 child。
-- Claim：通过 `gh issue edit <number> --add-assignee @me` 认领。
+  API 使用 issue 的数字数据库 id；MCP 不支持关联时可用 `gh api` 调原生 API。
+  原生 API 不可用时，在 child 正文顶部写 `Blocked by: #<number>, #<number>`。
+  依赖门槛按实际需要的接口、资源和验证证据判断，见下一节。
+- Frontier：按 map 顺序选择首个未关闭、所需产物已就绪、
+  且未分配负责人的 child；隔离准备按下一节判断。
+- Claim：通过可用的 assignee 工具认领；CLI 回退使用 `gh issue edit <number> --add-assignee @me`。
 - Resolve：评论记录结果，关闭 child，并在 map 的 Decisions-so-far
   中追加结论摘要和链接。
+
+## 依赖与提前准备
+
+正式整合或执行依赖上游产物的验证前，核对所需接口、资源、构建身份及验证证据已就绪，
+并记录依据。Issue 关闭状态只是进度信号，不能代替产物核对；仍未满足的依赖保持阻塞。
+
+只读调查、独立 fixture、隔离原型和不依赖上游未定接口的准备可以提前进行。
+在实施票写明当前假设、隔离边界、待补产物和正式整合门槛；准备结果不能记为集成验证通过。
+选择 Frontier 时先核对上游实际影响的工作范围，分别判断可提前准备和必须等待的部分。

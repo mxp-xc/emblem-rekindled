@@ -13,7 +13,8 @@ from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
-from check_godot import godot
+import check_godot
+from check_godot import configuration_lock, godot, isolated_project, restore_configuration
 
 
 class GodotFixtureTest(unittest.TestCase):
@@ -21,6 +22,12 @@ class GodotFixtureTest(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory(prefix="emblem-engine-fixture-")
         self.addCleanup(temporary.cleanup)
         self.directory = Path(temporary.name)
+        self.game = self.directory / "game"
+        self.game.mkdir()
+        (self.game / "project.godot").write_text('[application]\nconfig/name="fixture"\n')
+        game = patch("check_godot.GAME", self.game)
+        game.start()
+        self.addCleanup(game.stop)
         self.pid_file = self.directory / "process_id"
         self.executable = self.directory / "engine.py"
         self.addCleanup(self.cleanup_processes)
@@ -193,9 +200,136 @@ class GodotFixtureTest(unittest.TestCase):
         self.assert_owned_processes_stopped()
 
 
+class GodotIsolationTest(unittest.TestCase):
+    def setUp(self) -> None:
+        temporary = tempfile.TemporaryDirectory(prefix="emblem-isolation-")
+        self.addCleanup(temporary.cleanup)
+        self.game = Path(temporary.name)
+        self.project = self.game / "project.godot"
+        self.original = (
+            b'config_version=5\r\n[application]\r\nconfig/name="fixture"\r\n'
+            b"config/use_custom_user_dir=true\r\n"
+            b'config/custom_user_dir_name="normal-records"\r\n'
+        )
+        self.project.write_bytes(self.original)
+        game = patch("check_godot.GAME", self.game)
+        game.start()
+        self.addCleanup(game.stop)
+
+    def test_nested_isolation_reuses_identity_and_restores_exact_bytes(self) -> None:
+        with isolated_project():
+            isolated = self.project.read_bytes()
+            self.assertIn(b'config/name="emblem-check-', isolated)
+            self.assertIn(b"config/use_custom_user_dir=false", isolated)
+            with isolated_project():
+                self.assertEqual(self.project.read_bytes(), isolated)
+            self.assertEqual(self.project.read_bytes(), isolated)
+        self.assertEqual(self.project.read_bytes(), self.original)
+
+    def test_exception_and_interrupt_restore_configuration(self) -> None:
+        for error in (RuntimeError("fixture"), KeyboardInterrupt(), SystemExit(7)):
+            with self.subTest(error=type(error)), self.assertRaises(type(error)):
+                with isolated_project():
+                    raise error
+            self.assertEqual(self.project.read_bytes(), self.original)
+
+    def test_concurrent_owner_is_rejected_before_configuration_write(self) -> None:
+        import fcntl
+
+        (self.game / ".godot").mkdir()
+        with (self.game / ".godot/check.lock").open("a") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            with self.assertRaisesRegex(RuntimeError, "Another Godot check"):
+                with isolated_project():
+                    self.fail("Concurrent owner entered isolated project")
+        self.assertEqual(self.project.read_bytes(), self.original)
+
+    def test_invalid_configuration_fails_without_rewriting(self) -> None:
+        self.project.write_bytes(b"[application]\n")
+        with self.assertRaisesRegex(RuntimeError, "Expected one config/name"):
+            with isolated_project():
+                self.fail("Missing project identity was accepted")
+        self.assertEqual(self.project.read_bytes(), b"[application]\n")
+
+    def test_changed_configuration_is_preserved_with_recovery_evidence(self) -> None:
+        changed_by_user = b"user changed configuration\n"
+        with self.assertRaisesRegex(RuntimeError, "refusing to overwrite"):
+            with isolated_project():
+                evidence = self.game / ".godot/check-recovery"
+                self.assertEqual((evidence / "original.godot").read_bytes(), self.original)
+                owner = json.loads((evidence / "owner.json").read_text())
+                self.assertEqual(owner["pid"], os.getpid())
+                self.project.write_bytes(changed_by_user)
+        self.assertEqual(self.project.read_bytes(), changed_by_user)
+        with self.assertRaisesRegex(RuntimeError, "Unfinished Godot check"):
+            with isolated_project():
+                self.fail("Stale recovery evidence was ignored")
+        with configuration_lock() as evidence:
+            with self.assertRaisesRegex(RuntimeError, "refusing to overwrite"):
+                restore_configuration(evidence)
+            # Simulate the user first resolving their edits to the retained isolated copy.
+            self.project.write_bytes((evidence / "isolated.godot").read_bytes())
+            restore_configuration(evidence)
+        self.assertEqual(self.project.read_bytes(), self.original)
+        self.assertFalse(evidence.exists())
+
+    def test_engine_start_failure_restores_configuration(self) -> None:
+        with (
+            patch("check_godot.subprocess.Popen", side_effect=FileNotFoundError),
+            self.assertRaises(FileNotFoundError),
+        ):
+            godot()
+        self.assertEqual(self.project.read_bytes(), self.original)
+        self.assertFalse((self.game / ".godot/check-recovery").exists())
+
+    def test_interrupted_recovery_requires_inactive_owner_and_retains_original(self) -> None:
+        # Reproduce the on-disk state left by an uncatchable process termination.
+        with self.assertRaisesRegex(RuntimeError, "refusing to overwrite"):
+            with isolated_project():
+                evidence = self.game / ".godot/check-recovery"
+                isolated = self.project.read_bytes()
+                self.project.write_bytes(b"later edit\n")
+        self.project.write_bytes(isolated)
+        with configuration_lock() as evidence:
+            with self.assertRaisesRegex(RuntimeError, "still alive"):
+                restore_configuration(evidence, require_inactive_owner=True)
+            self.assertEqual(self.project.read_bytes(), isolated)
+            with patch("check_godot.os.kill", side_effect=ProcessLookupError):
+                restore_configuration(evidence, require_inactive_owner=True)
+        self.assertEqual(self.project.read_bytes(), self.original)
+        self.assertFalse(evidence.exists())
+
+    def test_cli_timings_record_failed_test_and_restore_configuration(self) -> None:
+        timings = self.game / "timings.json"
+        with (
+            patch.object(
+                sys,
+                "argv",
+                ["check_godot.py", "--test", "test_fixture.gd", "--timings", str(timings)],
+            ),
+            patch("check_godot.godot", side_effect=SystemExit(7)),
+            redirect_stdout(StringIO()),
+            self.assertRaises(SystemExit),
+        ):
+            check_godot.main()
+        result = json.loads(timings.read_text())
+        self.assertNotEqual(result["exitCode"], 0)
+        self.assertEqual(result["intervals"][0]["name"], "test_fixture.gd")
+        self.assertFalse(result["intervals"][0]["finished"])
+        self.assertEqual(self.project.read_bytes(), self.original)
+
+
 class GodotGateTest(unittest.TestCase):
     def test_runtime_fault_returns_failure_within_timeout(self) -> None:
         with tempfile.TemporaryDirectory(prefix="emblem-bad-script-") as directory:
+            game = Path(directory) / "game"
+            game.mkdir()
+            (game / "project.godot").write_text(
+                'config_version=5\n[application]\nconfig/name="fixture"\n'
+            )
+            game_patch = patch("check_godot.GAME", game)
+            game_patch.start()
+            self.addCleanup(game_patch.stop)
             script = Path(directory) / "bad.gd"
             pid_file = Path(directory) / "process_id"
             script.write_text(

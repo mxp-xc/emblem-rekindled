@@ -7,7 +7,7 @@ temp/
 /game/export_credentials.cfg
 /build/
 /.playwright-cli/
-/.venv/
-/node_modules/
+/.venv
+/node_modules
 /.ruff_cache/
 __pycache__/

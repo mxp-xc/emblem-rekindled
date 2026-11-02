@@ -3,9 +3,33 @@
 ## 迭代
 
 日常运行 `bun run check:quick`、`bun run check:parse` 和相关的定向行为测试；
-`check_godot.py --test` 可以重复指定文件。每个阶段完成后运行一次 `bun run check`，
+`check_godot.py --test` 可以重复指定文件。每个阶段完成后运行一次完整检查，
+需要保留耗时时用 `rtk uv run python tools/run_check.py --output temp/<batch>/check`；
+它顺序执行既有 lint、工具测试和游戏测试各一次，等价覆盖 `bun run check`。
 后续只有新增修改或失败才补跑相关检查。批量解析共享一个引擎，行为测试仍逐个隔离。
 检查器显示阶段进度；运行故障清理测试先等待引擎就绪，再计运行超时。
+
+`check_godot.py` 和工具测试中的真实引擎调用默认使用一次性的 `user://` 身份，
+不读取、备份或覆盖正常用户记录。检查临时修改当前工程的 `config/name`，
+关闭可能配置的自定义用户目录，并在 `finally` 中逐字节恢复 `project.godot`；
+同一工程的检查器通过文件锁拒绝并发。锁不能阻止直接启动的编辑器、游戏或导出工具，
+运行前先协调这些入口停用当前工程配置；检查期间不要修改 `project.godot`。
+工具故障 fixture 使用系统临时工程，不占用主工程配置。
+
+计时批次目录必须尚不存在，保存 `integrated-check.log`、`timings.json` 与
+`godot-timings.json`。耗时直接围绕既有阶段及引擎调用测量，不额外执行测试；
+失败也保留已完成阶段和当前未完成项。单独检查可用 `check_godot.py --timings <path>`。
+原件、隔离配置与持有者信息先保存到 `game/.godot/check-recovery/`，再修改工程配置。
+`finally` 适用于正常失败和 Python 中断；强制终止宿主进程（如 `SIGKILL`）后，
+残留恢复材料会阻止后续检查，使用以下入口恢复：
+
+```sh
+rtk uv run python tools/check_godot.py --restore-config
+```
+
+恢复入口取得同一把锁，确认记录的持有者已退出，且当前配置仍等于保留的隔离配置或原件，
+才恢复并逐字节核对。检查期间若有人另改配置，自动恢复会拒绝覆盖并保留全部材料；
+此时需先人工合并后来的修改与 `original.godot`，不能直接丢弃后来的修改。
 
 Godot从JSON读取的数字数组，按元素显式`int`后核对值和源顺序；不要直接与int字面量数组整体比较，
 否则float/int Variant差异可能造成错误失败。浏览器地图需要双击时，使用一次原生
@@ -55,3 +79,9 @@ rtk uv run python tools/qa_records.py temp/playtest/<batch>/records/backup.json 
 
 恢复命令先停止应用，逐字节核对恢复结果后写 `restored.json`；故障时保留备份供重试。
 读取内部状态走 `tools/android_playtest.py read --ready`，不为规划下一步保存游戏。
+
+章内差异场景可复用 `tools/chapter_android_qa.py --help` 的 Android 批次入口和
+`tools/chapter_qa_bridge.py --help` 的 Web 隔离桥。关卡提供 fixture 与差异 case，
+历史 `temp/` 场景和证据不会自动迁移。Web 的 `preserveStorage` 只有在
+`persistBackup` 将备份落盘、读回并确认 `verified` 后才能继续测试写入；
+真实输入、buildId 核对和完整恢复仍按本节执行。

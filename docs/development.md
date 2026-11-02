@@ -95,6 +95,19 @@ Back收起菜单，子页返回保留选中项。
 
 开发依赖由 `bun.lock`、`uv.lock` 固定，不参与正式游戏运行。
 
+已有 checkout 需要复用另一份已安装环境时，先准备好目标目录，再运行：
+
+```sh
+rtk uv run python tools/prepare_workspace.py /path/to/existing-checkout --source /path/to/installed-checkout
+```
+
+工具只创建 `.venv` 和 `node_modules` 链接，不创建 Git 分支或 worktree，也不安装依赖。
+两边的锁文件、依赖配置和格式配置必须逐字节一致；预检 PATH 中的 Git、uv、Bun、Godot，
+以及来源环境中的 Python、Ruff、gdtoolkit 和 Prettier 可执行文件。
+目标链接必须被 Git 忽略；已有目录、链接（包括失效链接）一律拒绝覆盖。
+创建失败会撤回本次已创建链接，原有环境保持不变。配置或锁文件发生变化时，
+先决定是否独立安装新环境；不要直接复用不匹配的依赖。
+
 ```sh
 rtk bun install --frozen-lockfile
 rtk uv sync --locked
@@ -111,20 +124,38 @@ rtk bun run check
 - `setup:hooks`：仅为当前 checkout 安装检查 hooks，保留已有自定义配置。
 - `.editorconfig` 约定缩进、换行与尾随空白。gdlint 保留校验函数的提前返回，其他规则正常启用。
 
+GDScript、Python 与 Prettier 的行宽统一为100列。移交生成或手写的 Java、JSON、
+`package.json` 前，使用项目已安装的 Prettier 格式化相关文件，再运行对应 `prettier --check`；
+不要以 GDScript/Python 格式通过代替 Prettier 检查，避免整库格式化带入无关改动。
+
+pre-push 完整检查较久时，可在本次推送的环境中设置
+`GIT_SSH_COMMAND="ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=6"` 保持 SSH 连接；
+检查通过后发生连接中断，应修复连接并保留 hooks 重试，不将跳过 hooks 作为日常流程。
+
 日常单文件验证和脚本检查：
 
 ```sh
 rtk uv run python tools/check_godot.py --test test_map_input.gd
 rtk uv run python tools/check_godot.py --parse-only
+rtk uv run python tools/check_godot.py --test test_map_input.gd --timings temp/<batch>/godot.json
+rtk uv run python tools/run_check.py --output temp/<batch>/check
 ```
 
 检查器会识别 Godot 的错误输出，即使引擎返回 0 也判失败；每次引擎调用有 60 秒超时，中断时会清理其拥有的引擎进程组。
 `--test` 可重复指定；完整检查显示阶段和测试进度。故障清理测试分别计算启动等待与运行超时。
+检查默认隔离正常用户记录，临时配置在结束后恢复；同工程检查通过文件锁互斥，
+运行前仍需停用该工程的编辑器、游戏与导出。计时入口沿用 lint、工具测试、游戏测试各一次，
+将日志和结构化阶段耗时写入新的批次目录，失败时保留证据；具体约定见下述验证文档。
 平台交付与界面证据要求见 [验证与复核](agents/verification.md)。
 Godot 4.7.2 / Android 16 / targetSDK36 实测一次系统 Back 会重复发出返回通知，入口合并100ms内的重复系统请求；键盘 Esc 独立处理。
 故意产生运行时错误的检查器测试使用系统临时目录，不进入正式资源。
 
 ## 快速回归与内部状态读取
+
+章内 Android 批次复用 `rtk uv run python tools/chapter_android_qa.py --help`，
+Web 隔离桥复用 `rtk uv run python tools/chapter_qa_bridge.py --help`；
+关卡只提供 fixture 和差异 case，历史 `temp/` 证据继续保留在原批次。
+写入前的备份、真实输入与恢复约定见 [验证与复核](agents/verification.md)。
 
 最新debug APK已导出且模拟器已启动时，可运行完整首关的实际ADB回归：
 

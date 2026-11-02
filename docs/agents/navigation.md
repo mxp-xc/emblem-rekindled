@@ -14,6 +14,8 @@
 | 持久化 | `game/persistence/` |
 | 内容入口 | `game/content/chapter_1/chapter.json` |
 | 生成器与平台验证 | `tools/`，命令见 `package.json` |
+| 跨关公共 Android QA、fixture/case 接入 | `tools/chapter_android_qa.py --help`，保护契约见 `docs/agents/verification.md` |
+| Web 真实输入与完整存储保护 | `tools/chapter_web_harness.js`、`chapter_storage_api.js`、`chapter_storage_codec.js`；证据服务 `tools/chapter_qa_bridge.py --help` |
 
 路径以实际目录为准；找不到时先列出目标目录，避免猜测文件名。
 素材路径从 `chapter.json` 的对应 manifest 追踪；生成 JSON/图片不是默认搜索范围。
@@ -21,6 +23,16 @@
 公共图片归章级shared所有，关卡只拥有私有输出，共享逻辑从 `tools/chapter_assets.py` 进入。
 扩展关卡配置、队伍部署或章级表现库时，阅读 `docs/design/chapter-content.md`；
 其中区分选定设计与已落地行为，实施状态以关联issue为准。
+
+新增跨关平台 case 或维护公共驱动时，从上述 `tools/` 入口复用能力；
+关卡差异由显式选择的 case 模块及 `fixtures.json` / `manifest.json` 提供。
+Android case 模块导出 `CASES`（名称到接收 flow 的函数），可选导出继承公共 `Flow` 的同名类；
+CLI 只加载测试人员指定的可信模块。批次使用新的输出目录，证据、视频与截图继续存 `temp/`。
+Web 存储 API 的 `preserveStorage` 要求 `stop` 回调在备份前和恢复前停止游戏写入，
+同时保留当前 origin 的存储 API 可用；`persistBackup` 必须将完整快照写入新的
+`backup.json` 并从证据服务读回其内容，验证一致后才进入 `run`，退出时恢复并核对原记录。
+这三个 Web 模块可以按相对路径导入；Cua 中按工具约束静态声明 factory，浏览器页面仅加载
+存储 API。公共入口不依赖 `temp/code/` 的历史脚本，旧批次作为证据保留。
 
 ```sh
 rtk rg --files game/app game/gameplay game/features game/persistence -g '*.gd'
