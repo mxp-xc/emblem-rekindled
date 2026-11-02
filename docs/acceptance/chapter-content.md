@@ -489,8 +489,9 @@ Android与Web实际buildId分别记录，不要求两个平台buildId相同。
 
 ## 记录保护与可复用入口
 
-Android复用`tools/android_playtest.py`的只读相关请求、`AndroidInput`真实输入与UI调速，
-使用`tools/qa_records.py`建立每批新完整备份。启动测试前force-stop，枚举与读取失败立即停止。
+Android批次使用 `uv run er qa android`；只读状态使用 `uv run er qa state read`，
+临时调速使用 `uv run er qa state speed 32`。
+每批建立新的完整备份；启动测试前force-stop，枚举与读取失败立即停止。
 在`finally`中force-stop，恢复并逐字节验证全部原文件后再清理新增JSON；恢复失败保留备份，
 不写成功结果。轮转设置若被修改需单独备份、恢复与核对。每批安装当前APK并验证已安装身份。
 
@@ -508,9 +509,9 @@ helper保留在Web批次的`input-harness.json`，使用时先读取当前浏览
 本批原始console错误、重载后的真实输入和35项记录恢复凭证均保留；该已确认陷阱属于QA探针使用错误，
 不能当作游戏本身的报错。
 
-已有`tools/playtest_first_battle.py`适用于m0自然回归；其规划器不是m2～m7通用规划器。
+`uv run er qa first-battle` 适用于m0自然回归；其规划器不是m2～m7通用规划器。
 `temp/code/python/m1_android.py`与`m1_android_flow.py`包含已移除的旧`client.enable`调速入口，
-只作为历史输入与证据参考，不能原样复跑。新批次调用`AndroidInput.set_speed(32)`，每次重启核对1倍。
+只作为历史输入与证据参考，不能原样复跑。新批次按上述临时调速入口操作，每次重启核对1倍。
 不需要为本轮新增生产写入调试接口。
 
 真实驱动按实际战斗结果检查耐久：原规则中未命中的攻击不扣武器次数，不能固定断言每次攻击都减少1。

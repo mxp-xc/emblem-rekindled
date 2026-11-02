@@ -95,34 +95,12 @@ Back收起菜单，子页返回保留选中项。
 
 开发依赖由 `bun.lock`、`uv.lock` 固定，不参与正式游戏运行。
 
-已有 checkout 需要复用另一份已安装环境时，先准备好目标目录，再运行：
+当前 checkout 安装依赖用 `uv run er setup`；从正常来源初始化另一份已有 checkout 用
+`uv run er workspace init <target>`，每份使用独立 `.venv`。格式化用 `bun run format`，
+日常检查用 `uv run er check quick`，阶段完成运行 `uv run er check full`。
 
-```sh
-uv run python tools/prepare_workspace.py /path/to/existing-checkout --source /path/to/installed-checkout
-```
-
-工具只创建 `.venv` 和 `node_modules` 链接，不创建 Git 分支或 worktree，也不安装依赖。
-两边的锁文件、依赖配置和格式配置必须逐字节一致；预检 PATH 中的 Git、uv、Bun、Godot，
-以及来源环境中的 Python、Ruff、gdtoolkit 和 Prettier 可执行文件。
-目标链接必须被 Git 忽略；已有目录、链接（包括失效链接）一律拒绝覆盖。
-创建失败会撤回本次已创建链接，原有环境保持不变。配置或锁文件发生变化时，
-先决定是否独立安装新环境；不要直接复用不匹配的依赖。
-
-```sh
-bun install --frozen-lockfile
-uv sync --locked
-bun run format
-bun run lint
-bun run check
-```
-
-- `format`：gdformat 格式化 GDScript，Ruff 整理 Python imports 并格式化，Prettier 格式化 Java 和 JSON。
-- `lint`：gdlint、gdformat 检查、Ruff 规则及格式检查、Prettier 检查；只检查，不改文件。
-- `check:quick`：lint 和工具测试；提交前自动运行。
-- `check:parse`：导入并在单个引擎中解析全部脚本。
-- `check`：完整检查，行为测试逐个隔离运行；推送前自动运行。
-- `setup:hooks`：仅为当前 checkout 安装检查 hooks，保留已有自定义配置。
-- `.editorconfig` 约定缩进、换行与尾随空白。gdlint 保留校验函数的提前返回，其他规则正常启用。
+工具源码与配套资源定位见[源码导航](agents/navigation.md)。
+`package.json` 的检查入口使用同一套原生检查函数。
 
 GDScript、Python 与 Prettier 的行宽统一为100列。移交生成或手写的 Java、JSON、
 `package.json` 前，使用项目已安装的 Prettier 格式化相关文件，再运行对应 `prettier --check`；
@@ -132,54 +110,16 @@ pre-push 完整检查较久时，可在本次推送的环境中设置
 `GIT_SSH_COMMAND="ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=6"` 保持 SSH 连接；
 检查通过后发生连接中断，应修复连接并保留 hooks 重试，不将跳过 hooks 作为日常流程。
 
-日常单文件验证和脚本检查：
-
-```sh
-uv run python tools/check_godot.py --test test_map_input.gd
-uv run python tools/check_godot.py --parse-only
-uv run python tools/check_godot.py --test test_map_input.gd --timings temp/<batch>/godot.json
-uv run python tools/run_check.py --output temp/<batch>/check
-```
-
-检查器会识别 Godot 的错误输出，即使引擎返回 0 也判失败；每次引擎调用有 60 秒超时，中断时会清理其拥有的引擎进程组。
-`--test` 可重复指定；完整检查显示阶段和测试进度。故障清理测试分别计算启动等待与运行超时。
-检查默认隔离正常用户记录，临时配置在结束后恢复；同工程检查通过文件锁互斥，
-运行前仍需停用该工程的编辑器、游戏与导出。计时入口沿用 lint、工具测试、游戏测试各一次，
-将日志和结构化阶段耗时写入新的批次目录，失败时保留证据；具体约定见下述验证文档。
+定向行为检查用 `uv run er check game --test test_map_input.gd`，批量解析用 `uv run er check parse`。
 平台交付与界面证据要求见 [验证与复核](agents/verification.md)。
 Godot 4.7.2 / Android 16 / targetSDK36 实测一次系统 Back 会重复发出返回通知，入口合并100ms内的重复系统请求；键盘 Esc 独立处理。
 故意产生运行时错误的检查器测试使用系统临时目录，不进入正式资源。
 
 ## 快速回归与内部状态读取
 
-章内 Android 批次复用 `uv run python tools/chapter_android_qa.py --help`，
-Web 隔离桥复用 `uv run python tools/chapter_qa_bridge.py --help`；
-关卡只提供 fixture 和差异 case，历史 `temp/` 证据继续保留在原批次。
-写入前的备份、真实输入与恢复约定见 [验证与复核](agents/verification.md)。
-
-最新debug APK已导出且模拟器已启动时，可运行完整首关的实际ADB回归：
-
-```sh
-uv run python tools/playtest_first_battle.py --speed 32
-```
-
-驱动先安装当前`build/android/emblem-rekindled.apk`（也可用`--apk`指定），再从新游戏开始。
-AVD Quick Boot可能恢复快照中的旧安装，不能以已有图标判断包已更新。
-移动、装备、攻击、治疗和确认均走真实输入；通过内部只读接口规划下一步，
-只在每回合开始保存一次。默认32倍时钟，正常节奏与动画完整性另用1倍验证。
-结果、回合记录及逐步JSONL证据写入`temp/playtest/`，失败额外保留截图、状态和进程日志。
-普通随机结果保留；测试控制器保护必存活治疗者，不复用可牺牲NPC的前进策略，仍可能因战局失败而退出。
-开始前完整备份并独立核对已有记录；失败则停止。结束后先恢复全部原JSON，再清理新增记录并逐字节验证。
-备份和恢复凭证在批次的 `records/` 中；恢复失败保留备份，可用 `tools/qa_records.py` 重试，详见验证文档。
-默认结束后关闭模拟器。
-同一验证批次需保留模拟器时显式使用`--keep-emulator`；多设备用`--serial`指定。
-
-完成标题序文后，可通过只读接口查看状态，并从游戏界面选择测试速率：
-
-```sh
-uv run python tools/android_playtest.py read
-uv run python tools/android_playtest.py speed 32
-```
+Android 通用批次入口为 `uv run er qa android`，首关自然回归用 `uv run er qa first-battle`。
+实时状态读取用 `uv run er qa state read`，Web 证据服务入口为 `uv run er qa web-bridge`。
+关卡只提供 fixture 和差异 case；备份、真实输入及恢复要求见[验证与复核](agents/verification.md)。
 
 游戏设置中的“游戏速率”提供1、2、4、8、16和32倍，仅当前应用会话生效；切换关卡与返回标题保留，每次重新启动或刷新回到1倍。
 速率不写入长期设置或任何存档，累计游玩时间仍按真实前台时间计算。自动化通过相同界面选择32倍，选择后设置页保持打开，按所在页面逐层返回。
@@ -195,11 +135,8 @@ Android请求发布与匹配响应等待在一次ADB调用中完成；未就绪�
 正式运行只读取 `game/` 内已准备的数据、PNG、Ogg 和字体，不读取原 JAR、模拟器或提取工具。
 章入口显式引用生成结果；生成器只发布已声明拥有的生成文件，并登记关卡入口，不覆盖 `authored/`。
 
-```sh
-uv run python tools/import_chapter_1.py --plan
-uv run python tools/import_chapter_1.py --emulator /path/to/freej2me_plus.jar --battle m6 --report temp/m6-import.json
-godot --headless --path game --import
-```
+先用 `uv run er import chapter-1 --plan` 查看缺项；正式导入入口为 `uv run er import chapter-1`，
+需指定已核实的模拟器和目标关卡。部署单独导出入口为 `uv run er import deployment`。
 
 输入为本地 `reference/original-jars/chapter-1.jar`，SHA-256：
 `67d1c77e823816e203244a15428ba9fb635d40edba04efa3180b3334025989fe`。
@@ -210,11 +147,9 @@ godot --headless --path game --import
 受控原包调用沿用 `-Dfile.encoding=ISO_8859_1`；已观察到改写该属性别名后，现有参考运行器在加载阶段直接退出，不能只凭进程返回0判断采样成功。
 历史 RMS 快照不参与导入；机器上的参考运行器路径记在可选 `AGENTS.local.md`。
 
-工具默认使用 PATH 中的 `java` / `javac`；其他位置通过 `--jdk /path/to/jdk/bin` 指定。
 地图更新保留已有Ogg，不重复合成音乐，无需为扩一关重新运行ffmpeg。
-工具在隔离临时目录中调用原始初始化器与绘图器，固定准备阶段随机源。用 `--battle` 指定目标关卡；
-默认选择覆盖所缺人物表现的最少路线上下文，再补齐全章动作缺项。`--route` 可指定优先准备的原路线，
-其余上下文仍由工具按缺项补充，不能用该路线替代其他路线的真实表现。
+工具在隔离临时目录中调用原始初始化器与绘图器，固定准备阶段随机源。
+默认选择覆盖所缺人物表现的最少路线上下文，再补齐全章动作缺项；不能用单一路线替代其他路线的真实表现。
 原生准备按路线前缀结算并加载目标地图，剧情、目标与事件由已核对的 `authored/battles/mN.json` 承载。
 首关两条有效位置调整和初始敌军状态在离线规范化时应用，不在运行时按地图编号分派。
 这不是自然游玩记录；普通敌军初始 HP 可与旧运行样本不同。两战各有32条记录，首关29个、第二战23个初始可见单位。
@@ -240,7 +175,8 @@ JSON中的图片路径可以引用shared目录。相同PNG字节与相同导入�
 只保存一份；同名异图、同图不同参数仍分别保存。普通Godot导入和导出直接使用这些PNG，
 无需原JAR、展开素材包、运行时目录扫描或额外挂载资源包。
 
-`tools/chapter_assets.py::share_textures()` 是离线共享入口，资源导入器在发布某关后调用。
+资源导入器发布关卡时自动完成离线图片共享，无需单独调用内部函数。
+维护共享逻辑时按[源码导航](agents/navigation.md)定位。
 各关 `provenance.outputs` 只拥有本关私有输出；共享图片只属于shared的清单。
 清理先核对全部所有权与章内JSON引用，再删除没有引用的共享图片及其 `.import`。
 重导入同一图片复用现有公共路径；同源文件内容变化时分配另一个路径，其他关仍可使用旧图。
@@ -281,16 +217,8 @@ JSON中的图片路径可以引用shared目录。相同PNG字节与相同导入�
 新关文本通过 `{ "sourceTextIndex": 499, "speakerId": 82 }` 引用章级654条原文本；
 需要人工改写时提供完整 `text`。同一关不为每条路线保存完整人物或片段副本。
 
-`--plan` 不调用原JAR，列出所有已登记关卡在当前共享profile和stage下需要的组合与缺项。
-`--chapter temp/<batch>/game/content/chapter_1` 可在显式章副本演练同一正式导入入口。
-`--native-input <directory>` 可重复指定已准备的原生输出；工具核对来源、路线、部署绑定及片段依赖，
-不能把依赖尚未合入章库的增量输出当成完整输入。缺依赖时重新准备该上下文。
-`--report` 记录所选上下文、采样与复用数量、闭包和发布结果。
 未变化的JSON保留现有字节；新数据或语义变化的数据使用项目Prettier格式化后发布，
 相同输入重入不应产生格式diff。人工配置和已有PNG的导入参数、UID保留。
-普通导入向原生采样器提供已有stage的完整契约与真实文件清单，契约完全相同时仅采样缺少的组合；
-`--refresh-motion` 显式重采当前原生上下文，用于核对采样规则变化，不覆盖冲突的旧片段。
-需要保留独立原生输出时添加 `--native-output temp/<batch>/<name>`；该模式不发布游戏内容。
 
 发布先在隔离的完整章副本合并库和地图，再检查所有已登记地图的动作组合闭包。
 新关给共享profile增加武器时，旧关可能新增“该动作×旧敌人形状”的组合；
@@ -302,31 +230,16 @@ JSON中的图片路径可以引用shared目录。相同PNG字节与相同导入�
 
 ## 导出
 
-下载[官方 4.7.2 模板](https://github.com/godotengine/godot-builds/releases/tag/4.7.2-stable)中的
-`Godot_v4.7.2-stable_export_templates.tpz`，然后验证并只提取所需平台：
+已有模板归档用 `uv run er build templates <tpz>` 准备；平台导出用
+`uv run er build web` / `uv run er build android`，Web 预览用 `uv run er serve`。
 
-```sh
-uv run tools/prepare_templates.py /path/to/Godot_v4.7.2-stable_export_templates.tpz
-bun run build:web
-bun run build:android
-bun run serve
-```
-
-模板放在忽略的 `build/templates/4.7.2.stable/`，不修改全局模板安装。
 预设引用同版 Android、单线程 Web 与 ICU 数据。中文明确包含 ICU；测试、来源记录和工具不进正式包。
 
 Android 需在 Godot 编辑器设置的 Export → Android 中指定已安装的 Java SDK 与 Android SDK。
 机器上的路径、工具版本和 AVD 信息记在可选 `AGENTS.local.md`。
 Android验证批次结束且短期无需继续测试时关闭模拟器，避免持续占用宿主资源。
-导出命令临时注入 buildId，验证包内身份后发布到 build/；失败不发布未验证的包。
-源目录中的临时身份文件在导出结束后恢复，生成身份不进入版本控制。
-
-APK 写入 `build/android/`，Web 写入 `build/web/`；产物可在脱离仓库的位置启动。
-本地预览固定使用 `http://127.0.0.1:8765/`，重新导出后普通刷新即可，不加版本查询参数。
-Web入口的base指向`build/web/<buildId>/`，JS、WASM、PCK和音频worklet随构建使用独立资源URL；旧版本目录保留给仍在运行的页面。
-`serve` 对资源设置 `Cache-Control: no-store`；不发送清理浏览器数据的响应头，IndexedDB、cookies和其他缓存保持原状。
-默认只监听本机，其他本地端口用 `bun run serve --port 8766`。
-普通 `http.server` 可能让浏览器复用旧 PCK，不用于游戏开发预览。
+用 `uv run er verify web` / `uv run er verify android` 核对实际服务或已安装包的 buildId；
+浏览器加载身份和用户原地址保护按[平台交付](agents/verification.md#平台交付)执行。
 Web 由本地静态 HTTP 提供，首个用户操作后才启动音频；设置通过 `user://` 持久化。
 本轮以现有 Android 模拟器验证触屏、系统返回、后台恢复、存储及音频输出信号，配合电脑 Web 同流程。
 真机测试暂缓；模拟器通过不代表实体手机安全区、性能或扬声器听感已验证。

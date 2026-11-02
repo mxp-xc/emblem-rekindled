@@ -2,30 +2,24 @@
 
 ## 迭代
 
-日常运行 `bun run check:quick`、`bun run check:parse` 和相关的定向行为测试；
-`check_godot.py --test` 可以重复指定文件。每个阶段完成后运行一次完整检查，
-需要保留耗时时用 `uv run python tools/run_check.py --output temp/<batch>/check`；
-它顺序执行既有 lint、工具测试和游戏测试各一次，等价覆盖 `bun run check`。
+日常运行 `uv run er check quick`、`uv run er check parse` 和相关定向行为测试
+（如 `uv run er check game --test test_map_input.gd`），每阶段完成后运行 `uv run er check full`。
 后续只有新增修改或失败才补跑相关检查。批量解析共享一个引擎，行为测试仍逐个隔离。
 检查器显示阶段进度；运行故障清理测试先等待引擎就绪，再计运行超时。
 
-`check_godot.py` 和工具测试中的真实引擎调用默认使用一次性的 `user://` 身份，
+游戏检查器和工具测试中的真实引擎调用默认使用一次性的 `user://` 身份，
 不读取、备份或覆盖正常用户记录。检查临时修改当前工程的 `config/name`，
 关闭可能配置的自定义用户目录，并在 `finally` 中逐字节恢复 `project.godot`；
 同一工程的检查器通过文件锁拒绝并发。锁不能阻止直接启动的编辑器、游戏或导出工具，
 运行前先协调这些入口停用当前工程配置；检查期间不要修改 `project.godot`。
 工具故障 fixture 使用系统临时工程，不占用主工程配置。
 
-计时批次目录必须尚不存在，保存 `integrated-check.log`、`timings.json` 与
-`godot-timings.json`。耗时直接围绕既有阶段及引擎调用测量，不额外执行测试；
-失败也保留已完成阶段和当前未完成项。单独检查可用 `check_godot.py --timings <path>`。
+需要计时证据时使用 `uv run er check full --output temp/<batch>/check`，批次目录必须尚不存在。
+耗时直接围绕既有阶段及引擎调用测量，不额外执行测试；
+失败也保留已完成阶段和当前未完成项。
 原件、隔离配置与持有者信息先保存到 `game/.godot/check-recovery/`，再修改工程配置。
 `finally` 适用于正常失败和 Python 中断；强制终止宿主进程（如 `SIGKILL`）后，
-残留恢复材料会阻止后续检查，使用以下入口恢复：
-
-```sh
-uv run python tools/check_godot.py --restore-config
-```
+残留恢复材料会阻止后续检查，使用 `uv run er check restore-config` 恢复。
 
 恢复入口取得同一把锁，确认记录的持有者已退出，且当前配置仍等于保留的隔离配置或原件，
 才恢复并逐字节核对。检查期间若有人另改配置，自动恢复会拒绝覆盖并保留全部材料；
@@ -36,8 +30,7 @@ Godot从JSON读取的数字数组，按元素显式`int`后核对值和源顺序
 双击操作（一次调用携带 `clickCount: 2`），调用后再读取状态；地图双击窗口为350ms，
 不要在两次单击之间插入可访问性或业务状态轮询后，仍将其当作可靠双击。
 
-`bun run setup:hooks` 为当前 checkout 安装 pre-commit 快速检查及 pre-push 完整检查；
-已有自定义 hooks 或配置时保留并报出需要手动整合的位置，不写全局 Git 配置。
+需要仓库 hooks 时显式运行 `uv run er workspace hooks`；已有自定义 hooks 或配置时保留并人工整合。
 
 ## 界面证据
 
@@ -61,30 +54,26 @@ Godot从JSON读取的数字数组，按元素显式`int`后核对值和源顺序
 
 ## 平台交付
 
-1. `bun run build:web` / `bun run build:android` 导出带 buildId 的实际资源包。
-2. Web 使用 `bun run serve` 的原地址，再运行 `bun run verify:web`。
+1. 用 `uv run er build web` 或 `uv run er build android` 导出带 buildId 的实际资源包。
+2. Web 用 `uv run er serve` 保持用户原地址，再用 `uv run er verify web` 核对服务器实际 PCK。
    浏览器真实加载后读取 canvas 的 `data-emblem-build-id`，应等于 `build/web/build-info.json`；
    HTTP 验证只能证明服务器返回的 PCK，不能代替浏览器实际加载验证。
-3. Android 每批安装当前 APK，运行 `bun run verify:android` 核对已安装包；
+3. Android 每批安装当前 APK，再用 `uv run er verify android` 核对已安装包身份；
    内部只读响应的 `build` 字段还可核对当前进程。图标存在不能证明安装版本。
 4. 记录命令、结果、证据路径与未测项；本轮平台范围以当前实施票及其关联的验收页为准。
 
-Android 破坏性测试先 force-stop，再使用 `tools/qa_records.py` 的完整快照保护全部 JSON。
-`tools/playtest_first_battle.py` 已接入保护，默认32倍并按回合保存；真实节奏另用1倍验证。
-备份失败不继续，恢复失败不输出成功。保留的 `backup.json` 可恢复：
+Android 破坏性测试先 force-stop，再以完整快照保护全部 JSON。
+`uv run er qa first-battle` 已接入保护；真实节奏另用1倍验证。
+备份失败不继续，恢复失败不输出成功。保留的 backup.json 可用
+`uv run er qa restore-records <backup.json>` 重试；恢复前停止应用，逐字节核对后写恢复凭证。
+读取内部状态使用 `uv run er qa state read --ready`，不为规划下一步保存游戏。
 
-```sh
-uv run python tools/qa_records.py temp/playtest/<batch>/records/backup.json --serial <serial>
-```
-
-恢复命令先停止应用，逐字节核对恢复结果后写 `restored.json`；故障时保留备份供重试。
-读取内部状态走 `tools/android_playtest.py read --ready`，不为规划下一步保存游戏。
-
-章内差异场景可复用 `tools/chapter_android_qa.py --help` 的 Android 批次入口和
-`tools/chapter_qa_bridge.py --help` 的 Web 隔离桥。关卡提供 fixture 与差异 case，
-历史 `temp/` 场景和证据不会自动迁移。Web 的 `preserveStorage` 只有在
-`persistBackup` 将备份落盘、读回并确认 `verified` 后才能继续测试写入；
+章内差异场景复用 `uv run er qa android` 批次入口和 `uv run er qa web-bridge` 证据服务。
+关卡提供 fixture 与差异 case，历史 `temp/` 场景和证据不会自动迁移。
+Web 的 `preserveStorage` 只有在 persistBackup 将备份落盘、读回并确认 verified 后才能继续测试写入；
 真实输入、buildId 核对和完整恢复仍按本节执行。
+
+### Web 浏览器操作契约
 
 `createChapterWebHarness` 接收固定 `buildId`、证据服务的 `artifactOrigin` 和 `browser` 操作对象。
 执行环境将已有浏览器客户端映射到以下异步接口；输入接口使用真实浏览器输入，

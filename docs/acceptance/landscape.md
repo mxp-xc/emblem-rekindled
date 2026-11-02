@@ -18,14 +18,13 @@
 `test_rotation_navigation.gd` 覆盖取消鼠标事件不会推进标题、对白或地图选择。
 已有 `test_dialogue_layout.gd`、`test_desktop_layout.gd`、`test_world_focus.gd` 继续覆盖多比例、全图、菜单/资料布局及焦点恢复。
 
-```sh
-uv run python tools/check_godot.py --test test_rotation.gd --test test_rotation_confirmation.gd
-bun run check
-```
+定向检查使用 `uv run er check game --test test_rotation.gd --test test_rotation_confirmation.gd`，
+完整检查使用 `uv run er check full`。
 
 ## 平台复核
 
-实际包必须通过 `tools/delivery.py` 导出并核对 buildId；Web 还需核对用户原地址 canvas 的 `data-emblem-build-id`。
+实际包用 `uv run er build web` / `uv run er build android` 导出，
+再用 `uv run er verify web` / `uv run er verify android` 核对 buildId；Web 还需核对用户原地址 canvas 的 `data-emblem-build-id`。
 平台检查、具体构建身份、截图和真实操作结果保存在实施票关联的 `temp/landscape/` 批次，不用自动坐标检查代替视觉复核。
 测试写入前完整备份用户 JSON，结束逐字节恢复；Web 同样保护原地址 IndexedDB 记录。
 

@@ -9,10 +9,11 @@
 ### 开发与交付
 
 - 定位源码或生成资源前，阅读 `docs/agents/navigation.md`。
+- 使用 er、初始化 checkout、运行检查、导入资源或交付前，阅读 [er 使用手册](tools/emblem_dev/README.md)。
 - 修改界面、交互或进行平台验收前，阅读 `docs/agents/verification.md`。
 - 对用户记录进行测试写入前，使用已验证的完整备份；备份枚举/读取失败时停止。
   恢复先验证全部原文件，再清理新增文件；失败保留可恢复备份。
-- 交付通过 `tools/delivery.py` 导出并核对实际运行包的 buildId；Web 覆盖用户原地址，
+- 交付导出并核对实际运行包的 buildId；Web 覆盖用户原地址，
   Android 核对已安装包。检查通过与用户集中验收分开记录。
 
 ### Issue tracker

@@ -34,14 +34,14 @@
 仓库依据：
 
 - [工程组织基线](../design/project-organization.md) 第 3 节明确：`generated/` 是已转换、随仓库管理的可运行快照；普通运行与导出不应重新读取原 JAR。`authored/` 是人工内容和替换素材，生成器不得覆盖它。章内容按章隔离。
-- [`tools/import_chapter_1.py`](../../tools/import_chapter_1.py) 的 `main()` 只在更新来源时调用本地 JAR、Java renderer 与音频转换；随后复制新结果，并按 provenance 清理旧结果及其 `.import`。`finish_second_battle()` 将 m1 manifest 指向章内资源和共享音乐。m1 输出目录独立，人物外观和 UI 等仍逐关生成；m1 还将可携带武器范围扩至 1～52，覆盖队伍换装，所以不能把 m1 比 m0 多的素材全部判断为浪费。
-- [`tools/Chapter1MapAssets.java`](../../tools/Chapter1MapAssets.java) 的 `exportCycle()` 生成 64×64 地图帧，并在 `map_animations.json` 保存顺序、时长和源帧信息。两关各 32 个地图人物、96 条活动/已行动帧引用。
-- [`tools/Chapter1BattleAssets.java`](../../tools/Chapter1BattleAssets.java) 的 `rasterize()` 先画到临时画布，再裁掉透明边框，保存 `offsetX/Y`、宽高与空帧标记。当前动画偏移已有业务含义，不能把图集里的 x/y 替换进去。
-- [`tools/Chapter1BattleClips.java`](../../tools/Chapter1BattleClips.java) 的 `raster()` 同样裁剪、复用已有 texture ID，并把舞台位置保存为 x/y。图集迁移还要处理这套 ID 到纹理的映射，不能只改 appearance 帧。
+- 调研时的导入器只在更新来源时调用本地 JAR、Java renderer 与音频转换；随后复制新结果，并按 provenance 清理旧结果及其 `.import`。当时的 `finish_second_battle()` 将 m1 manifest 指向章内资源和共享音乐。以下是该时点的历史样本，不对应当前 CLI 模块：m1 输出目录独立，人物外观和 UI 等仍逐关生成；m1 还将可携带武器范围扩至 1～52，覆盖队伍换装，所以不能把 m1 比 m0 多的素材全部判断为浪费。
+- [`tools/resources/content/Chapter1MapAssets.java`](../../tools/resources/content/Chapter1MapAssets.java) 的 `exportCycle()` 生成 64×64 地图帧，并在 `map_animations.json` 保存顺序、时长和源帧信息。两关各 32 个地图人物、96 条活动/已行动帧引用。
+- [`tools/resources/content/Chapter1BattleAssets.java`](../../tools/resources/content/Chapter1BattleAssets.java) 的 `rasterize()` 先画到临时画布，再裁掉透明边框，保存 `offsetX/Y`、宽高与空帧标记。当前动画偏移已有业务含义，不能把图集里的 x/y 替换进去。
+- [`tools/resources/content/Chapter1BattleClips.java`](../../tools/resources/content/Chapter1BattleClips.java) 的 `raster()` 同样裁剪、复用已有 texture ID，并把舞台位置保存为 x/y。图集迁移还要处理这套 ID 到纹理的映射，不能只改 appearance 帧。
 - [`game/features/tactical_map/tactical_map.gd`](../../game/features/tactical_map/tactical_map.gd) 的 `setup()` 按 manifest 加载 `Texture2D`，`_draw()` 根据序列选帧；并不依赖 `AnimatedSprite2D`。
 - [`game/features/battle/battle_canvas.gd`](../../game/features/battle/battle_canvas.gd) 的 `_texture()` 延迟加载并缓存；`_draw_foreground()` 加上帧偏移，`_draw_clipped()` 按视口再裁剪。UI、剧情也有各自的纹理入口。
 - [`game/app/battle_clip_library.gd`](../../game/app/battle_clip_library.gd) 的 `_frames_valid()`、[`chapter_content.gd`](../../game/app/chapter_content.gd) 的动画校验目前要求 frame 的 `texture` 是存在的资源路径。直接改成路径加 region 需要同步更新校验和读取边界。
-- [`.gitignore`](../../.gitignore) 已忽略 `game/.godot/`；[`game/export_presets.cfg`](../../game/export_presets.cfg) 使用 `all_resources` 并明确包含 JSON，排除测试及 provenance；[`tools/delivery.py`](../../tools/delivery.py) 承担当前正式导出。玩家运行已有 APK/Web PCK，与 Git 中的散图数量是不同层面。
+- [`.gitignore`](../../.gitignore) 已忽略 `game/.godot/`；[`game/export_presets.cfg`](../../game/export_presets.cfg) 使用 `all_resources` 并明确包含 JSON，排除测试及 provenance；[`tools/emblem_dev/commands/build.py`](../../tools/emblem_dev/commands/build.py) 承担当前正式导出。玩家运行已有 APK/Web PCK，与 Git 中的散图数量是不同层面。
 
 ### 跨关重复与扩关增长
 

@@ -60,7 +60,7 @@
 - [世界物品整理闭环](https://github.com/mxp-xc/emblem-rekindled/issues/19#issuecomment-6541052401)：
   两端最终5600金币、4件唯一物品，命名档与冷启动恢复一致。
 
-快速回归使用 `tools/playtest_first_battle.py --speed 32`：通过只读实时接口规划，仍走真实ADB输入，每轮保存一次。一次实际运行98.43秒、33动作、6次回合存档完成通关，记录在`temp/playtest/d0c490e1/`；正常速度完整通关是另一个独立验证，不混为同次运行。
+快速回归使用 `uv run er qa first-battle`：通过只读实时接口规划，仍走真实ADB输入，每轮保存一次。一次实际运行98.43秒、33动作、6次回合存档完成通关，记录在`temp/playtest/d0c490e1/`；正常速度完整通关是另一个独立验证，不混为同次运行。
 
 本地运行产物位于忽略的 `temp/first-battle/`、`temp/gameplay-feedback/`、
 `temp/save-slots/`、`temp/world-inventory/`、`temp/feedback-v2/`、`temp/playtest/`、`temp/playtest-api/` 和 `temp/scroll-assistance/`，具体入口由对应实施票记录。

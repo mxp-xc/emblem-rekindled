@@ -37,10 +37,5 @@
 福尔斯路线第二战与世界往返见[索菲亚山脉第二战验收](docs/acceptance/second-battle.md)。
 后续初章关卡的开发自测证据见[逐关验收](docs/acceptance/chapter-content.md)。
 
-```sh
-bun install --frozen-lockfile
-uv sync --locked
-bun run format
-bun run check
-godot --path game --editor
-```
+开发工具的安装、已有 checkout 初始化、检查、资源导入、平台构建及 QA 用法统一见
+[er 使用手册](tools/emblem_dev/README.md)。
