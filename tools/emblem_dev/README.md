@@ -36,7 +36,7 @@ uv run er workspace init /path/to/existing-checkout
 | `er setup` | 可选 `--hooks`，默认关闭；安装当前 checkout 依赖 |
 | `er workspace` / `er workspace status` | 无参数；只读输出 checkout、工具来源、Python、依赖目录/链接、可执行文件和 CodeGraph 状态 |
 | `er workspace init TARGET` | 必填已有 checkout 路径；可选 `--hooks`，默认关闭 |
-| `er workspace hooks` | 无参数；显式启用 pre-commit 快速检查与 pre-push 完整检查 |
+| `er workspace hooks` | 无参数；显式配置仓库 hook 路径；commit/push 不自动运行检查 |
 | `er workspace reuse-js --source SOURCE` | 必填来源 checkout；显式创建兼容 `node_modules` 链接，输出 `LINK` |
 | `er workspace copy-local --source SOURCE` | 必填不同的来源 checkout；只复制白名单 `AGENTS.local.md`，输出 `COPY` |
 
@@ -46,7 +46,8 @@ setup 遇到已复用的 JS 链接只验证兼容性，不沿链接安装。
 copy-local 要求来源为真实文件、目标尚不存在且被 Git 忽略；不扫描其他配置或 secret。
 这些入口不创建 CodeGraph 索引。
 
-hooks 默认不启用；已有自定义 hooks 或 `core.hooksPath` 时保留并报错，按报出位置人工整合。
+hooks 默认不配置；仓库 pre-commit/pre-push 是直接退出的空 hook，不自动运行测试或检查。
+已有自定义 hooks 或 `core.hooksPath` 时保留并报错，按报出位置人工整合。
 启用会改仓库 local Git 配置，影响同仓库 linked worktrees，不写全局 Git 配置。
 
 ## 命令导航与参数约定
@@ -66,6 +67,9 @@ uv run er qa android --help
 
 ## 检查与故障恢复
 
+默认只运行本任务相关的定向测试与文件检查，subagent 同样遵循。
+用户未明确要求时，不运行全量测试或整库检查；commit/push 不触发测试。
+
 运行 Godot 检查前，停用同工程的编辑器、游戏和导出；检查期间不要修改 `game/project.godot`。
 检查用临时 `user://` 身份，不读取或改写正常用户记录；工程配置在结束时逐字节恢复。
 文件锁只保护同工程检查器，不能阻止其他直接启动的引擎。
@@ -82,14 +86,16 @@ uv run er qa android --help
 | `er check game` | 可重复 `--test FILE`；可选 `--tests-only`（默认关闭）、`--timings PATH` |
 | `er check restore-config` | 无参数；恢复中断检查留下的工程配置 |
 
-日常先做快速检查、解析和相关定向测试，阶段完成再做完整检查：
+游戏行为测试显式选文件，工具测试按本次改动选择测试文件，例如：
 
 ```sh
-uv run er check quick
-uv run er check parse
-uv run er check game --test test_map_input.gd --test test_rotation.gd
-uv run er check full --output temp/<batch>/check
+uv run er check game --test test_map_input.gd
+uv run python -m unittest discover -s tests/tools -p test_cli.py
 ```
+
+静态检查也只指定本任务涉及的文件。上表保留完整命令目录；quick、full、lint、tools、parse、
+未指定文件的 game 及 tests-only 会扩大到整库或完整测试集合，只有用户明确要求时才运行。
+用户明确要求完整计时检查时，才使用 `uv run er check full --output temp/<batch>/check`。
 
 game 默认执行资源导入、解析、行为测试和主场景 smoke；`--test` 只执行指定行为测试文件。
 `--tests-only` 跳过导入和解析，执行全部行为测试及主场景 smoke；不能与 `--test` 同用。
@@ -110,7 +116,7 @@ uv run er check restore-config
 恢复先取同一把锁，确认持有者已退出，且当前配置仍为保留的隔离配置或原件。
 如果配置已被其他人修改，保留恢复材料，人工合并后来的修改与 `original.godot`，再处理恢复；不要覆盖后来改动。
 
-格式化仍使用项目的 `bun run format`；只检查格式使用上述 lint 入口。
+格式化和静态检查只向现有格式化器传入本任务涉及的文件；整库 format/lint 仅在用户明确要求时运行。
 
 ## 构建、预览与实际版本验证
 

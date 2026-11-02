@@ -19,7 +19,7 @@
 已有 `test_dialogue_layout.gd`、`test_desktop_layout.gd`、`test_world_focus.gd` 继续覆盖多比例、全图、菜单/资料布局及焦点恢复。
 
 定向检查使用 `uv run er check game --test test_rotation.gd --test test_rotation_confirmation.gd`，
-完整检查使用 `uv run er check full`。
+仅用户明确要求完整检查时使用 `uv run er check full`。
 
 ## 平台复核
 

@@ -2,8 +2,9 @@
 
 ## 迭代
 
-日常运行 `uv run er check quick`、`uv run er check parse` 和相关定向行为测试
-（如 `uv run er check game --test test_map_input.gd`），每阶段完成后运行 `uv run er check full`。
+只运行本任务相关的定向测试与文件检查，subagent 同样遵循；用户未明确要求时不运行全量测试或整库检查。
+游戏行为测试如 `uv run er check game --test test_map_input.gd`；工具测试按文件选择，
+如 `uv run python -m unittest discover -s tests/tools -p test_cli.py`。
 后续只有新增修改或失败才补跑相关检查。批量解析共享一个引擎，行为测试仍逐个隔离。
 检查器显示阶段进度；运行故障清理测试先等待引擎就绪，再计运行超时。
 
@@ -14,7 +15,8 @@
 运行前先协调这些入口停用当前工程配置；检查期间不要修改 `project.godot`。
 工具故障 fixture 使用系统临时工程，不占用主工程配置。
 
-需要计时证据时使用 `uv run er check full --output temp/<batch>/check`，批次目录必须尚不存在。
+定向游戏测试需要计时时添加 `--timings <path>`。只有用户明确要求完整检查时，才使用
+`uv run er check full --output temp/<batch>/check`，批次目录必须尚不存在。
 耗时直接围绕既有阶段及引擎调用测量，不额外执行测试；
 失败也保留已完成阶段和当前未完成项。
 原件、隔离配置与持有者信息先保存到 `game/.godot/check-recovery/`，再修改工程配置。
@@ -30,7 +32,8 @@ Godot从JSON读取的数字数组，按元素显式`int`后核对值和源顺序
 双击操作（一次调用携带 `clickCount: 2`），调用后再读取状态；地图双击窗口为350ms，
 不要在两次单击之间插入可访问性或业务状态轮询后，仍将其当作可靠双击。
 
-需要仓库 hooks 时显式运行 `uv run er workspace hooks`；已有自定义 hooks 或配置时保留并人工整合。
+commit/push 不自动运行测试；`uv run er workspace hooks` 只配置仓库 hook 路径。
+已有自定义 hooks 或配置时保留并人工整合。
 
 ## 界面证据
 

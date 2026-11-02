@@ -128,4 +128,4 @@ def install_hooks(root: Path = ROOT) -> None:
     result = git("config", "--local", "core.hooksPath", ".githooks")
     if result.returncode:
         raise RuntimeError(result.stderr)
-    print("Repository hooks enabled: pre-commit quick checks; pre-push full checks")
+    print("Repository hook path configured; commit and push do not run checks automatically")

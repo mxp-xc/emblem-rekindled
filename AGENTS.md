@@ -11,6 +11,8 @@
 - 定位源码或生成资源前，阅读 `docs/agents/navigation.md`。
 - 使用 er、初始化 checkout、运行检查、导入资源或交付前，阅读 [er 使用手册](tools/emblem_dev/README.md)。
 - 修改界面、交互或进行平台验收前，阅读 `docs/agents/verification.md`。
+- 只运行本任务相关的定向测试与检查；用户未明确要求时，不运行全量测试或整库检查。
+  此规则同样适用于 subagent；commit/push 不自动运行测试。
 - 对用户记录进行测试写入前，使用已验证的完整备份；备份枚举/读取失败时停止。
   恢复先验证全部原文件，再清理新增文件；失败保留可恢复备份。
 - 交付导出并核对实际运行包的 buildId；Web 覆盖用户原地址，

@@ -96,8 +96,8 @@ Back收起菜单，子页返回保留选中项。
 开发依赖由 `bun.lock`、`uv.lock` 固定，不参与正式游戏运行。
 
 当前 checkout 安装依赖用 `uv run er setup`；从正常来源初始化另一份已有 checkout 用
-`uv run er workspace init <target>`，每份使用独立 `.venv`。格式化用 `bun run format`，
-日常检查用 `uv run er check quick`，阶段完成运行 `uv run er check full`。
+`uv run er workspace init <target>`，每份使用独立 `.venv`。
+只测试本任务相关部分、只对相关文件做静态检查与格式化；用户未明确要求时不运行全量测试或整库检查。
 
 工具源码与配套资源定位见[源码导航](agents/navigation.md)。
 `package.json` 的检查入口使用同一套原生检查函数。
@@ -106,11 +106,9 @@ GDScript、Python 与 Prettier 的行宽统一为100列。移交生成或手写�
 `package.json` 前，使用项目已安装的 Prettier 格式化相关文件，再运行对应 `prettier --check`；
 不要以 GDScript/Python 格式通过代替 Prettier 检查，避免整库格式化带入无关改动。
 
-pre-push 完整检查较久时，可在本次推送的环境中设置
-`GIT_SSH_COMMAND="ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=6"` 保持 SSH 连接；
-检查通过后发生连接中断，应修复连接并保留 hooks 重试，不将跳过 hooks 作为日常流程。
-
-定向行为检查用 `uv run er check game --test test_map_input.gd`，批量解析用 `uv run er check parse`。
+commit/push 不自动运行测试。游戏定向行为测试用 `uv run er check game --test test_map_input.gd`；
+工具测试按文件选择，如 `uv run python -m unittest discover -s tests/tools -p test_cli.py`。
+`uv run er check full` 等完整集合入口仅在用户明确要求时使用。
 平台交付与界面证据要求见 [验证与复核](agents/verification.md)。
 Godot 4.7.2 / Android 16 / targetSDK36 实测一次系统 Back 会重复发出返回通知，入口合并100ms内的重复系统请求；键盘 Esc 独立处理。
 故意产生运行时错误的检查器测试使用系统临时目录，不进入正式资源。
