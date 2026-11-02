@@ -83,7 +83,7 @@ Back收起菜单，子页返回保留选中项。
 确认改动物品后先写当前“继续”记录，再更新界面状态，失败保持原物品和资金；四个命名档仍只由明确记录操作写入。
 物品说明复用现有底栏，长仓库列表使用可触控滚动及键盘焦点跟随。
 当前已登记关卡以[章入口](../game/content/chapter_1/chapter.json)的 `battles` 为准，
-最新接入南部平原m3配置；本关运行时与平台验收状态见[#37](https://github.com/mxp-xc/emblem-rekindled/issues/37)。
+最新接入黑暗森林m4配置；本关运行时与平台验收状态见[#38](https://github.com/mxp-xc/emblem-rekindled/issues/38)。
 未接入节点显示制作中并保留进度，后续关卡与标题外围入口逐阶段推进。
 
 ## lint、格式化与测试
@@ -161,7 +161,7 @@ Android请求发布与匹配响应等待在一次ADB调用中完成；未就绪�
 
 ```sh
 rtk uv run python tools/import_chapter_1.py --plan
-rtk uv run python tools/import_chapter_1.py --emulator /path/to/freej2me_plus.jar --battle m3 --report temp/m3-import.json
+rtk uv run python tools/import_chapter_1.py --emulator /path/to/freej2me_plus.jar --battle m4 --report temp/m4-import.json
 rtk godot --headless --path game --import
 ```
 

@@ -1,3 +1,5 @@
+# gdlint: disable=max-file-lines
+# Fixed clone queue shares battle focus/entrance timing; world UI extraction is unrelated.
 extends Control
 
 signal choice_selected(value: int)
@@ -6,6 +8,7 @@ signal world_entrance_completed
 signal world_focus_completed
 signal world_action_requested(kind: String)
 signal world_node_requested(node_id: int)
+signal clone_queue_completed
 
 const MessagePanel = preload("res://ui/message_panel.gd")
 const CommanderScreen = preload("res://features/menus/commander_screen.gd")
@@ -60,6 +63,7 @@ var _safe_area: Rect2
 var _world_touches: Dictionary = {}
 var _travel_confirmation: bool = false
 var _world_travel_position := Vector2(-1, -1)
+var _clone_queue_updates_remaining: int = 0
 
 
 func setup(content: Dictionary, tactical_map: Control) -> void:
@@ -188,6 +192,42 @@ func choose_commander(configuration: Dictionary) -> Dictionary:
 	if not was_visible:
 		hide()
 	return {"ok": true, "commander": selected_commander, "policy": selected_policy}
+
+
+# Births are committed domain results, not authored animation instructions.
+func play_clone_arrivals(births: Array) -> void:
+	if births.is_empty():
+		return
+	current_text_index = -1
+	show()
+	dialogue.hide()
+	choices.hide()
+	_route_panel.hide()
+	_confirm.hide()
+	for birth: Dictionary in births:
+		var id: int = int(birth["unit"])
+		var origin: Vector2i = birth["from"]
+		var destination: Vector2i = birth["to"]
+		await _focus_battle(origin)
+		# Original kind32 sets az=2 at focus arrival, then dequeues at az=15.
+		# Its movement proceeds independently for two source updates per cell.
+		_elapsed = 0
+		_clone_queue_updates_remaining = 13
+		if birth["revealed"]:
+			if origin == destination:
+				await _step({"kind": "revealUnits", "unitIds": [id]})
+			else:
+				await _entrance(
+					{
+						"unitId": id,
+						"from": [origin.x, origin.y],
+						"to": [destination.x, destination.y]
+					}
+				)
+		if _clone_queue_updates_remaining > 0:
+			await clone_queue_completed
+	current_text_index = -1
+	hide()
 
 
 func _step(step: Dictionary) -> void:
@@ -506,6 +546,7 @@ func _process(delta: float) -> void:
 			not dialogue.visible
 			and not world_active
 			and not (world_update >= 0 and world_update < _world_wait_updates)
+			and _clone_queue_updates_remaining == 0
 		)
 	):
 		_elapsed = 0
@@ -517,6 +558,10 @@ func _process(delta: float) -> void:
 
 
 func tick() -> void:
+	if _clone_queue_updates_remaining > 0:
+		_clone_queue_updates_remaining -= 1
+		if _clone_queue_updates_remaining == 0:
+			clone_queue_completed.emit()
 	if (
 		world_active
 		and (world_ready or _world_travel_position.x >= 0)

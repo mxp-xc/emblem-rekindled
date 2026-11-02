@@ -35,9 +35,12 @@ static func bind(
 	recipes: Dictionary,
 	party: Array,
 	identity_bindings: Dictionary = {},
-	class_bindings: Dictionary = {}
+	class_bindings: Dictionary = {},
+	replaced_indices: Array = []
 ) -> Dictionary:
-	var resolved: Dictionary = _resolve(records, party, identity_bindings, class_bindings)
+	var resolved: Dictionary = _resolve(
+		records, party, identity_bindings, class_bindings, replaced_indices
+	)
 	if not resolved["ok"]:
 		return resolved
 	var units: Array[Dictionary] = []
@@ -83,7 +86,9 @@ static func bind(
 
 
 # Saved coordinates can be anywhere inside the map, not only the initial region.
-static func infer_bindings(records: Array, party: Array, saved_units: Array) -> Dictionary:
+static func infer_bindings(
+	records: Array, party: Array, saved_units: Array, replaced_indices: Array = []
+) -> Dictionary:
 	var resolved: Dictionary = _resolve(records, party)
 	if not resolved["ok"]:
 		return resolved
@@ -101,7 +106,10 @@ static func infer_bindings(records: Array, party: Array, saved_units: Array) -> 
 			return _failure("DUPLICATE_DEPLOYMENT_IDENTITY", -1)
 		var candidates: Array[int] = []
 		for descriptor: Dictionary in resolved["records"]:
-			if _matches_saved(descriptor, saved):
+			if (
+				descriptor["deploymentIndex"] not in replaced_indices
+				and _matches_saved(descriptor, saved)
+			):
 				candidates.append(int(descriptor["deploymentIndex"]))
 		if candidates.size() != 1:
 			return _failure("INVALID_SAVED_DEPLOYMENT", -1)
@@ -114,7 +122,7 @@ static func infer_bindings(records: Array, party: Array, saved_units: Array) -> 
 		identities[identity] = true
 		if saved["formal"]:
 			classes[index] = int(saved["classId"])
-	var verified: Dictionary = _resolve(records, party, bindings, classes)
+	var verified: Dictionary = _resolve(records, party, bindings, classes, replaced_indices)
 	if not verified["ok"]:
 		return verified
 	return {"ok": true, "bindings": bindings, "classes": classes}
@@ -124,7 +132,8 @@ static func _resolve(
 	records: Array,
 	party: Array,
 	identity_bindings: Dictionary = {},
-	class_bindings: Dictionary = {}
+	class_bindings: Dictionary = {},
+	replaced_indices: Array = []
 ) -> Dictionary:
 	if records.is_empty() or not _party_valid(party):
 		return _failure("INVALID_DEPLOYMENT_PARTY", -1)
@@ -153,7 +162,7 @@ static func _resolve(
 			if not _integer_in(supplied, -1, MAX_ID):
 				return _failure("INVALID_DEPLOYMENT_BINDINGS", index)
 			if int(supplied) == -1:
-				if not record.has("deploymentRegions"):
+				if not record.has("deploymentRegions") and index not in replaced_indices:
 					return _failure("MISSING_FIXED_DEPLOYMENT", index)
 				identity = -1
 			elif int(supplied) != identity:

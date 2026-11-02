@@ -207,6 +207,18 @@ Android协议/保存/冷读样本12.033秒；Web同类实际输入与保存冷�
 8765原服务保留，原用户视口1336×747、音乐与设置未改。当前m0/m1/m2所需实际平台链已收齐，
 后续关卡与用户集中验收单独推进。
 
+### m2阶段耗时与检查汇总
+
+通过的Android分项为light17.161秒、世界进入/援军/冷恢复21.018秒、普通战斗/冷恢复15.664秒，
+回合限制7.507秒、地图50/46/51各17.494/24.610/17.023秒（包括各自重新启动、UI调速与冷恢复）。
+Web对应light16.129秒、世界链21.597秒、非致死普通战斗/冷恢复18.383秒、回合限制8.100秒。
+错误镜头假设造成的50.372秒等待另列为失败驱动开销，不混入通过样本，也不与不同旧流程作严格同比。
+
+根协调记录的集成检查为61项工具、170份脚本解析、112项行为及Main smoke，证据在
+`temp/qa-chapter-content/integrated-check-result.json`：后段测试适配后分段完成，原失败日志保留，
+不能表述为单次`bun run check`全绿。维护时跨内容重建后重取当前Control；图像来源按chapter→battle recipe→catalog profile追踪；
+针对某人物的操作使用显式ID，只有排序测试按数组位置断言。
+
 ## m3南部平原实际验收（2026-11-02）
 
 [实施票#37](https://github.com/mxp-xc/emblem-rekindled/issues/37)对应固定Web
@@ -262,15 +274,46 @@ Web入口12.854秒、事件及冷恢复16.177秒、怪物及冷恢复20.529秒�
 受控选择尾段含命名cold21.499秒；失败尝试单列，不能混入通过样本。
 这些是不同业务边界的绝对样本，不与自然整关或不同地图作严格速度同比；用户集中验收单独记录。
 
-通过的Android分项为light17.161秒、世界进入/援军/冷恢复21.018秒、普通战斗/冷恢复15.664秒，
-回合限制7.507秒、地图50/46/51各17.494/24.610/17.023秒（包括各自重新启动、UI调速与冷恢复）。
-Web对应light16.129秒、世界链21.597秒、非致死普通战斗/冷恢复18.383秒、回合限制8.100秒。
-错误镜头假设造成的50.372秒等待另列为失败驱动开销，不混入通过样本，也不与不同旧流程作严格同比。
+## m4实际验收通过
 
-根协调记录的集成检查为61项工具、170份脚本解析、112项行为及Main smoke，证据在
-`temp/qa-chapter-content/integrated-check-result.json`：后段测试适配后分段完成，原失败日志保留，
-不能表述为单次`bun run check`全绿。维护时跨内容重建后重取当前Control；图像来源按chapter→battle recipe→catalog profile追踪；
-针对某人物的操作使用显式ID，只有排序测试按数组位置断言。
+[黑暗森林#38](https://github.com/mxp-xc/emblem-rekindled/issues/38)本轮最小两端矩阵已通过。
+实际包为Web `20261102-124746-8343333d`、Android `20261102-124756-078183e1`，
+均核对实际canvas/进程内部buildId，Android另核对已安装APK，Web另核对原8765的PCK。
+汇总及全部入口为`temp/qa-chapter-content/m4-platform-summary.json`，可用
+`uv run python temp/code/python/m4_platform_summarize.py`离线复核业务状态与恢复凭证。
+
+| 平台 | 实际输入与结果 | 可复核证据（相对temp/qa-chapter-content） |
+| --- | --- | --- |
+| 两端 | 实际m3 route0/step4世界档，取消不改继续档字节，再前往m4；开场/指挥官8、36部署。 | 各平台m4批次的`m4-actual-world-entry.png/json`。 |
+| 两端 | 真实结束回合使105从class36/gen1/source109换为class28/gen4/source112，地图/石人信息页一致；旧opaque物品仍在warehouse，菜单保存后cold1→UI32恢复完整snapshot/物品/波次，不重播。 | Android `battle_wave3-current105-information.png`、`battle_reuse4-current105-information.png`和`battle_reuse4-once-cold-equal.json`；Web `m4-reuse-current-class28-information.png`和cold-equal。 |
+| Android | 七个旧槽从隐活状态实际入场，新8原本可见；1倍首波逐人显现；8对新105石人真实独立战斗，HP60→41、45耐久18→17、行动2。 | `battle_round2-dialogue-01.png`、before/after完整状态；`battle_wave3-actual-1x.mp4`（6.524秒），已看1.8/2.6/4.2/5.0秒帧；`m4-recycled-class28-independent.png`。 |
+| Android | 合法round10边界只发一次结束回合，进入11即时生存胜利，route0/step5、9000→10000金；命名世界档冷读不重复奖励。 | `battle_round10-after.png/json`、`m4-named-world-slot.json`、`m4-named-world-cold-no-repeat-reward.png/json`。 |
+| Web | 敌80实际AI使用原风50，地图浅青风圈清晰，无独立战斗/普通首战死亡标记，整次扣耐久1并冷恢复；普通8原45攻击持50的80，实际class13防守，526→527旧格body仍在→退场→528雅木/旧格已空，清场仍未提前胜，冷读保留。 | `m4-boss50-tactical-effect-candidate.png`及cost/cold；`attempt-2/m4-boss50-class13-independent-defense.png`、`m4-boss-ordinary-dialogue-2.png`、`-3.png`和retired/cold。 |
+
+前置复用实际UI保存/冷读的m3世界档；之后的quiet HP/显隐、站位、波次和旧物品转仓库均明确受控，
+不称自然完整10轮通关或自然G掉落。1倍视频是模板原格的零距离逐人显现，没有邻格移动，
+不把它当邻格移动证据；四邻阻塞、池满、当前模板继承、全波次、六上下文和失败优先由headless矩阵覆盖。
+本轮复用既有横屏公共证据，没有重复旋转矩阵。缩放只从设置调整，滚轮只平移。
+
+有效fixtures为`m4-fixtures-20261102-integrated-v2`，生成器直接复用运行时helper与实际phase命令，
+Session/Store JSON往返、零初始化RNG、boss AI/普通死亡oracle实际exit0，22.455秒。
+首次v1的quiet helper让所有我方可见，导致round2 arrivals为空；旧批次保留而不用作进场证明。
+v2只在round2按content.slots恢复七槽隐活，再断言7个唯一arrivals、from/to、存活显现及once标记。
+Web早期REPL工厂少了phase计时方法，发生在fixture写入前；仅补计时，没有重复已过链。
+计时输出对象曾被空timings覆盖，实际内存计时另存`actual-case-timings.json`，原结果保留。
+
+Android六分项为11.363/15.426/18.768/18.571/19.134/20.075秒，共103.337秒；
+Web入口/换代/风/普通boss为12.204/16.253/21.042/22.413秒，共71.912秒。
+这些包含各case的冷启、UI调速、输入、截图和对应存读，未单独计启动模拟器、安装、完整保护和离线看图。
+正常每次启动1倍，bulk用UI32，克隆演出1倍、独立战斗/风取UI4；没有同场景旧m4基线，不宣称加速比。
+
+Android原2个JSON及方向逐字节恢复，`records/restored.json`与result确认，模拟器已关闭。
+Web两次fresh完整备份各35项，均先恢复验证全部原项的type/offset/length/字节/Date/mode再清新增；
+第二批正常启动新canvas后再次只读核对35项不变，见`attempt-2/normal-startup-proof.json`。
+两批console均为空。原音乐/设置保留，未改视口；8766已关闭，8765保留最新包，原游戏标签正常打开。
+本轮平台剩余项为无；集中用户体验验收仍与检查通过分开记录。
+
+
 
 ## 阶段门槛
 

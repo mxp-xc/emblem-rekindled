@@ -2,6 +2,7 @@ extends RefCounted
 
 const Content = preload("res://app/chapter_content.gd")
 const Deployment = preload("res://app/chapter_deployment.gd")
+const Clones = preload("res://gameplay/battle_clones.gd")
 const Battle = preload("res://gameplay/battle_state.gd")
 
 
@@ -25,7 +26,9 @@ func open(
 		if not result["ok"]:
 			return result
 	else:
-		var projected: Dictionary = Content.new().reproject(content, battle.snapshot()["units"])
+		var projected: Dictionary = Content.new().reproject(
+			content, battle.snapshot()["units"], battle.snapshot().get("cloneState", {})
+		)
 		if not projected["ok"]:
 			return projected
 		content = projected
@@ -73,15 +76,21 @@ func _resolve(chapter_path: String, battle_id: String, source: Dictionary) -> Di
 	):
 		return _failure("INVALID_BATTLE_DEFINITION")
 	var records: Variant = _json(definition["deployments"])
-	if not records is Array:
+	var story: Variant = _json(definition.get("story", ""))
+	if not records is Array or not story is Dictionary:
 		return _failure("INVALID_DEPLOYMENTS")
+	var clones: Dictionary = Clones.definition(story.get("periodicClones"), records)
+	if not clones["ok"]:
+		return clones
 	var context: Dictionary
 	if source.has("new"):
 		if not source["new"] is bool or not source["new"] or battle_id != chapter["firstBattle"]:
 			return _failure("INVALID_NEW_GAME_ENTRY")
 		context = {"ok": true, "party": [], "worldStep": 0, "route": -1}
 	elif source.has("snapshot"):
-		context = _snapshot_context(chapter, library, battle_id, records, source["snapshot"])
+		context = _snapshot_context(
+			chapter, library, battle_id, records, source["snapshot"], story.get("periodicClones")
+		)
 	else:
 		var completed: bool = source.has("completed")
 		context = _world_context(
@@ -208,7 +217,12 @@ func _world_context(
 
 
 func _snapshot_context(
-	chapter: Dictionary, library: Dictionary, battle_id: String, records: Array, value: Variant
+	chapter: Dictionary,
+	library: Dictionary,
+	battle_id: String,
+	records: Array,
+	value: Variant,
+	clone_policy: Variant
 ) -> Dictionary:
 	if not value is Dictionary or not value.get("units") is Array:
 		return _failure("INVALID_SAVE_STATE")
@@ -241,7 +255,12 @@ func _snapshot_context(
 		if not inherited["ok"]:
 			return inherited
 		party = inherited["party"]
-	var inferred: Dictionary = Deployment.infer_bindings(records, party, value["units"])
+	var clones: Dictionary = Clones.saved_bindings(clone_policy, records, value)
+	if not clones["ok"]:
+		return clones
+	var inferred: Dictionary = Deployment.infer_bindings(
+		records, party, clones["staticUnits"], clones["replacedIndices"]
+	)
 	if not inferred["ok"]:
 		return inferred
 	return {
@@ -251,7 +270,8 @@ func _snapshot_context(
 		"route": route_index,
 		"bindings": inferred["bindings"],
 		"classes": inferred["classes"],
-		"units": value["units"].duplicate(true)
+		"units": value["units"].duplicate(true),
+		"cloneState": value.get("cloneState", {}).duplicate(true)
 	}
 
 

@@ -40,13 +40,39 @@ static func project(
 		definition["profiles"],
 		context.get("party", []),
 		context.get("bindings", {}),
-		context.get("classes", {})
+		context.get("classes", {}),
+		context.get("replacedIndices", [])
 	)
 	if not bound["ok"]:
 		return bound
 	var unit_order: Dictionary = _unit_order(bound["units"], context)
 	if not unit_order["ok"]:
 		return unit_order
+	# Bind each current generation through its declared root recipe, even when
+	# that root's original actor has already been recycled.
+	var births: Array = context.get("cloneBindings", []).duplicate(true)
+	births.sort_custom(
+		func(a: Dictionary, b: Dictionary) -> bool: return a["generation"] < b["generation"]
+	)
+	for binding: Dictionary in births:
+		var root: int = int(binding["templateDeploymentIndex"])
+		var family: Dictionary = Deployment.bind(
+			[records[root]], library["profiles"], definition["profiles"], []
+		)
+		if not family["ok"]:
+			return family
+		var unit: Dictionary = family["units"][0]
+		var source_id: int = int(unit["id"])
+		var identity: int = int(binding["unitId"])
+		unit["id"] = identity
+		# A blueprint supplies static presentation; UnitRecord restores the saved
+		# mutable fields. Hidden blueprints do not reserve an initial map cell.
+		unit["visible"] = false
+		for key: String in ["deploymentIndex", "deploymentSlot", "temporary"]:
+			unit.erase(key)
+		bound["units"].append(unit)
+		bound["profiles"][identity] = family["profiles"][source_id]
+		unit_order["ids"].append(identity)
 	var stage: Dictionary = library["stages"][stage_id].duplicate(true)
 	stage["appearances"] = {}
 	var art: Dictionary = library["scenes"][scene_id].duplicate(true)

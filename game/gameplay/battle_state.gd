@@ -1,5 +1,6 @@
-# gdlint: disable=max-public-methods
+# gdlint: disable=max-public-methods,max-file-lines
 # Named commands and queries share the single authoritative battle state.
+# Clone rules live in BattleClones; this file keeps their state/commit boundary together.
 extends RefCounted
 
 const MAX_GOLD: int = 9999999
@@ -15,6 +16,7 @@ const MapRules = preload("res://gameplay/map_rules.gd")
 const Inventory = preload("res://gameplay/unit_inventory.gd")
 const Combat = preload("res://gameplay/combat_rules.gd")
 const MapAttack = preload("res://gameplay/map_attack.gd")
+const Clones = preload("res://gameplay/battle_clones.gd")
 const STAT_ORDER: Array[String] = [
 	"strength", "skill", "speed", "defense", "magic", "luck", "maxHp", "move"
 ]
@@ -58,6 +60,11 @@ var _required_ids: Array[int] = []
 var _deployment_bindings: Dictionary = {}
 var _deployment_order: Array[int] = []
 var _map_attack: RefCounted
+var _clones: RefCounted
+var _clone_policy: Variant
+var _clone_records: Array
+var _clone_state: Dictionary = {}
+var _record_content: Dictionary
 
 
 func _init(
@@ -87,6 +94,16 @@ func _init(
 	)
 	_chapter_events = Events.new(content)
 	_ai = AI.new(content)
+	_clone_policy = content["story"].get("periodicClones")
+	_clone_records = content.get("_deployments", [])
+	_clones = Clones.new(content, _combat, _inventory)
+	if _clone_policy != null:
+		_clone_state = (
+			content
+			. get("_context", {})
+			. get("cloneState", {"nextGeneration": 1, "bindings": []})
+			. duplicate(true)
+		)
 	_rng.randomize()
 	_stat_caps = content["rules"]["statCaps"].duplicate(true)
 	for row: Dictionary in content["rules"]["growthRates"]:
@@ -102,10 +119,8 @@ func _init(
 		_required_ids = initial["requiredIds"]
 		_deployment_bindings = initial["bindings"]
 	_adopt_unit_order(content)
-	var records_content: Dictionary = content.duplicate()
-	records_content["units"] = _definitions.values()
-	_unit_records = UnitRecord.new(records_content, _combat)
-	_campaign_rules = Campaign.new(records_content, _unit_records, MAX_GOLD)
+	_record_content = content.duplicate()
+	_refresh_unit_records()
 
 
 func deployment_bindings() -> Dictionary:
@@ -135,10 +150,17 @@ func adopt_content(content: Dictionary) -> void:
 	_routes.clear()
 	for route: Dictionary in content["story"]["routeChoices"]:
 		_routes[int(route["routeIndex"])] = route
-	_unit_records = UnitRecord.new(content, _combat)
-	_campaign_rules = Campaign.new(content, _unit_records, MAX_GOLD)
+	_record_content = content.duplicate()
+	_refresh_unit_records()
 	_chapter_events = Events.new(content)
 	_ai = AI.new(content)
+	_clones = Clones.new(content, _combat, _inventory)
+
+
+func _refresh_unit_records() -> void:
+	_record_content["units"] = _definitions.values()
+	_unit_records = UnitRecord.new(_record_content, _combat)
+	_campaign_rules = Campaign.new(_record_content, _unit_records, MAX_GOLD)
 
 
 # Content supplies native as order independently from initialization's raw p order.
@@ -186,6 +208,8 @@ func snapshot() -> Dictionary:
 	}
 	if not _campaign.is_empty():
 		state["campaign"] = _campaign.duplicate(true)
+	if _clone_policy != null:
+		state["cloneState"] = _clone_state.duplicate(true)
 	return state
 
 
@@ -223,6 +247,11 @@ func complete_event(event_id: String) -> void:
 func restore_snapshot(state: Dictionary) -> Dictionary:
 	if not _campaign_rules.valid_context(state.get("campaign", {})):
 		return _failure("INVALID_SAVE_CAMPAIGN")
+	var clones: Dictionary = {}
+	if _clone_policy != null or state.has("cloneState"):
+		clones = Clones.saved_bindings(_clone_policy, _clone_records, state)
+		if not clones["ok"]:
+			return clones
 	if not state.get("events") is Dictionary:
 		return _failure("INVALID_SAVE_EVENTS")
 	for event_id: Variant in state["events"]:
@@ -299,6 +328,8 @@ func restore_snapshot(state: Dictionary) -> Dictionary:
 	_assignments.clear()
 	_units = candidate
 	_reorder_units()
+	if _clone_policy != null:
+		_clone_state = {"nextGeneration": clones["nextGeneration"], "bindings": clones["bindings"]}
 	_campaign = state.get("campaign", {}).duplicate(true)
 	for field: String in ["route", "worldStep"]:
 		if _campaign.has(field):
@@ -911,6 +942,11 @@ func end_phase() -> Dictionary:
 						"arrivals": arrivals
 					}
 				)
+			var cloned: Dictionary = _commit_clone_wave()
+			if not cloned["ok"]:
+				return cloned
+			if not cloned["event"].is_empty():
+				events.append(cloned["event"])
 			round_number += 1
 		phase = (phase + 1) % 3
 		for actor: Dictionary in _units.values():
@@ -926,7 +962,40 @@ func end_phase() -> Dictionary:
 			_automatic_queue = _ai.order(_units.values(), phase)
 		if phase == 0 or not _automatic_queue.is_empty():
 			break
+	_check_outcome()
 	return {"ok": true, "kind": "phase", "phase": phase, "round": round_number, "events": events}
+
+
+func _commit_clone_wave() -> Dictionary:
+	if _clone_policy == null:
+		return {"ok": true, "event": {}}
+	var planned: Dictionary = _clones.plan_wave(
+		round_number, _units, _warehouse, _clone_state, _events
+	)
+	if not planned["ok"]:
+		return planned
+	if planned["eventId"].is_empty():
+		return {"ok": true, "event": {}}
+	var units: Dictionary = planned["units"]
+	var arrivals: Array = _chapter_events.reinforce(units.values(), planned["birthIds"])
+	var births: Array[Dictionary] = []
+	for identity: int in planned["birthIds"]:
+		var actor: Dictionary = units[identity]
+		births.append(
+			{
+				"unit": identity,
+				"from": planned["origins"][identity],
+				"to": Vector2i(actor["x"], actor["y"]),
+				"revealed": actor["visible"]
+			}
+		)
+		_definitions[identity] = actor.duplicate(true)
+	_units = units
+	_deployment_order.assign(_units.keys())
+	_clone_state = planned["cloneState"]
+	_refresh_unit_records()
+	complete_event(planned["eventId"])
+	return {"ok": true, "event": {"kind": "clones", "births": births, "arrivals": arrivals}}
 
 
 func automatic_actor() -> int:

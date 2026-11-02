@@ -1,11 +1,19 @@
 extends RefCounted
 
 const MapView = preload("res://features/tactical_map/map_view.gd")
+const Clones = preload("res://gameplay/battle_clones.gd")
 
 
 static func validate(
-	story: Dictionary, directory: String, ids: Dictionary, width: int, height: int
+	story: Dictionary,
+	directory: String,
+	ids: Dictionary,
+	width: int,
+	height: int,
+	records: Array = []
 ) -> bool:
+	if not Clones.definition(story.get("periodicClones"), records)["ok"]:
+		return false
 	if not story.get("tutorials") is Array:
 		return false
 	var tutorials: Dictionary = {}

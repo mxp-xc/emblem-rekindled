@@ -4,6 +4,7 @@ const BattleClips = preload("res://app/battle_clip_library.gd")
 const MapView = preload("res://features/tactical_map/map_view.gd")
 const ContentProjection = preload("res://app/chapter_projection.gd")
 const Deployment = preload("res://app/chapter_deployment.gd")
+const Clones = preload("res://gameplay/battle_clones.gd")
 const StoryContract = preload("res://app/chapter_story_contract.gd")
 const MapAttacks = preload("res://gameplay/map_attack_rules.gd")
 const TextureOverrides = preload("res://app/chapter_texture_overrides.gd")
@@ -71,16 +72,10 @@ func resolve_loaded(content: Dictionary, context: Dictionary) -> Dictionary:
 	)
 
 
-func reproject(content: Dictionary, units: Array) -> Dictionary:
+func reproject(content: Dictionary, units: Array, clone_state: Dictionary = {}) -> Dictionary:
 	var context: Dictionary = content.get("_context", {}).duplicate(true)
-	var bound: Dictionary = Deployment.infer_bindings(
-		content.get("_deployments", []), context.get("party", []), units
-	)
-	if not bound["ok"]:
-		return bound
-	context["bindings"] = bound["bindings"]
-	context["classes"] = bound["classes"]
 	context["units"] = units
+	context["cloneState"] = clone_state
 	return resolve_loaded(content, context)
 
 
@@ -101,6 +96,27 @@ func _resolve(
 		or not context.get("units", []) is Array
 	):
 		return _failure("关卡来源上下文无效")
+	var clones: Dictionary = Clones.definition(fragment.get("periodicClones"), records)
+	if not clones["ok"]:
+		return clones
+	context = context.duplicate(true)
+	context.erase("cloneBindings")
+	context.erase("replacedIndices")
+	if context.has("units"):
+		var current: Dictionary = Clones.current_bindings(
+			fragment.get("periodicClones"), records, context["units"], context.get("cloneState", {})
+		)
+		if not current["ok"]:
+			return current
+		var bound: Dictionary = Deployment.infer_bindings(
+			records, context.get("party", []), current["staticUnits"], current["replacedIndices"]
+		)
+		if not bound["ok"]:
+			return bound
+		context["bindings"] = bound["bindings"]
+		context["classes"] = bound["classes"]
+		context["cloneBindings"] = current["bindings"]
+		context["replacedIndices"] = current["replacedIndices"]
 	entry["resourceDirectory"] = "res://"
 	var projected: Dictionary = ContentProjection.project(entry, entry, library, records, context)
 	if not projected["ok"]:
@@ -131,6 +147,7 @@ func _resolve(
 			if step.get("kind") == "enterBattle" and not entry["battles"].has(step.get("battleId")):
 				return _failure("剧情引用未接入关卡: " + str(step.get("battleId")))
 	projected["story"] = resolved_story["story"]
+	projected["_deployments"] = records
 	projected["entry"] = entry
 	projected["map"] = _read_json(entry["map"])
 	projected["rules"] = _read_json(entry["rules"])
@@ -325,7 +342,9 @@ func _validate(content: Dictionary) -> Dictionary:
 			ids[id] = {}
 	if (
 		story.get("battleId") != entry["battleId"]
-		or not _story_valid(story, entry["resourceDirectory"], ids, width, height)
+		or not _story_valid(
+			story, entry["resourceDirectory"], ids, width, height, content["_deployments"]
+		)
 	):
 		return _failure("剧情序列或资源引用无效")
 	if rules["nodeShopStockIndices"].size() < story["world"]["nodes"].size():
@@ -845,6 +864,6 @@ func _failure(message: String) -> Dictionary:
 
 
 func _story_valid(
-	story: Dictionary, directory: String, ids: Dictionary, width: int, height: int
+	story: Dictionary, directory: String, ids: Dictionary, width: int, height: int, records: Array
 ) -> bool:
-	return StoryContract.validate(story, directory, ids, width, height)
+	return StoryContract.validate(story, directory, ids, width, height, records)

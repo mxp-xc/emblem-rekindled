@@ -79,13 +79,13 @@ func run() -> void:
 		var broken_timing: Dictionary = result["story"].duplicate(true)
 		broken_timing["sequences"]["opening"][0][key] = "invalid"
 		if loader_script.new()._story_valid(
-			broken_timing, result["entry"]["resourceDirectory"], ids, 20, 25
+			broken_timing, result["entry"]["resourceDirectory"], ids, 20, 25, result["_deployments"]
 		):
 			push_error("Story clock metadata must reject invalid values before playback: " + key)
 			quit(1)
 			return
 	if loader_script.new()._story_valid(
-		missing_speaker, result["entry"]["resourceDirectory"], ids, 20, 25
+		missing_speaker, result["entry"]["resourceDirectory"], ids, 20, 25, result["_deployments"]
 	):
 		push_error("Commander speaker references must be validated before the story starts")
 		quit(1)
@@ -148,7 +148,12 @@ func run() -> void:
 			"invalid_route_node":
 				broken_portrait["routeChoices"][0]["nodeId"] = 100
 		if loader_script.new()._story_valid(
-			broken_portrait, result["entry"]["resourceDirectory"], ids, 20, 25
+			broken_portrait,
+			result["entry"]["resourceDirectory"],
+			ids,
+			20,
+			25,
+			result["_deployments"]
 		):
 			push_error("Story/title asset references must fail at content entry: " + defect)
 			quit(1)
@@ -166,7 +171,12 @@ func run() -> void:
 			"invalid_text":
 				broken_tutorial["tutorials"][6]["text"] = null
 		if loader_script.new()._story_valid(
-			broken_tutorial, result["entry"]["resourceDirectory"], ids, 20, 25
+			broken_tutorial,
+			result["entry"]["resourceDirectory"],
+			ids,
+			20,
+			25,
+			result["_deployments"]
 		):
 			push_error("First-XP tutorial must be validated before gameplay: " + defect)
 			quit(1)

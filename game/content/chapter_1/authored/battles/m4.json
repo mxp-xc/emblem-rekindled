@@ -1,0 +1,256 @@
+{
+  "battleId": "m4",
+  "worldNode": 4,
+  "battleName": {
+    "sourceTextIndex": 143
+  },
+  "objective": {
+    "sourceTextIndex": 160
+  },
+  "initialBattlePresentation": {
+    "hiddenUnitIds": [],
+    "hiddenFactions": [],
+    "unitPositionOverrides": {}
+  },
+  "turnEvents": [
+    {
+      "id": "party_arrival",
+      "afterEnemyPhaseOfRound": 2,
+      "deploymentSlots": [0, 1, 2, 3, 4, 5, 6],
+      "sequence": "party_arrival",
+      "source": "i.k:899..974; original existing party slots, excluding new recruit 8"
+    }
+  ],
+  "periodicClones": {
+    "id": "monster_clones",
+    "pool": [105, 127],
+    "throughRound": 10,
+    "branches": [
+      {
+        "period": 3,
+        "templateUnitIds": [109, 114, 107]
+      },
+      {
+        "period": 4,
+        "templateUnitIds": [112, 111, 110]
+      },
+      {
+        "period": 5,
+        "templateUnitIds": [108, 113, 115]
+      }
+    ]
+  },
+  "aiChanges": [],
+  "routeChoices": [],
+  "speakers": {
+    "0": {
+      "id": 0,
+      "name": "雅木",
+      "faction": 0,
+      "portraitId": 0
+    },
+    "9": {
+      "id": 9,
+      "name": "赛丽卡",
+      "faction": 0,
+      "portraitId": 9
+    },
+    "8": {
+      "id": 8,
+      "name": "莎尼亚",
+      "faction": 0,
+      "portraitId": 8
+    },
+    "80": {
+      "id": 80,
+      "name": "得鲁克",
+      "faction": 2,
+      "portraitId": 11
+    }
+  },
+  "sequences": {
+    "opening": [
+      {
+        "kind": "battleTitle",
+        "text": {
+          "sourceTextIndex": 143
+        },
+        "sourceDurationUnits": 2000
+      },
+      {
+        "kind": "focus",
+        "cell": [4, 13],
+        "instant": true,
+        "sourceWaitTicks": 12
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 518,
+          "speakerId": 80
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 519,
+          "speakerId": 8
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 520,
+          "speakerId": 80
+        },
+        "sourceWaitTicksAfter": 10
+      },
+      {
+        "kind": "objective",
+        "text": {
+          "sourceTextIndex": 160
+        }
+      },
+      {
+        "kind": "commanderSetup",
+        "candidates": [8],
+        "defaultCommanderId": 8,
+        "defaultMode": "automatic",
+        "defaultStance": "attack"
+      }
+    ],
+    "party_arrival": [
+      {
+        "kind": "parallelEntrances",
+        "focus": [18, 4],
+        "deploymentSlots": [0, 1, 2, 3, 4, 5, 6],
+        "offset": [0, -3]
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 521,
+          "speakerId": 0
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 522,
+          "speakerId": 8
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 523,
+          "speakerId": 80
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 524,
+          "speakerId": 0
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 525,
+          "speakerId": 8
+        }
+      }
+    ],
+    "boss_first_combat": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 526,
+          "speakerId": 80
+        },
+        "source": "i.b(b,b); enemy flag mask 4 once, ordinary attack or defense"
+      }
+    ],
+    "boss_before_retirement": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 527,
+          "speakerId": 80
+        },
+        "source": "i.d; aa80 ab0 before ordinary retirement/hide"
+      }
+    ],
+    "boss_after_retirement": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 528,
+          "speakerId": 0
+        },
+        "source": "i.d; after ordinary boss retirement/hide and ab2..9 gate"
+      }
+    ],
+    "victory": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 529,
+          "speakerId": 0
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 530,
+          "speakerId": 8
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 531,
+          "speakerId": 0
+        },
+        "sourceWaitTicksAfter": 10
+      },
+      {
+        "kind": "missionComplete",
+        "text": {
+          "sourceTextIndex": 34
+        },
+        "goldReward": 1000
+      }
+    ]
+  },
+  "combatEvents": [
+    {
+      "id": "boss_first_combat",
+      "trigger": "firstCombat",
+      "unitId": 80,
+      "sequence": "boss_first_combat"
+    },
+    {
+      "id": "boss_death",
+      "trigger": "unitDeath",
+      "unitId": 80,
+      "beforeRetirement": "boss_before_retirement",
+      "afterRetirement": "boss_after_retirement"
+    }
+  ],
+  "outcomeRules": {
+    "checks": [
+      {
+        "kind": "defeat",
+        "condition": "requiredUnitFallen",
+        "unitIds": [0, 8]
+      },
+      {
+        "kind": "victory",
+        "condition": "roundAfter",
+        "round": 10
+      }
+    ]
+  }
+}

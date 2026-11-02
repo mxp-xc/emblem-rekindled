@@ -175,6 +175,61 @@ func set_units(units: Array) -> void:
 	queue_redraw()
 
 
+# The caller supplies the validated current projection, including actual unit data.
+# Load the whole changed set before replacing any live cache or content reference.
+func rebind_units(data: Dictionary, changed_ids: Array[int]) -> Dictionary:
+	if (
+		not data.get("units") is Array
+		or not data.get("mapAnimations") is Dictionary
+		or not data["mapAnimations"].get("units") is Dictionary
+		or not data.get("entry") is Dictionary
+		or not data["entry"].get("resourceDirectory") is String
+	):
+		return {"ok": false, "error": "人物表现绑定来源无效"}
+	var ids: Dictionary = {}
+	for unit: Dictionary in data["units"]:
+		ids[int(unit["id"])] = true
+	var pending: Dictionary = {}
+	var directory: String = data["entry"]["resourceDirectory"]
+	for id: int in changed_ids:
+		if not ids.has(id) or pending.has(id):
+			return {"ok": false, "error": "人物表现绑定身份无效: " + str(id)}
+		var definition: Variant = data["mapAnimations"]["units"].get(str(id))
+		if (
+			not definition is Dictionary
+			or not definition.get("frames") is Array
+			or definition["frames"].is_empty()
+			or not definition.get("completedFrame") is Dictionary
+		):
+			return {"ok": false, "error": "缺少人物动画: " + str(id)}
+		var resources: Array = definition["frames"].duplicate()
+		resources.append(definition["completedFrame"])
+		var frames: Array[Texture2D] = []
+		for frame: Variant in resources:
+			if (
+				not frame is Dictionary
+				or not frame.get("texture") is String
+				or not ResourceLoader.exists(directory.path_join(frame["texture"]))
+			):
+				return {"ok": false, "error": "人物动画资源无效: " + str(id)}
+			var texture: Resource = load(directory.path_join(frame["texture"]))
+			if not texture is Texture2D:
+				return {"ok": false, "error": "人物动画不是贴图: " + str(id)}
+			frames.append(texture)
+		pending[id] = {"completed": frames.pop_back(), "frames": frames}
+	for id: int in pending:
+		animation_frames[id] = pending[id]["frames"]
+		completed_frames[id] = pending[id]["completed"]
+		frame_indices[id] = 0
+		last_ticks[id] = animation_clock
+		animation_positions.erase(id)
+		presentation_positions.erase(id)
+		presentation_revealed_ids.erase(id)
+	content = data.duplicate()
+	queue_redraw()
+	return {"ok": true}
+
+
 func set_movement_field(field: Dictionary, kind: String = "move") -> void:
 	movement = field
 	affected_cells.clear()

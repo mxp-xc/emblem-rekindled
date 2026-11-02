@@ -10,10 +10,15 @@ var _broken_groups: Dictionary = {}
 
 
 func _init(content: Dictionary) -> void:
+	rebind(content)
+	_combat = Combat.new(content["rules"], content["map"]["terrain"])
+
+
+# Current unit aliases change; chapter action/defense groups and their clips do not.
+func rebind(content: Dictionary) -> void:
 	_catalog = content["battleClips"]
 	_art = content["battleArt"]
 	_directory = content["entry"]["resourceDirectory"]
-	_combat = Combat.new(content["rules"], content["map"]["terrain"])
 
 
 static func validate_art(art: Dictionary, directory: String, terrain: Array) -> bool:

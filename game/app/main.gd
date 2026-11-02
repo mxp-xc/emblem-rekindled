@@ -1395,6 +1395,8 @@ func _end_turn() -> void:
 	selected_unit = -1
 	choosing_destination = false
 	var tick_seconds: float = float(content["battleClips"]["tickMillis"]) / 1000
+	if not await _present_phase_events(advanced["events"]):
+		return
 	while battle.phase != 0 and battle.outcome.is_empty():
 		await _phase_banner("友军行动" if battle.phase == 1 else "敌军行动")
 		while battle.automatic_actor() >= 0 and battle.outcome.is_empty():
@@ -1495,7 +1497,8 @@ func _end_turn() -> void:
 		if not advanced["ok"]:
 			await _automatic_error(advanced)
 			return
-		await _present_phase_events(advanced["events"])
+		if not await _present_phase_events(advanced["events"]):
+			return
 	if not battle.outcome.is_empty():
 		await _finish_outcome()
 		return
@@ -1510,8 +1513,22 @@ func _end_turn() -> void:
 	map_hud.present(Vector2i(hero["x"], hero["y"]), hero)
 
 
-func _present_phase_events(events: Array) -> void:
+func _present_phase_events(events: Array) -> bool:
 	for event: Dictionary in events:
+		if event["kind"] == "clones":
+			var births: Array = event["births"]
+			if births.is_empty():
+				continue
+			var rebound: Dictionary = _bind_runtime_units(births)
+			if not rebound["ok"]:
+				await _automatic_error(rebound)
+				return false
+			for birth: Dictionary in births:
+				map.presentation_hidden_ids.append(int(birth["unit"]))
+			map.set_units(battle.snapshot()["units"])
+			await story_player.play_clone_arrivals(births)
+			map.clear_presentation()
+			continue
 		if event["kind"] != "reinforcements":
 			continue
 		if event.get("sequence", "").is_empty():
@@ -1541,6 +1558,27 @@ func _present_phase_events(events: Array) -> void:
 		map.set_units(battle.snapshot()["units"])
 		await story_player.play(sequence)
 		map.clear_presentation()
+	return true
+
+
+func _bind_runtime_units(births: Array) -> Dictionary:
+	var state: Dictionary = battle.snapshot()
+	var projected: Dictionary = preload("res://app/chapter_content.gd").new().reproject(
+		content, state["units"], state["cloneState"]
+	)
+	if not projected["ok"]:
+		return projected
+	var changed: Array[int] = []
+	for birth: Dictionary in births:
+		changed.append(int(birth["unit"]))
+	var rebound: Dictionary = map.rebind_units(projected, changed)
+	if not rebound["ok"]:
+		return rebound
+	# Existing canvases retain this root object; the immutable catalog stays untouched.
+	content.merge(projected, true)
+	battle.adopt_content(content)
+	battle_clips.rebind(content)
+	return {"ok": true}
 
 
 func _phase_banner(text: String) -> void:

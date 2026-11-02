@@ -134,14 +134,13 @@ func run() -> void:
 		"The once-only configured event must remain completed after cold restoration"
 	):
 		return
-	var waited: Dictionary = restored.wait_unit(7)
 	if not _expect(
 		(
-			waited["ok"]
+			restored.round_number == 3
 			and restored.outcome.get("kind") == "victory"
 			and restored.outcome.get("reason") == "survived"
 		),
-		"A normal command must trigger the new configuration's round-based victory condition"
+		"Entering the configured third round must trigger victory before another player command"
 	):
 		return
 	var completed: Dictionary = restored.complete_victory(0)
