@@ -93,9 +93,19 @@ party数组排列、槽位顺序、初始化顺序和战场遍历顺序分别承
 首次交战尊重单位已有的原生`B & 4`标记；`map_attack`不触发普通首领交战或死亡对白，
 也不消耗该首次交战标记。新关配置直接使用上述有限字段。
 
-`revealUnits`通过非空、无重复的`unitIds`指定已声明单位，只控制画面即时显现，
+`revealUnits`仅含`kind`、`unitIds`，通过非空、无重复的ID列表指定已声明单位，只控制画面即时显现，
 不移动单位、不修改属性，也不插入动画或等待。需要镜头时在它前面使用`focus`。
 同一次回合事件由domain提交业务显现和一次性标记，配置序列按顺序展示各组，读档后不重播。
+
+普通回合援军可用`arrivalMode:"nativeQueue"`选择原生逐人到达队列；完整`arrivalQueue`
+按源顺序包含原地显现、邻格到达及无空邻而保持隐藏的对象。先播放共用逐人镜头与固定队列门槛，
+再播放事件`sequence`；空sequence也不跳过队列。单位已由部署声明，沿现回合一次性标记恢复。
+
+离线`deploymentAdjustments`每项以`sourceId`或`deploymentIndex`唯一选择原记录，
+只允许规范化`id`或`position`；source选择有歧义时拒绝。现代实际ID与来源分开，
+例如`{"deploymentIndex":25,"id":70}`保留该条source46/class24，另一条source46/class8仍用id46。
+采样和发布使用同一规范化声明；原初始化暂停后才重标采样键，并显式保留source和原部署index。
+画像、成长与recipe不从采样别名反推，关卡顺序及两个实际单位的独立身份保持。
 
 有限周期克隆通过`periodicClones:{id,pool,throughRound,branches}`声明；`pool`包含两端，
 `branches`每项只声明`period`和`templateUnitIds`，敌方阶段结束按数组顺序选首个整除分支，

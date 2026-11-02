@@ -296,6 +296,67 @@ def prepare_map(chapter: Path, source: Path, deployment: dict) -> dict:
     return {"presentation": presentation, "map": result, "actions": actions}
 
 
+def normalize_deployment(chapter: Path, deployment: dict) -> dict:
+    """Apply explicit authored identity/position choices before sampling or publication."""
+    result = copy.deepcopy(deployment)
+    records = result["units"]
+    path = chapter / "authored/battles" / f"{deployment['battleId']}.json"
+    authored = json.loads(path.read_text()) if path.is_file() else {}
+    for change in authored.get("deploymentAdjustments", []):
+        if not isinstance(change, dict) or set(change) - {
+            "sourceId",
+            "deploymentIndex",
+            "id",
+            "position",
+        }:
+            raise ValueError("Invalid deployment adjustment fields")
+        if ("sourceId" in change) == ("deploymentIndex" in change):
+            raise ValueError("Deployment adjustment requires one identity selector")
+        if not ({"id", "position"} & change.keys()):
+            raise ValueError("Deployment adjustment must declare an identity or position")
+        if "deploymentIndex" in change:
+            index = change["deploymentIndex"]
+            if type(index) is not int or not 0 <= index < len(records):
+                raise ValueError("Deployment adjustment index is outside the declaration")
+            row = records[index]
+        else:
+            if type(change["sourceId"]) is not int or not 0 <= change["sourceId"] <= 127:
+                raise ValueError("Invalid deployment adjustment source identity")
+            candidates = [row for row in records if row["sourceId"] == change["sourceId"]]
+            if len(candidates) != 1:
+                raise ValueError("Deployment adjustment identity is ambiguous")
+            row = candidates[0]
+        if "id" in change:
+            identity = change["id"]
+            if (
+                type(identity) is not int
+                or not 0 <= identity <= 2147483647
+                or "deploymentSlot" in row
+            ):
+                raise ValueError("Invalid explicit deployment identity")
+            row["id"] = identity
+        if "position" in change:
+            position = change["position"]
+            if (
+                not isinstance(position, list)
+                or len(position) != 2
+                or any(type(value) is not int for value in position)
+                or not 0 <= position[0] < result["width"]
+                or not 0 <= position[1] < result["height"]
+            ):
+                raise ValueError("Invalid deployment adjustment position")
+            row.pop("deploymentRegions", None)
+            row["position"] = position
+    for faction in authored.get("deploymentRevealFactions", []):
+        for row in records:
+            if row["faction"] == faction:
+                row["flags"] &= ~1
+    identities = [row.get("id", row["sourceId"]) for row in records if "deploymentSlot" not in row]
+    if len(set(identities)) != len(identities):
+        raise ValueError("Duplicate fixed deployment identities; declare an explicit adjustment")
+    return result
+
+
 def publish_map(chapter: Path, source: Path, deployment: dict, presentation: dict) -> dict:
     """Publish map-owned outputs without duplicating profiles or replacing authored story.
 
@@ -315,21 +376,7 @@ def publish_map(chapter: Path, source: Path, deployment: dict, presentation: dic
         deployment["height"],
     ):
         raise ValueError(f"Native map dimensions disagree with deployment: {battle_id}")
-    records = copy.deepcopy(deployment["units"])
-    authored = json.loads(story.read_text())
-    # Explicit authored normalization preserves the previously verified opening state.
-    for change in authored.get("deploymentAdjustments", []):
-        candidates = [row for row in records if row["sourceId"] == change["sourceId"]]
-        if len(candidates) != 1:
-            raise ValueError(f"Deployment adjustment identity is ambiguous: {battle_id}")
-        row = candidates[0]
-        if "position" in change:
-            row.pop("deploymentRegions", None)
-            row["position"] = change["position"]
-    for faction in authored.get("deploymentRevealFactions", []):
-        for row in records:
-            if row["faction"] == faction:
-                row["flags"] &= ~1
+    records = normalize_deployment(chapter, deployment)["units"]
     bindings = {}
     previous_path = target / "battle.json"
     if previous_path.is_file():

@@ -38,6 +38,46 @@ class ChapterImportTest(unittest.TestCase):
         self.assertEqual(request.splitlines()[0], "allies\t" + ",".join(map(str, range(52))))
         self.assertEqual(request.splitlines()[1], "82\t0,1,2")
 
+    def test_distinct_actual_ids_preserve_duplicate_source_recipes_and_sampling_index(self):
+        records = [
+            {
+                "sourceId": 46,
+                "classId": 8,
+                "faction": 2,
+                "policy": 0,
+                "itemChoices": [25],
+                "dropTemplateId": 25,
+            },
+            {
+                "sourceId": 46,
+                "id": 70,
+                "classId": 24,
+                "faction": 2,
+                "policy": 2,
+                "itemChoices": [1, 42],
+                "dropTemplateId": 0,
+            },
+        ]
+        units = [
+            {
+                "id": 70,
+                "sourceId": 46,
+                "classId": 24,
+                "faction": 2,
+                "formal": False,
+                "deploymentIndex": 1,
+            },
+            {"id": 46, "sourceId": 46, "classId": 8, "faction": 2, "formal": False},
+        ]
+        samples = sample_spawns(records, units)
+        self.assertEqual([(u["id"], u["sourceId"]) for u in samples], [(46, 46), (70, 46)])
+        self.assertEqual(variant_requests(records).splitlines()[1:], ["46\t0,25", "70\t0,1,42"])
+        for key, invalid in (("sourceId", 70), ("deploymentIndex", 0)):
+            stale = [dict(u) for u in units]
+            stale[0][key] = invalid
+            with self.assertRaisesRegex(ValueError, "identity/class/slot"):
+                sample_spawns(records, stale)
+
     def test_raw_deployments_keep_slots_without_assigning_runtime_identities(self):
         def deployment(battle):
             records = []

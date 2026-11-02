@@ -19,6 +19,7 @@ from chapter_configuration import (
     apply_recruit_bindings,
     format_changed_json,
     motion_requirements,
+    normalize_deployment,
     prepare_map,
     publish_chapter,
     recruit_binding_plan,
@@ -54,7 +55,7 @@ def variant_requests(records: list[dict]) -> str:
             continue
         choices = {0, *record["itemChoices"], record["dropTemplateId"]}
         weapons = sorted(item for item in choices if 0 <= item <= 52)
-        requests.append(f"{record['sourceId']}\t{','.join(map(str, weapons))}")
+        requests.append(f"{record.get('id', record['sourceId'])}\t{','.join(map(str, weapons))}")
     return "\n".join(requests) + "\n"
 
 
@@ -66,7 +67,7 @@ def sample_spawns(records: list[dict], units: list[dict]) -> list[dict]:
     direct_allies = {
         row["sourceId"] for row in records if row["faction"] == 0 and "deploymentSlot" not in row
     }
-    for record in records:
+    for index, record in enumerate(records):
         if "deploymentSlot" in record:
             candidates = [
                 unit
@@ -79,9 +80,12 @@ def sample_spawns(records: list[dict], units: list[dict]) -> list[dict]:
             candidates = [
                 unit
                 for unit in units
-                if unit["id"] == record["sourceId"]
+                if unit["id"] == record.get("id", record["sourceId"])
+                and unit["sourceId"] == record["sourceId"]
                 and unit["faction"] == record["faction"]
                 and unit["classId"] == record["classId"]
+                and unit.get("deploymentIndex", index) == index
+                and ("id" not in record or unit.get("deploymentIndex") == index)
             ]
         if len(candidates) != 1 or candidates[0]["id"] in used:
             raise ValueError("Native deployment identity/class/slot disagrees with source")
@@ -119,6 +123,15 @@ def export_native(
         native = work / "generated"
         variants = work / "battle_variants.tsv"
         variants.write_text(variant_requests(deployment["units"]))
+        aliases = work / "sampling-identities.tsv"
+        aliases.write_text(
+            "".join(
+                f"{index}\t{row['sourceId']}\t{row.get('id', row['sourceId'])}"
+                f"\t{row['classId']}\t{row['faction']}\n"
+                for index, row in enumerate(deployment["units"])
+                if "deploymentSlot" not in row
+            )
+        )
         reuse = []
         if reuse_chapter:
             plan = work / "motion-reuse.tsv"
@@ -146,7 +159,8 @@ def export_native(
                 variants,
                 deployment["battleId"][1:],
                 str(route),
-                *reuse,
+                reuse[0] if reuse else "-",
+                aliases,
                 cwd=work,
             )
             units = json.loads((native / "units.json").read_text())
@@ -169,6 +183,7 @@ def export_native(
             if native.exists():
                 shutil.copytree(native, retained / "native")
             shutil.copyfile(variants, retained / variants.name)
+            shutil.copyfile(aliases, retained / aliases.name)
             if reuse:
                 shutil.copyfile(reuse[0], retained / "motion-reuse.tsv")
             (retained / "failure.txt").write_text(traceback.format_exc())
@@ -270,7 +285,7 @@ def update_chapter(
             members = set(entry["initialParty"]) | set(entry["recruitByNode"].values())
             candidates = []
             for battle in dict.fromkeys([battle_id, *entry["battles"]]):
-                raw[battle] = read_deployment(source, int(battle[1:]))
+                raw[battle] = normalize_deployment(staged, read_deployment(source, int(battle[1:])))
                 for context in recruit_contexts(staged, battle):
                     candidates.append(
                         {
@@ -497,7 +512,7 @@ def main() -> None:
         parser.error("--battle and --emulator are required when not using --plan")
     reuse_chapter = None if args.refresh_motion else chapter
     source = ROOT / "reference/original-jars/chapter-1.jar"
-    deployment = read_deployment(source, int(args.battle[1:]))
+    deployment = normalize_deployment(chapter, read_deployment(source, int(args.battle[1:])))
     if args.native_output:
         if args.native_input:
             parser.error("--native-output and --native-input are separate workflows")

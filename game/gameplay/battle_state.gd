@@ -931,17 +931,32 @@ func end_phase() -> Dictionary:
 			for event: Dictionary in _chapter_events.turn_events_due(round_number):
 				if event_completed(event["id"]):
 					continue
+				var queue: Array[Dictionary] = []
+				if event.get("arrivalMode") == "nativeQueue":
+					for identity: Variant in event["unitIds"]:
+						var actor: Dictionary = _units.get(int(identity), {})
+						if actor.is_empty() or actor["visible"] or actor["hp"] <= 0:
+							continue
+						queue.append(
+							{"unit": int(identity), "from": Vector2i(actor["x"], actor["y"])}
+						)
 				var arrivals: Array[Dictionary] = _chapter_events.reinforce(
 					_units.values(), event["unitIds"]
 				)
 				complete_event(event["id"])
-				events.append(
-					{
-						"kind": "reinforcements",
-						"sequence": event.get("sequence", ""),
-						"arrivals": arrivals
-					}
-				)
+				var emitted: Dictionary = {
+					"kind": "reinforcements",
+					"sequence": event.get("sequence", ""),
+					"arrivals": arrivals
+				}
+				if event.get("arrivalMode") == "nativeQueue":
+					for arrival: Dictionary in queue:
+						var actor: Dictionary = _units[int(arrival["unit"])]
+						arrival["to"] = Vector2i(actor["x"], actor["y"])
+						arrival["revealed"] = actor["visible"]
+					emitted["arrivalMode"] = "nativeQueue"
+					emitted["arrivalQueue"] = queue
+				events.append(emitted)
 			var cloned: Dictionary = _commit_clone_wave()
 			if not cloned["ok"]:
 				return cloned

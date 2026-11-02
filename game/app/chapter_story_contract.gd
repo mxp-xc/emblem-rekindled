@@ -88,10 +88,21 @@ static func validate(
 				or story["sequences"][event["sequence"]].is_empty()
 			):
 				return false
+		if (
+			event.has("arrivalMode")
+			and (not event["arrivalMode"] is String or event["arrivalMode"] != "nativeQueue")
+		):
+			return false
+		if event.has("arrivalMode") and event["unitIds"].is_empty():
+			return false
 		event_ids[event["id"]] = true
+		var queued_ids: Dictionary = {}
 		for id: Variant in event["unitIds"]:
 			if not _integer(id) or not ids.has(int(id)):
 				return false
+			if event.has("arrivalMode") and queued_ids.has(int(id)):
+				return false
+			queued_ids[int(id)] = true
 	for change: Variant in story["aiChanges"]:
 		if (
 			not change is Dictionary

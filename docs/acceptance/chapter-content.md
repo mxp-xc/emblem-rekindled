@@ -315,6 +315,53 @@ Web两次fresh完整备份各35项，均先恢复验证全部原项的type/offse
 
 
 
+## m5皇都近郊实际验收（2026-11-02）
+
+[皇都近郊#39](https://github.com/mxp-xc/emblem-rekindled/issues/39)最小两端矩阵已通过，剩余项为无。
+固定实际包：Web `20261102-135912-92b4dc0c`，Android `20261102-135922-62c3fa89`；
+核对原8765 PCK/实际canvas/内部buildId及已安装APK。结果入口
+`temp/qa-chapter-content/m5-platform-summary.json`，离线复核命令
+`uv run python temp/code/python/m5_platform_summarize.py`。
+
+| 平台 | 已通过的实际输入与业务结果 |
+| --- | --- |
+| 两端 | 合法世界取消不改继续档字节，再前往m5/开场/指挥官2/36单位；分别查看现代46/class8刀斧手和70/class24信徒的资料/地图/装备，两者sourceId均46且身份独立。原版fallback头像可相同，不要求图片不同。 |
+| Android | m0合法代表route4/worldStep1进入；round1六槽从右侧入场、534..537；round3原64..69依次显现后538，1倍原视频16.589秒，已实际看2/4/6/8/10/12/14/15.5秒关键帧；菜单保存cold1→UI32，完整事件状态不重播。 |
+| 两端分工 | Android对46/class8、Web对70/class24各一次真实独立战斗。两次实际均命中，目标HP60→59、原武器24耐久16→15、行动2；保存冷读后两身份/物品及完整state相同。驱动仍允许miss并按实际HP/耐久联动核验。 |
+| Android | boss84死亡时46/70仍活，539/真实class25战斗/540 body-before/退场，真实点击Choice_5即next4，结算route5/worldStep2/gold7000。实际结算world经Session/Store复核后补命名cold，未重播死亡/choice，无重复奖励。 |
+| Web | 从m4 route2/mapStep2结算后的worldStep3进入；boss旁敌存活仍胜，固定route2/worldStep4/gold9000，命名档冷启1→UI32恢复同一世界，继续档字节不改。 |
+
+Android证据目录为`temp/qa-chapter-content/android-m5-20261102-135922-62c3fa89`：
+`m5-modern46-source46-class8-information.png`、`m5-modern70-source46-class24-information.png`、
+`m5-modern46-independent.png`、`m5-actual-next4-choice.png`、`m5-branch-boss-dialogue-02.png/json`，
+以及`battle_round3-native-queue-1x.mp4`和对应`m5-native-queue-video-*.png`。
+Web目录为`temp/qa-chapter-content/web-m5-20261102-135912-92b4dc0c/attempt-2`：
+`m5-modern70-class24-independent.png`、`m5-fixed-boss-dialogue-2.png`、
+`m5-fixed-world-settled.png`、`m5-fixed-named-world-cold-once.png`。以上关键像素均已实际查看。
+
+有效8项fixtures为`m5-fixtures-20261102-integrated-v2`，真Matrix/Flow→Session/Store/JSON/零初始化RNG，
+21.469秒；前置均按真实阶段辅助结算，不是自然重打前关。quiet HP/显隐/move和战斗站位明确受控。
+六上下文、blocked/邻格/显示mask、required失败优先、另一分支留headless；不重复旧关/Probe/codec/横屏矩阵。
+本批六项真实from/to均相同，视频证明逐人聚焦和原格显现，不声称证明邻格移动。
+终局battle按合同拒绝encode，存读只用结算世界；旁敌存活证据取540时完整战局，世界party裁剪后不再查敌ID。
+
+保留两类QA失败：Android已点击分叉并生成正确world，但世界叙文尚未ready时仍查84导致StopIteration，
+只补经校验的实际world尾段；Web两单击未打开第二资料菜单导致超时，完整恢复后只补未完成duel/boss。
+70重试沿旧REPL闭包仍用了两单击并成功；新原生clickCount2另在固定boss菜单实际验证并留原始输入，
+不把70成功误归因于新双击。共用harness已改为一次原生双击；JSON数字逐项int和双击经验集中记在
+`docs/agents/verification.md`，产品规则/阈值未改。
+
+Android入口10.479秒、六槽13.002、队列/冷读32.969、普通/冷读21.430，
+boss至choice的原分项13.519秒（含末尾QA异常），实际world/命名尾段17.912，共109.311秒证据链。
+Web通过入口14.282、普通/冷读26.495、boss/命名24.226，共65.003秒；早期失败输入40.716秒另列。
+计时包括case冷启/UI调速/输入/截图/相应存读，不含单独未测的模拟器启动、安装、完整备份恢复和离线复核，
+无同场景旧版基线，不宣称加速比。bulk UI32、代表队列1倍、取独立动作UI4，每次冷启动核1倍。
+
+Android两批fresh原2个JSON/方向均完整恢复并关AVD；Web两批各35项type/offset/length/字节/Date/mode
+先恢复核对全部原项再清新增，最后正常启动新canvas后35项仍不变，console均为空。
+证明为各批`records/restored.json`或`restored.json`及Web `attempt-2/normal-startup-proof.json`。
+原音乐/设置/方向保留，未改视口；8766已关，8765保留最新包，原游戏标签正常打开。
+
 ## 阶段门槛
 
 | 阶段 | 必须取得的结果 |

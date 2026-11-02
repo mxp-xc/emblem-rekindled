@@ -48,7 +48,7 @@ func run() -> void:
 		var saw_queue: bool = false
 		var deadline: int = Time.get_ticks_msec() + 10000
 		while _scene.busy and Time.get_ticks_msec() < deadline:
-			saw_queue = saw_queue or _scene.story_player._clone_queue_updates_remaining > 0
+			saw_queue = saw_queue or _scene.story_player._arrival_queue_updates_remaining > 0
 			_drive()
 			await process_frame
 			if _scene.story_player.world_ready:

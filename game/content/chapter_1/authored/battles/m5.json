@@ -1,0 +1,282 @@
+{
+  "battleId": "m5",
+  "worldNode": 5,
+  "battleName": {
+    "sourceTextIndex": 144
+  },
+  "objective": {
+    "sourceTextIndex": 161
+  },
+  "deploymentAdjustments": [
+    {
+      "deploymentIndex": 25,
+      "id": 70
+    }
+  ],
+  "initialBattlePresentation": {
+    "hiddenUnitIds": [],
+    "hiddenFactions": [],
+    "unitPositionOverrides": {}
+  },
+  "turnEvents": [
+    {
+      "id": "party_arrival",
+      "afterEnemyPhaseOfRound": 1,
+      "deploymentSlots": [0, 1, 2, 3, 4, 5],
+      "sequence": "party_arrival"
+    },
+    {
+      "id": "cavalry_arrival",
+      "afterEnemyPhaseOfRound": 3,
+      "unitIds": [64, 65, 66, 67, 68, 69],
+      "arrivalMode": "nativeQueue",
+      "sequence": "cavalry_arrival",
+      "source": "i.k:1213..1260; existing units through sequential kind32 queue, then538"
+    }
+  ],
+  "aiChanges": [],
+  "routeChoices": [
+    {
+      "kind": "route",
+      "nodeId": 4,
+      "characterId": 8,
+      "name": "莎尼亚",
+      "nameTextIndex": 182,
+      "className": "贤者",
+      "classTextIndex": 218,
+      "label": "莎尼亚(贤者)",
+      "portraitId": 8,
+      "routeIndex": 5
+    },
+    {
+      "kind": "route",
+      "nodeId": 6,
+      "characterId": 4,
+      "name": "克雷贝",
+      "nameTextIndex": 178,
+      "className": "狂战士",
+      "classTextIndex": 214,
+      "label": "克雷贝(狂战士)",
+      "portraitId": 4,
+      "routeIndex": 4
+    }
+  ],
+  "speakers": {
+    "0": {
+      "id": 0,
+      "name": "雅木",
+      "faction": 0,
+      "portraitId": 0
+    },
+    "9": {
+      "id": 9,
+      "name": "赛丽卡",
+      "faction": 0,
+      "portraitId": 9
+    },
+    "2": {
+      "id": 2,
+      "name": "格雷",
+      "faction": 0,
+      "portraitId": 2
+    },
+    "18": {
+      "id": 18,
+      "name": "索菲亚军",
+      "faction": 1,
+      "portraitId": null
+    },
+    "84": {
+      "id": 84,
+      "name": "塞佐",
+      "faction": 2,
+      "portraitId": 15
+    }
+  },
+  "sequences": {
+    "opening": [
+      {
+        "kind": "battleTitle",
+        "text": {
+          "sourceTextIndex": 144
+        },
+        "sourceDurationUnits": 2000
+      },
+      {
+        "kind": "focus",
+        "cell": [14, 8],
+        "instant": true,
+        "sourceWaitTicks": 12
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 532,
+          "speakerId": 2
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 533,
+          "speakerId": 84
+        },
+        "sourceWaitTicksAfter": 10
+      },
+      {
+        "kind": "objective",
+        "text": {
+          "sourceTextIndex": 161
+        }
+      },
+      {
+        "kind": "commanderSetup",
+        "candidates": [2],
+        "defaultCommanderId": 2,
+        "defaultMode": "automatic",
+        "defaultStance": "attack"
+      }
+    ],
+    "party_arrival": [
+      {
+        "kind": "parallelEntrances",
+        "focus": [20, 7],
+        "deploymentSlots": [0, 1, 2, 3, 4, 5],
+        "offset": [3, 0]
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 534,
+          "speakerId": 2
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 535,
+          "speakerId": 18
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 536,
+          "speakerId": 0
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 537,
+          "speakerId": 84
+        }
+      }
+    ],
+    "cavalry_arrival": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 538,
+          "speakerId": 0
+        }
+      }
+    ],
+    "boss_first_combat": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 539,
+          "speakerId": 84
+        },
+        "source": "i.b(b,b); ordinary attack or defense, enemy flag4 once"
+      }
+    ],
+    "boss_before_retirement": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 540,
+          "speakerId": 84
+        },
+        "source": "i.d:3340; aa84 ab0 before ordinary retirement/hide"
+      }
+    ],
+    "victory": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 541,
+          "speakerId": 2
+        },
+        "whenWorldStep": 1,
+        "sourceWaitTicksAfter": 15
+      },
+      {
+        "kind": "routeChoice",
+        "options": [
+          {
+            "kind": "route",
+            "nodeId": 4,
+            "characterId": 8,
+            "name": "莎尼亚",
+            "nameTextIndex": 182,
+            "className": "贤者",
+            "classTextIndex": 218,
+            "label": "莎尼亚(贤者)",
+            "portraitId": 8,
+            "routeIndex": 5
+          },
+          {
+            "kind": "route",
+            "nodeId": 6,
+            "characterId": 4,
+            "name": "克雷贝",
+            "nameTextIndex": 178,
+            "className": "狂战士",
+            "classTextIndex": 214,
+            "label": "克雷贝(狂战士)",
+            "portraitId": 4,
+            "routeIndex": 4
+          }
+        ],
+        "whenWorldStep": 1
+      },
+      {
+        "kind": "missionComplete",
+        "text": {
+          "sourceTextIndex": 34
+        },
+        "goldReward": 1000
+      }
+    ]
+  },
+  "combatEvents": [
+    {
+      "id": "boss_first_combat",
+      "trigger": "firstCombat",
+      "unitId": 84,
+      "sequence": "boss_first_combat"
+    },
+    {
+      "id": "boss_death",
+      "trigger": "unitDeath",
+      "unitId": 84,
+      "beforeRetirement": "boss_before_retirement"
+    }
+  ],
+  "outcomeRules": {
+    "checks": [
+      {
+        "kind": "defeat",
+        "condition": "requiredUnitFallen",
+        "unitIds": [0, 2]
+      },
+      {
+        "kind": "victory",
+        "condition": "unitRetired",
+        "unitId": 84
+      }
+    ]
+  }
+}

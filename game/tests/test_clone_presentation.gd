@@ -251,9 +251,11 @@ func _clone_queue(story: Control, map: Control, content: Dictionary) -> void:
 		story.tick()
 	_check(not _completed, "Camera travel cannot count as the fixed queue hold")
 	var deadline: int = Time.get_ticks_msec() + 5000
-	while story._clone_queue_updates_remaining == 0 and Time.get_ticks_msec() < deadline:
+	while story._arrival_queue_updates_remaining == 0 and Time.get_ticks_msec() < deadline:
 		await process_frame
-	_check(story._clone_queue_updates_remaining == 13, "The source gate starts after focus arrival")
+	_check(
+		story._arrival_queue_updates_remaining == 13, "The source gate starts after focus arrival"
+	)
 	for update: int in range(12):
 		story.tick()
 		_check(not _completed, "Camera arrival retains the full thirteen-update queue hold")
@@ -265,7 +267,7 @@ func _clone_queue(story: Control, map: Control, content: Dictionary) -> void:
 
 
 func _play_queue(story: Control, births: Array) -> void:
-	await story.play_clone_arrivals(births)
+	await story.play_unit_arrivals(births)
 	_completed = true
 
 

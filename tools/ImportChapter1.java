@@ -16,12 +16,15 @@ public final class ImportChapter1 {
   private static int battleIndex;
   private static int routeIndex;
   private static Path motionReusePlan;
+  private static Path samplingIdentityFile;
+  private static final Map<Object, int[]> samplingIdentities = new IdentityHashMap<>();
 
   public static void main(String[] args) {
     try {
       battleIndex = args.length > 3 ? Integer.parseInt(args[3]) : 0;
       routeIndex = args.length > 4 ? Integer.parseInt(args[4]) : 0;
-      motionReusePlan = args.length > 5 ? Path.of(args[5]) : null;
+      motionReusePlan = args.length > 5 && !args[5].equals("-") ? Path.of(args[5]) : null;
+      samplingIdentityFile = args.length > 6 ? Path.of(args[6]) : null;
       if (
         battleIndex < 0 || battleIndex > 7 || routeIndex < 0 || routeIndex > 7
       ) throw new IllegalArgumentException("Unverified chapter-1 battle: m" + battleIndex);
@@ -171,6 +174,48 @@ public final class ImportChapter1 {
       map.append(']');
     }
     Vector<?> units = (Vector<?>) field(game.getClass(), "as").get(game);
+    // The initialized objects retain source appearance/stats. Only paused export keys change.
+    if (samplingIdentityFile != null) {
+      Set<Integer> indices = new HashSet<>();
+      for (String line : Files.readAllLines(samplingIdentityFile)) {
+        if (line.isBlank()) continue;
+        String[] fields = line.split("\t", -1);
+        if (fields.length != 5) throw new IOException("Invalid sampling identity declaration");
+        int[] declaration = Arrays.stream(fields).mapToInt(Integer::parseInt).toArray();
+        int index = declaration[0],
+          sourceId = declaration[1],
+          identity = declaration[2];
+        if (
+          index < 0 ||
+          !indices.add(index) ||
+          sourceId < 0 ||
+          sourceId > 127 ||
+          identity < 0 ||
+          identity > 127
+        ) throw new IOException("Invalid native sampling index or byte identity");
+        List<Object> candidates = new ArrayList<>();
+        for (Object unit : units) {
+          if (
+            number(unit, "y") == sourceId &&
+            number(unit, "S") == declaration[3] &&
+            number(unit, "C") == declaration[4]
+          ) candidates.add(unit);
+        }
+        if (candidates.size() != 1 || samplingIdentities.containsKey(candidates.get(0))) {
+          throw new IOException("Sampling source/class/faction is ambiguous at record " + index);
+        }
+        samplingIdentities.put(candidates.get(0), declaration);
+      }
+      for (var entry : samplingIdentities.entrySet()) {
+        field(entry.getKey().getClass(), "y").setByte(entry.getKey(), (byte) entry.getValue()[2]);
+      }
+      Set<Integer> identities = new HashSet<>();
+      for (Object unit : units) {
+        if (!identities.add(number(unit, "y"))) {
+          throw new IOException("Duplicate paused sampling identity after explicit normalization");
+        }
+      }
+    }
     Set<Integer> groups = new TreeSet<>();
     // Later route prefixes can bring a different class to the same map.
     for (int group = 0; group <= 10; group++) groups.add(group);
@@ -236,6 +281,11 @@ public final class ImportChapter1 {
       ImageIO.write(sprite.getCanvas(), "png", output.resolve("unit_" + id + ".png").toFile());
       if (index > 0) json.append(',');
       Map<String, Object> unitData = Chapter1Rules.describeUnit(unit);
+      int[] declaration = samplingIdentities.get(unit);
+      if (declaration != null) {
+        unitData.put("sourceId", declaration[1]);
+        unitData.put("deploymentIndex", declaration[0]);
+      }
       unitData.put("nativePolicy", number(unit, "Y"));
       unitData.put("x", x);
       unitData.put("y", y);

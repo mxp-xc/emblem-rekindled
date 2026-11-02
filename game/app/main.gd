@@ -1526,10 +1526,19 @@ func _present_phase_events(events: Array) -> bool:
 			for birth: Dictionary in births:
 				map.presentation_hidden_ids.append(int(birth["unit"]))
 			map.set_units(battle.snapshot()["units"])
-			await story_player.play_clone_arrivals(births)
+			await story_player.play_unit_arrivals(births)
 			map.clear_presentation()
 			continue
 		if event["kind"] != "reinforcements":
+			continue
+		if event.get("arrivalMode") == "nativeQueue":
+			for arrival: Dictionary in event["arrivalQueue"]:
+				map.presentation_hidden_ids.append(int(arrival["unit"]))
+			map.set_units(battle.snapshot()["units"])
+			await story_player.play_unit_arrivals(event["arrivalQueue"])
+			if not event.get("sequence", "").is_empty():
+				await story_player.play(content["story"]["sequences"][event["sequence"]])
+			map.clear_presentation()
 			continue
 		if event.get("sequence", "").is_empty():
 			map.set_units(battle.snapshot()["units"])

@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 import test_chapter_library as library_fixture
-from chapter_configuration import import_map, motion_requirements, publish_map
+from chapter_configuration import import_map, motion_requirements, normalize_deployment, publish_map
 
 
 class ChapterConfigurationTest(unittest.TestCase):
@@ -90,6 +90,32 @@ class ChapterConfigurationTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "dimensions disagree"):
             publish_map(self.chapter, self.source, invalid, self.presentation)
         self.assertEqual(self.snapshot(), before)
+
+    def test_index_adjustment_preserves_sources_order_and_rejects_ambiguous_identities(self):
+        raw = {
+            **self.deployment,
+            "units": [
+                {"sourceId": 46, "classId": 8, "faction": 2, "position": [0, 0]},
+                {"sourceId": 46, "classId": 24, "faction": 2, "level": 5, "position": [1, 1]},
+            ],
+        }
+        untouched = copy.deepcopy(raw)
+        self.write(self.story, {"deploymentAdjustments": [{"deploymentIndex": 1, "id": 70}]})
+        normalized = normalize_deployment(self.chapter, raw)
+        self.assertEqual(raw, untouched)
+        self.assertEqual(normalized["units"], [raw["units"][0], {**raw["units"][1], "id": 70}])
+        for change in (
+            {"deploymentIndex": 2, "id": 70},
+            {"deploymentIndex": True, "id": 70},
+            {"sourceId": 46, "id": 70},
+            {"deploymentIndex": 1, "id": 46},
+            {"deploymentIndex": 1, "id": True},
+            {"deploymentIndex": 1, "sourceId": 46, "id": 70},
+            {"deploymentIndex": 1, "classId": 8},
+        ):
+            self.write(self.story, {"deploymentAdjustments": [change]})
+            with self.assertRaises(ValueError):
+                normalize_deployment(self.chapter, raw)
 
     def test_complete_import_validates_before_publishing_library_and_registers_map(self):
         fixture = library_fixture.ChapterLibraryTest()
