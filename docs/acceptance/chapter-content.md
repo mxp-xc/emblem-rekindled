@@ -362,6 +362,38 @@ Android两批fresh原2个JSON/方向均完整恢复并关AVD；Web两批各35项
 证明为各批`records/restored.json`或`restored.json`及Web `attempt-2/normal-startup-proof.json`。
 原音乐/设置/方向保留，未改视口；8766已关，8765保留最新包，原游戏标签正常打开。
 
+## m6补给站实际验收（2026-11-02）
+
+[#41](https://github.com/mxp-xc/emblem-rekindled/issues/41)两端最小矩阵已通过，剩余项为无；
+Web `20261102-152112-6270c200`、Android `20261102-152136-560b7b17`，实际canvas/进程/APK核对，原8765 PCK由协调者验证。
+汇总`temp/qa-chapter-content/m6-platform-summary.json`，以下所有fixture均明确受控，不称自然整关。
+
+- 两端真实世界取消不改继续档，再进入m6/cmd4/46单位、普通85独立战斗、菜单保存cold1→UI32，完整状态相同。
+  Web直接复用实际m5 route2/worldStep4/gold9000命名档；Android由合法M5 next6辅助结算生成route4/worldStep2入口，Session/Store/JSON零初始化RNG已过（9.251秒）。
+- Android七旧槽从南侧+3入场，新4不计入旧槽；原1倍视频8.458秒已看3.3/3.4/3.5秒帧，从屏底部分出现至七人向北到达。
+  两focus精确22/10tick复用已过Main1倍证据；本批世界和开场UI32，只以南入作平台1倍代表。
+- 回复之戒81底层耐久0仍生效：敌阶段末HP8，新轮HP15（max60，增7在6..12内），无额外治疗表现，戒指未耗，保存冷读不重抽。
+  Web实际点右箭头的库存页清晰显示勇者枪28、铁盾4、回复之戒“-”（底层0）、原G补入的钢铁纹章1。
+  Android误命名库存截图仍是战斗数据页，不计库存可见性；没有为此重收Android。
+- 普通546/547、boss85退场后33仍活且不胜；独立的受控最后敌33清场才胜。Android覆盖548/488，实际route4/worldStep3/gold8000，
+  Web覆盖548/549、route2/worldStep5/gold10000；两端命名world cold奖励不重复。
+  敌ID只在完整战局阶段读取，世界进度出现/party裁剪后停止敌查找。
+
+Android有效批次`temp/qa-chapter-content/android-m6-20261102-152136-560b7b17/attempt-2`：
+`m6-ordinary-independent.png`、`m6-ring81-new-round-result.json`、`m6-ring81-trace.json`、
+`m6-boss-retired-other-enemy-no-victory.png`、`m6-seven-slots-south-1x.mp4`及`m6-south-video-3.3s/3.5s.png`。
+实际m7前置保留在该批`m6-named-world-slot.json`，没有留在用户原记录中。
+Web批次`temp/qa-chapter-content/web-m6-20261102-152112-6270c200`的
+`m6-boss85-ring81-zero-inventory.png`为实际库存可见证据；`m6-fixed-ordinary-and-ring-held-cold-equal`及
+`m6-fixed-named-world-cold-once`保存完整state/字节恢复证据。
+
+Android五case为15.394/17.860/24.846/11.433/19.351秒，共88.884秒；Web13.390/25.157/22.294，共60.841秒。
+首批旧世界1倍展开在45秒等待尾端超时，紧接抓图worldReady已true，未进m6；该失败51.992秒保留，不算通过或提速基线。
+之后只补未进入的链。计时包含各case启动/UI调速/输入/截图/相应存冷读，安装、完整保护和离线复核未单独计时，不报加速比。
+Android两批原2JSON及方向均完整恢复、AVD关；Web35项type/offset/length/字节/Date/mode先恢复原项再清新增，
+正常启动新canvas后35项不变、console为空。证明在各批`records/restored.json`或`restored.json`及Web `normal-startup-proof.json`。
+原音乐/设置/视口复原，8766已关，8765保留最新包；六上下文、戒指逆序/RNG/边界与旧关全量回归留既有headless矩阵。
+
 ## 阶段门槛
 
 | 阶段 | 必须取得的结果 |

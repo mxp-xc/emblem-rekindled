@@ -964,11 +964,19 @@ func end_phase() -> Dictionary:
 				events.append(cloned["event"])
 			round_number += 1
 		phase = (phase + 1) % 3
-		for actor: Dictionary in _units.values():
+		var phase_units: Array = _units.values()
+		phase_units.reverse()
+		for actor: Dictionary in phase_units:
 			actor["action"] = 0
 			actor["flags"] &= ~128
 			if phase == 0:
 				actor["flags"] &= ~(16 | 64)
+				for held: Dictionary in actor["inventory"]:
+					if int(held["templateId"]) == 81:
+						var percent: int = _roll(11) + 10
+						var recovered: int = floori(float(actor["maxHp"] * percent) / 100.0)
+						actor["hp"] = mini(actor["maxHp"], actor["hp"] + recovered)
+						break
 		_assignments.clear()
 		_automatic_queue.clear()
 		if phase == 2:

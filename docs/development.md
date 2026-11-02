@@ -37,6 +37,8 @@ rtk godot --path game
 杖可对满HP同伴施放并消耗次数/获得经验，AI仍只选择受伤同伴；长物品说明在窄底栏翻页。
 圣武器自疗耗尽后从背包移除，按当前库存顺序装备第一件可用武器；没有可用武器时不显示攻击，也不能反击。
 这是已批准的原版异常修正：不保留已耗尽的武器效果，敌方攻击不会错误扣除药草次数；存读档保持相同状态。
+回复之戒81只检查持有，每个新轮的我方阶段按战场顺序逆序触发一次，恢复最大HP的随机10%～20%（整数截断并封顶）。
+0耐久仍生效，多件不叠加；隐藏、死亡或满HP也消耗该次随机抽取，不消耗物品、不增加独立演出，读档不重复触发。
 菜单区域消费自己的输入，不同时操作下方地图。滚轮在当前菜单上下切换可用选项，在人物资料页按前后顺序翻页；物品详情打开时保留当前页。长物品列表跟随选中项滚动。连续同向滚动按滚动量合并，首个事件立即响应，后续最多每140ms一步；静止180ms或反向后立即响应。快速机械滚轮也遵守这一菜单限速，不积压停手后的补跳；地图平移保持连续。
 行动菜单默认优先选中攻击、杖、交换、物品、待机；没有可执行操作时选中状态，列表排版保留。
 游戏设置的“辅助功能”提供“直接通关”，确认后进入当前关卡既有胜利剧情、路线选择和一次结算，不额外生成击杀、经验或掉落。
@@ -83,7 +85,7 @@ Back收起菜单，子页返回保留选中项。
 确认改动物品后先写当前“继续”记录，再更新界面状态，失败保持原物品和资金；四个命名档仍只由明确记录操作写入。
 物品说明复用现有底栏，长仓库列表使用可触控滚动及键盘焦点跟随。
 当前已登记关卡以[章入口](../game/content/chapter_1/chapter.json)的 `battles` 为准，
-最新接入皇都近郊m5配置；本关运行时与平台验收状态见[#39](https://github.com/mxp-xc/emblem-rekindled/issues/39)。
+最新接入补给站m6配置；本关运行时与平台验收状态见[#41](https://github.com/mxp-xc/emblem-rekindled/issues/41)。
 未接入节点显示制作中并保留进度，后续关卡与标题外围入口逐阶段推进。
 
 ## lint、格式化与测试
@@ -161,7 +163,7 @@ Android请求发布与匹配响应等待在一次ADB调用中完成；未就绪�
 
 ```sh
 rtk uv run python tools/import_chapter_1.py --plan
-rtk uv run python tools/import_chapter_1.py --emulator /path/to/freej2me_plus.jar --battle m5 --report temp/m5-import.json
+rtk uv run python tools/import_chapter_1.py --emulator /path/to/freej2me_plus.jar --battle m6 --report temp/m6-import.json
 rtk godot --headless --path game --import
 ```
 

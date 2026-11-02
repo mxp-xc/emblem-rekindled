@@ -2,6 +2,7 @@ extends SceneTree
 
 const Matrix = preload("res://tests/test_m5_content.gd")
 const Session = preload("res://app/chapter_session.gd")
+const Battle = preload("res://gameplay/battle_state.gd")
 const Store = preload("res://persistence/battle_store.gd")
 const Clips = preload("res://app/battle_clip_library.gd")
 const Events = preload("res://gameplay/battle_events.gd")
@@ -18,6 +19,8 @@ func _initialize() -> void:
 	if DirAccess.make_dir_absolute(_owned) != OK:
 		_fail("Cannot claim a fresh owned m5 events directory")
 		return
+	var first_content: Dictionary = {}
+	var first_snapshot: Dictionary = {}
 	for context: Dictionary in Matrix.CONTEXTS:
 		var prepared: Dictionary = Matrix.prepare(context, _roll)
 		if not _expect(prepared["ok"], "Prepare m5 event context: " + str(prepared.get("error"))):
@@ -29,15 +32,15 @@ func _initialize() -> void:
 		if not _expect(opened["ok"], "Open actual m5 events: " + str(opened.get("error"))):
 			_cleanup()
 			return
+		if first_content.is_empty():
+			first_content = opened["content"]
+			first_snapshot = opened["battle"].snapshot()
 		if not _phases(opened) or not _settlement(opened, context) or not _priority(opened):
 			_cleanup()
 			return
 		print("PASS actual m5 events dr%d step%d" % [context["route"], context["step"]])
-	var prepared: Dictionary = Matrix.prepare(Matrix.CONTEXTS[0], _roll)
 	for boundary: Callable in [_combat, _native_first_flag, _map_magic, _source_pairs]:
-		var opened: Dictionary = Session.new().open(
-			Matrix.CHAPTER, "m5", {"progress": prepared["progress"]}, _roll
-		)
+		var opened: Dictionary = _fork(first_content, first_snapshot)
 		if (
 			not _expect(opened["ok"], "Independent m5 combat boundary must open")
 			or not boundary.call(opened)
@@ -47,6 +50,15 @@ func _initialize() -> void:
 	_cleanup()
 	print("PASS actual m5 events: two waves once, settlement, boss84 and distinct source46 combat")
 	quit(0)
+
+
+# Each business case owns a fresh Battle; definitions remain the first loaded content.
+func _fork(content: Dictionary, state: Dictionary) -> Dictionary:
+	var battle: RefCounted = Battle.new(content, _roll, false)
+	var restored: Dictionary = battle.restore_snapshot(state.duplicate(true))
+	if not restored["ok"]:
+		return restored
+	return {"ok": true, "content": content, "battle": battle}
 
 
 func _phases(opened: Dictionary) -> bool:
@@ -231,7 +243,7 @@ func _settlement(opened: Dictionary, context: Dictionary) -> bool:
 				actor["hp"] = 0
 				actor["visible"] = false
 				actor["flags"] |= 1
-		var fresh: Dictionary = Session.new().open(Matrix.CHAPTER, "m5", {"snapshot": state}, _roll)
+		var fresh: Dictionary = _fork(content, state)
 		if not _expect(fresh["ok"], "Controlled formal-death m5 settlement snapshot remains valid"):
 			return false
 		var battle: RefCounted = fresh["battle"]
@@ -562,9 +574,7 @@ func _priority(opened: Dictionary) -> bool:
 func _source_pairs(opened: Dictionary) -> bool:
 	var content: Dictionary = opened["content"]
 	for target: int in [46, 70]:
-		var fresh: Dictionary = Session.new().open(
-			Matrix.CHAPTER, "m5", {"snapshot": opened["battle"].snapshot()}, _roll
-		)
+		var fresh: Dictionary = _fork(content, opened["battle"].snapshot())
 		if not _expect(fresh["ok"], "Open distinct source46 combat boundary"):
 			return false
 		var battle: RefCounted = fresh["battle"]

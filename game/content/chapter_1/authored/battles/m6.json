@@ -1,0 +1,206 @@
+{
+  "battleId": "m6",
+  "worldNode": 6,
+  "battleName": {
+    "sourceTextIndex": 145
+  },
+  "objective": {
+    "sourceTextIndex": 162
+  },
+  "initialBattlePresentation": {
+    "hiddenUnitIds": [],
+    "hiddenFactions": [],
+    "unitPositionOverrides": {}
+  },
+  "turnEvents": [
+    {
+      "id": "party_arrival",
+      "afterEnemyPhaseOfRound": 2,
+      "deploymentSlots": [0, 1, 2, 3, 4, 5, 6],
+      "sequence": "party_arrival"
+    }
+  ],
+  "aiChanges": [],
+  "routeChoices": [],
+  "speakers": {
+    "0": {
+      "id": 0,
+      "name": "雅木",
+      "faction": 0,
+      "portraitId": 0
+    },
+    "9": {
+      "id": 9,
+      "name": "赛丽卡",
+      "faction": 0,
+      "portraitId": 9
+    },
+    "4": {
+      "id": 4,
+      "name": "克雷贝",
+      "faction": 0,
+      "portraitId": 4
+    },
+    "85": {
+      "id": 85,
+      "name": "杰克",
+      "faction": 2,
+      "portraitId": 16
+    }
+  },
+  "sequences": {
+    "opening": [
+      {
+        "kind": "battleTitle",
+        "text": {
+          "sourceTextIndex": 145
+        },
+        "sourceDurationUnits": 2000
+      },
+      {
+        "kind": "focus",
+        "cell": [5, 9],
+        "instant": true,
+        "sourceWaitTicks": 22
+      },
+      {
+        "kind": "focus",
+        "cell": [19, 17],
+        "instant": false,
+        "sourceWaitTicks": 10
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 542,
+          "speakerId": 85
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 543,
+          "speakerId": 4
+        },
+        "sourceWaitTicksAfter": 10
+      },
+      {
+        "kind": "objective",
+        "text": {
+          "sourceTextIndex": 162
+        }
+      },
+      {
+        "kind": "commanderSetup",
+        "candidates": [4],
+        "defaultCommanderId": 4,
+        "defaultMode": "automatic",
+        "defaultStance": "attack"
+      }
+    ],
+    "party_arrival": [
+      {
+        "kind": "parallelEntrances",
+        "focus": [6, 18],
+        "deploymentSlots": [0, 1, 2, 3, 4, 5, 6],
+        "offset": [0, 3]
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 544,
+          "speakerId": 4
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 545,
+          "speakerId": 0
+        }
+      }
+    ],
+    "boss_first_combat": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 546,
+          "speakerId": 85
+        },
+        "source": "i.b(b,b); ordinary attack or defense, enemy flag4 once"
+      }
+    ],
+    "boss_before_retirement": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 547,
+          "speakerId": 85
+        },
+        "source": "i.d ordinary aa85 ab0 before retirement/hide"
+      }
+    ],
+    "victory": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 548,
+          "speakerId": 4
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 488,
+          "speakerId": 0
+        },
+        "whenWorldStep": 2,
+        "sourceWaitTicksAfter": 15
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 549,
+          "speakerId": 0
+        },
+        "unlessWorldStep": 2,
+        "sourceWaitTicksAfter": 15
+      },
+      {
+        "kind": "missionComplete",
+        "text": {
+          "sourceTextIndex": 34
+        },
+        "goldReward": 1000
+      }
+    ]
+  },
+  "combatEvents": [
+    {
+      "id": "boss_first_combat",
+      "trigger": "firstCombat",
+      "unitId": 85,
+      "sequence": "boss_first_combat"
+    },
+    {
+      "id": "boss_death",
+      "trigger": "unitDeath",
+      "unitId": 85,
+      "beforeRetirement": "boss_before_retirement"
+    }
+  ],
+  "outcomeRules": {
+    "checks": [
+      {
+        "kind": "defeat",
+        "condition": "requiredUnitFallen",
+        "unitIds": [0, 4]
+      },
+      {
+        "kind": "victory",
+        "condition": "noVisibleEnemies",
+        "faction": 2
+      }
+    ]
+  }
+}

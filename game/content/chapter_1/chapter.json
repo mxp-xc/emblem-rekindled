@@ -15,7 +15,8 @@
     "m2": "res://content/chapter_1/generated/battles/m2/battle.json",
     "m3": "res://content/chapter_1/generated/battles/m3/battle.json",
     "m4": "res://content/chapter_1/generated/battles/m4/battle.json",
-    "m5": "res://content/chapter_1/generated/battles/m5/battle.json"
+    "m5": "res://content/chapter_1/generated/battles/m5/battle.json",
+    "m6": "res://content/chapter_1/generated/battles/m6/battle.json"
   },
   "library": "res://content/chapter_1/generated/library/catalog.json",
   "initialParty": [0],
