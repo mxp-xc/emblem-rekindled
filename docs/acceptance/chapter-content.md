@@ -1,9 +1,9 @@
 # 配置扩关与初章m2～m7验收
 
-本轮范围为[配置驱动扩关](https://github.com/mxp-xc/emblem-rekindled/issues/36)、
+本页覆盖[配置驱动扩关](https://github.com/mxp-xc/emblem-rekindled/issues/36)、
 [迷雾森林边缘m2](https://github.com/mxp-xc/emblem-rekindled/issues/35)，再逐关推进到m7（含）。
 章级地图清单与完成计数由[初章进度](https://github.com/mxp-xc/emblem-rekindled/issues/32)维护。
-本页记录验收门槛、m0/m1候选与m2/m3集成包的实际回归；m4～m7的平台验收仍须逐关执行。
+本页保留验收门槛、m0/m1候选回归，以及m2～m7各批次的平台验证证据与结论；各批次范围、未测项以对应章节为准。
 开发自测与用户集中验收分别记录。默认推荐竖屏，横屏作为可选能力保留回归。
 
 ## m0/m1候选回归（2026-11-02）

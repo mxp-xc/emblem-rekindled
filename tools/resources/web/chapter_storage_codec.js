@@ -15,7 +15,7 @@ const viewTypes = {
 };
 const maxViewAllocation = 64 * 1024 * 1024;
 
-export function encodeStorageValue(value) {
+export function encodeStorageValue(value, ancestors = new WeakSet()) {
   if (value instanceof Date) return { __qaType: "Date", value: value.toISOString() };
   if (ArrayBuffer.isView(value)) {
     const constructor = Object.prototype.toString.call(value).slice(8, -1);
@@ -33,12 +33,40 @@ export function encodeStorageValue(value) {
   }
   if (value instanceof ArrayBuffer)
     return { __qaType: "ArrayBuffer", value: Array.from(new Uint8Array(value)) };
-  if (Array.isArray(value)) return value.map(encodeStorageValue);
-  if (value && typeof value === "object")
-    return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [key, encodeStorageValue(item)]),
-    );
-  return value;
+  if (value && typeof value === "object") {
+    if (
+      !Array.isArray(value) &&
+      Object.getPrototypeOf(value) !== Object.prototype &&
+      Object.getPrototypeOf(value) !== null
+    )
+      throw Error("Unsupported storage object type; stop before mutation");
+    if (Object.hasOwn(value, "__qaType"))
+      throw Error("Reserved storage tag in ordinary object; stop before mutation");
+    if (Array.isArray(value)) {
+      const keys = Object.keys(value);
+      if (keys.length !== value.length || keys.some((key, index) => key !== String(index)))
+        throw Error("Unsupported sparse array or array properties; stop before mutation");
+    }
+    if (ancestors.has(value)) throw Error("Cyclic storage value; stop before mutation");
+    ancestors.add(value);
+    try {
+      return Array.isArray(value)
+        ? Array.from(value, (item) => encodeStorageValue(item, ancestors))
+        : Object.fromEntries(
+            Object.entries(value).map(([key, item]) => [key, encodeStorageValue(item, ancestors)]),
+          );
+    } finally {
+      ancestors.delete(value);
+    }
+  }
+  if (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "boolean" ||
+    (typeof value === "number" && Number.isFinite(value) && !Object.is(value, -0))
+  )
+    return value;
+  throw Error("Unsupported storage value; stop before mutation");
 }
 
 export function decodeStorageValue(value) {

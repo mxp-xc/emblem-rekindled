@@ -10,7 +10,7 @@ import zipfile
 from contextlib import contextmanager
 from pathlib import Path
 
-from emblem_dev.delivery import verify_apk
+from emblem_dev.delivery import verify_apk, verify_installed_apk
 from emblem_dev.qa.client import PACKAGE, AndroidInput
 from emblem_dev.qa.records import backup_records, restore_records
 
@@ -173,48 +173,51 @@ class Flow(AndroidInput):
     def video(self, name):
         """Keep original device motion evidence; no runtime presentation probes."""
         remote = f"/data/local/tmp/emblem-qa-{uuid.uuid4().hex}.mp4"
+        pid_file = remote + ".pid"
         process = subprocess.Popen(
             [
                 *self.client.command,
                 "shell",
-                "screenrecord",
-                "--time-limit",
-                "90",
-                "--bit-rate",
-                "3000000",
-                remote,
+                f"echo $$ > {pid_file}; "
+                f"exec screenrecord --time-limit 90 --bit-rate 3000000 {remote}",
             ],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
         pid = ""
+        ready = False
         try:
             deadline = time.monotonic() + 10
             while time.monotonic() < deadline:
                 if process.poll() is not None:
                     raise RuntimeError("Android screenrecord ended before recording the action")
-                pid = self.client.adb("shell", "pidof", "screenrecord").decode().strip()
+                candidate = self.client.adb("shell", "cat", pid_file, check=False).decode().strip()
+                if candidate and (not candidate.isdecimal() or int(candidate) <= 1):
+                    raise RuntimeError("Invalid owned screenrecord PID")
+                pid = candidate
                 if pid and self.client.adb(
                     "shell", "stat", "-c", "%s", remote, check=False
                 ).strip() not in (b"", b"0"):
+                    ready = True
                     break
             else:
                 raise TimeoutError("Native screen recording did not produce its output header")
             yield
         finally:
             if pid and process.poll() is None:
-                self.client.adb("shell", "kill", "-2", *pid.split())
+                self.client.adb("shell", "kill", "-2", pid)
             try:
                 stdout, stderr = process.communicate(timeout=15)
             except subprocess.TimeoutExpired:
                 process.terminate()
                 stdout, stderr = process.communicate(timeout=5)
             (self.output / f"{name}-recording.log").write_bytes(stdout + stderr)
+            self.client.adb("shell", "rm", "-f", pid_file)
             data = self.client.adb("exec-out", "cat", remote, check=False)
             if data:
                 (self.output / f"{name}.mp4").write_bytes(data)
                 self.client.adb("shell", "rm", remote)
-            else:
+            elif ready:
                 raise AssertionError(
                     "No motion evidence was copied; preserve the batch and inspect recording log"
                 )
@@ -254,6 +257,32 @@ class Flow(AndroidInput):
         self.capture(f"{battle_id}-named-world-cold-no-repeat-reward", state)
 
 
+@contextmanager
+def record_session(client, directory):
+    """Own the stop/backup/run/stop/restore boundary shared by Android drivers."""
+    client.adb("shell", "am", "force-stop", PACKAGE)
+    backup = backup_records(client, directory)
+    status = {"restored": False, "restoreSeconds": 0.0}
+    try:
+        yield status
+    finally:
+        started = time.perf_counter()
+        client.adb("shell", "am", "force-stop", PACKAGE)
+        restore_records(client, backup)
+        status["restoreSeconds"] = round(time.perf_counter() - started, 3)
+        status["restored"] = True
+
+
+def install_captured_apk(client, apk, output, build_id):
+    """Install and verify a fixed batch copy, keeping both package identities as evidence."""
+    captured = output / "captured.apk"
+    if not captured.exists():
+        shutil.copy2(apk, captured)
+    verify_apk(captured, build_id)
+    client.adb("install", "-r", str(captured), timeout=60)
+    verify_installed_apk(client, build_id, output / "installed.apk")
+
+
 def run_cases(flow, cases, handlers, apk, *, stop_emulator=False):
     """Install a fixed package only after full backup; recover even when a case fails."""
     if not cases or any(case not in handlers for case in cases):
@@ -264,7 +293,7 @@ def run_cases(flow, cases, handlers, apk, *, stop_emulator=False):
         raise ValueError("Captured APK differs from requested buildId")
     flow.output.mkdir(parents=True, exist_ok=False)
     client = flow.client
-    backup, rotation, passed = None, {}, False
+    protection, rotation, passed = None, {}, False
     completed = []
     try:
         client.adb("wait-for-device", timeout=60)
@@ -273,52 +302,41 @@ def run_cases(flow, cases, handlers, apk, *, stop_emulator=False):
             if time.monotonic() >= deadline:
                 raise TimeoutError("Android boot did not finish")
             time.sleep(0.2)
-        client.adb("shell", "am", "force-stop", PACKAGE)
-        backup = backup_records(client, flow.output / "records")
-        for key in ("accelerometer_rotation", "user_rotation"):
-            rotation[key] = client.adb("shell", "settings", "get", "system", key).decode().strip()
-        (flow.output / "original-rotation.json").write_text(json.dumps(rotation))
-        captured = flow.output / "captured.apk"
-        shutil.copy2(apk, captured)
-        client.adb("install", "-r", str(captured), timeout=60)
-        paths = client.adb("shell", "pm", "path", PACKAGE).decode().splitlines()
-        installed = next(
-            (p.removeprefix("package:") for p in paths if p.endswith("/base.apk")), None
-        )
-        if installed is None:
-            raise RuntimeError("Installed base APK not found")
-        installed_copy = flow.output / "installed.apk"
-        client.adb("pull", installed, str(installed_copy))
-        verify_apk(installed_copy, flow.build_id)
-        for case in cases:
-            with flow.phase(case):
-                handlers[case](flow)
-            completed.append(case)
-        passed = True
-    except BaseException:
-        if backup is not None:
+        with record_session(client, flow.output / "records") as protection:
             try:
-                flow.capture("failure")
-                pid = client.adb("shell", "pidof", PACKAGE).decode().strip()
-                (flow.output / "failure-log.txt").write_bytes(
-                    client.adb("logcat", "-d", "--pid=" + pid)
-                )
-            except Exception:
-                logging.exception("Could not capture chapter QA failure")
-        raise
+                for key in ("accelerometer_rotation", "user_rotation"):
+                    rotation[key] = (
+                        client.adb("shell", "settings", "get", "system", key).decode().strip()
+                    )
+                (flow.output / "original-rotation.json").write_text(json.dumps(rotation))
+                install_captured_apk(client, apk, flow.output, flow.build_id)
+                for case in cases:
+                    with flow.phase(case):
+                        handlers[case](flow)
+                    completed.append(case)
+                passed = True
+            except BaseException:
+                try:
+                    flow.capture("failure")
+                    pid = client.adb("shell", "pidof", PACKAGE).decode().strip()
+                    (flow.output / "failure-log.txt").write_bytes(
+                        client.adb("logcat", "-d", "--pid=" + pid)
+                    )
+                except Exception:
+                    logging.exception("Could not capture chapter QA failure")
+                raise
     finally:
         try:
-            if backup is not None:
-                with flow.phase("restoreOriginalRecordsAndRotation"):
-                    client.adb("shell", "am", "force-stop", PACKAGE)
-                    try:
-                        restore_records(client, backup)
-                    finally:
-                        for key, value in rotation.items():
-                            client.adb("shell", "settings", "put", "system", key, value)
-                            actual = client.adb("shell", "settings", "get", "system", key)
-                            if actual.decode().strip() != value:
-                                raise RuntimeError(f"Rotation restoration failed: {key}")
+            with flow.phase("restoreOriginalRotation"):
+                for key, value in rotation.items():
+                    client.adb("shell", "settings", "put", "system", key, value)
+                    actual = client.adb("shell", "settings", "get", "system", key)
+                    if actual.decode().strip() != value:
+                        raise RuntimeError(f"Rotation restoration failed: {key}")
+            if protection is not None and protection["restored"]:
+                flow.timings["restoreOriginalRecordsAndRotation"] = round(
+                    protection["restoreSeconds"] + flow.timings["restoreOriginalRotation"], 3
+                )
                 (flow.output / "result.json").write_text(
                     json.dumps(
                         {

@@ -12,8 +12,10 @@ const RetirementPlayer = preload("res://features/battle/retirement_player.gd")
 
 
 # Content is validated once at the app boundary, before a scene receives it.
-func load_chapter(path: String, battle_id: String = "", context: Dictionary = {}) -> Dictionary:
-	var entry: Variant = _read_json(path)
+func load_chapter(
+	path: String, battle_id: String = "", context: Dictionary = {}, documents: Dictionary = {}
+) -> Dictionary:
+	var entry: Variant = _read_json(path, documents)
 	if not entry is Dictionary:
 		return _failure("章入口无法读取: " + path)
 	if not entry.get("firstBattle") is String:
@@ -28,7 +30,7 @@ func load_chapter(path: String, battle_id: String = "", context: Dictionary = {}
 		and (not context.has("party") or not context.has("partyOrder"))
 	):
 		return _failure("进入关卡缺少队伍来源: " + battle_id)
-	var definition: Variant = _read_json(catalog[battle_id])
+	var definition: Variant = _read_json(catalog[battle_id], documents)
 	if not definition is Dictionary or definition.get("battleId") != battle_id:
 		return _failure("关卡入口身份无效: " + battle_id)
 	if definition.has("textureOverrides"):
@@ -39,15 +41,16 @@ func load_chapter(path: String, battle_id: String = "", context: Dictionary = {}
 	for key: String in ["map", "mapTexture", "deployments", "story"]:
 		if not definition.get(key) is String or definition[key].is_empty():
 			return _failure("关卡入口缺少字段: " + key)
-	var library: Variant = _read_json(entry["library"])
-	var records: Variant = _read_json(definition["deployments"])
-	var fragment: Variant = _read_json(definition["story"])
+	var library: Variant = _read_json(entry["library"], documents)
+	var records: Variant = _read_json(definition["deployments"], documents)
+	var fragment: Variant = _read_json(definition["story"], documents)
 	if not library is Dictionary or not records is Array or not fragment is Dictionary:
 		return _failure("章内容库、部署或剧情无法读取: " + battle_id)
 	var texture_plan: Dictionary = TextureOverrides.read_plan(entry, library, _read_json)
 	if not texture_plan["ok"]:
 		return texture_plan
 	var chapter_id: Variant = entry.get("id")
+	entry = entry.duplicate(true)
 	entry.merge(definition, true)
 	entry["id"] = chapter_id
 	entry["battleId"] = battle_id
@@ -835,7 +838,10 @@ func _grid_valid(grid: Variant, width: int, height: int, minimum: int, maximum: 
 	return true
 
 
-func _read_json(path: String) -> Variant:
+func _read_json(path: String, documents: Dictionary = {}) -> Variant:
+	# Reuse definitions within this open only; validation still follows the same path.
+	if documents.has(path):
+		return documents[path]
 	if not FileAccess.file_exists(path):
 		return null
 	var file := FileAccess.open(path, FileAccess.READ)

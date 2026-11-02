@@ -38,22 +38,26 @@ def verify_apk(apk: Path, expected: str) -> None:
 
 
 def verify_android(serial: str | None = None, apk: Path | None = None) -> None:
-    from .qa.client import PACKAGE, Playtest
+    from .qa.client import Playtest
 
     if apk is None:
-        expected = json.loads((ROOT / "build/android/build-info.json").read_text())["buildId"]
-    else:
-        with zipfile.ZipFile(apk) as archive:
-            expected = json.loads(archive.read("assets/content/build_info.json"))["buildId"]
+        apk = ROOT / "build/android/emblem-rekindled.apk"
+    with zipfile.ZipFile(apk) as archive:
+        expected = json.loads(archive.read("assets/content/build_info.json"))["buildId"]
     client = Playtest(serial)
+    with tempfile.TemporaryDirectory(prefix="emblem-installed-apk-") as directory:
+        verify_installed_apk(client, expected, Path(directory) / "base.apk")
+    print(f"PASS installed APK {expected}")
+
+
+def verify_installed_apk(client, expected: str, target: Path) -> None:
+    from .qa.client import PACKAGE
+
     paths = client.adb("shell", "pm", "path", PACKAGE).decode().splitlines()
     base = next(
         (path.removeprefix("package:") for path in paths if path.endswith("/base.apk")), None
     )
     if base is None:
         raise RuntimeError("Installed base APK not found")
-    with tempfile.TemporaryDirectory(prefix="emblem-installed-apk-") as directory:
-        apk = Path(directory) / "base.apk"
-        client.adb("pull", base, str(apk))
-        verify_apk(apk, expected)
-    print(f"PASS installed APK {expected}")
+    client.adb("pull", base, str(target))
+    verify_apk(target, expected)

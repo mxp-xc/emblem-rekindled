@@ -74,14 +74,10 @@ func _init(
 	battle_id = content["entry"]["battleId"]
 	for step: Dictionary in content["story"]["sequences"]["opening"]:
 		if step["kind"] == "commanderSetup":
-			for id: Variant in step["candidates"]:
-				_commander_candidates.append(int(id))
 			commander_id = int(step["defaultCommanderId"])
 			break
 	_initial_gold = int(content["rules"]["initialGold"])
 	gold = _initial_gold
-	for route: Dictionary in content["story"]["routeChoices"]:
-		_routes[int(route["routeIndex"])] = route
 	_map = content["map"].duplicate(true)
 	_alliances = content["rules"]["alliances"].duplicate()
 	_movement = MapRules.new(_map, _alliances)
@@ -89,14 +85,8 @@ func _init(
 	_random_source = random_source
 	_inventory = Inventory.new(_combat, _roll)
 	_resolution = Resolution.new(_combat, _inventory, _roll)
-	_map_attack = MapAttack.new(
-		_combat, _inventory, _resolution, _map, _alliances, content.get("mapEffects")
-	)
-	_chapter_events = Events.new(content)
-	_ai = AI.new(content)
 	_clone_policy = content["story"].get("periodicClones")
 	_clone_records = content.get("_deployments", [])
-	_clones = Clones.new(content, _combat, _inventory)
 	if _clone_policy != null:
 		_clone_state = (
 			content
@@ -108,18 +98,14 @@ func _init(
 	_stat_caps = content["rules"]["statCaps"].duplicate(true)
 	for row: Dictionary in content["rules"]["growthRates"]:
 		_growth_rates[int(row["id"])] = row.duplicate(true)
-	for definition: Dictionary in content["units"]:
-		_definitions[int(definition["id"])] = definition.duplicate(true)
-		if int(definition["id"]) not in content.get("optionalIds", []):
-			_required_ids.append(int(definition["id"]))
+	_bind_content(content)
 	if initialize:
 		var initial: Dictionary = Deployment.new(content, _combat, _inventory, _roll).create()
 		_units = initial["units"]
 		_definitions = initial["definitions"]
 		_required_ids = initial["requiredIds"]
 		_deployment_bindings = initial["bindings"]
-	_adopt_unit_order(content)
-	_record_content = content.duplicate()
+	_reorder_units()
 	_refresh_unit_records()
 
 
@@ -130,6 +116,12 @@ func deployment_bindings() -> Dictionary:
 # Rebind presentation identities after optional deployments have been resolved.
 # This replaces no battle result and performs no initialization or random draw.
 func adopt_content(content: Dictionary) -> void:
+	_bind_content(content)
+	_refresh_unit_records()
+
+
+# Derived content only. Initialization owns deployment, commander, gold and RNG.
+func _bind_content(content: Dictionary) -> void:
 	_definitions.clear()
 	_required_ids.clear()
 	_map_attack = MapAttack.new(
@@ -151,7 +143,6 @@ func adopt_content(content: Dictionary) -> void:
 	for route: Dictionary in content["story"]["routeChoices"]:
 		_routes[int(route["routeIndex"])] = route
 	_record_content = content.duplicate()
-	_refresh_unit_records()
 	_chapter_events = Events.new(content)
 	_ai = AI.new(content)
 	_clones = Clones.new(content, _combat, _inventory)
@@ -366,8 +357,17 @@ func _integer_in(value: Variant, minimum: int, maximum: int) -> bool:
 	)
 
 
+# Shared unit-operation gate; moving and automatic actions have stricter contracts.
+func _action_error(id: int) -> String:
+	if not _can_act(id):
+		return "UNIT_NOT_READY"
+	if not _pending_move.is_empty() and _pending_move["id"] != id:
+		return "ACTION_PENDING"
+	return ""
+
+
 func actions_for(id: int) -> Array[String]:
-	if not _can_act(id) or (not _pending_move.is_empty() and _pending_move["id"] != id):
+	if not _action_error(id).is_empty():
 		return []
 	var actions: Array[String] = ["wait"]
 	if _pending_move.is_empty():
@@ -448,10 +448,9 @@ func cancel_move() -> Dictionary:
 
 
 func wait_unit(id: int) -> Dictionary:
-	if not _can_act(id):
-		return _failure("UNIT_NOT_READY")
-	if not _pending_move.is_empty() and _pending_move["id"] != id:
-		return _failure("ACTION_PENDING")
+	var error: String = _action_error(id)
+	if not error.is_empty():
+		return _failure(error)
 	_units[id]["action"] = 2
 	_pending_move.clear()
 	_check_outcome()
@@ -459,15 +458,14 @@ func wait_unit(id: int) -> Dictionary:
 
 
 func equip_unit(id: int, instance_id: String) -> Dictionary:
-	if not _can_act(id):
-		return _failure("UNIT_NOT_READY")
-	if not _pending_move.is_empty() and _pending_move["id"] != id:
-		return _failure("ACTION_PENDING")
+	var error: String = _action_error(id)
+	if not error.is_empty():
+		return _failure(error)
 	return _inventory.equip(_units[id], instance_id)
 
 
 func item_options(id: int) -> Dictionary:
-	if not _can_act(id) or (not _pending_move.is_empty() and _pending_move["id"] != id):
+	if not _action_error(id).is_empty():
 		return {}
 	var options: Dictionary = {}
 	for operation: String in ["use", "equip", "discard"]:
@@ -478,32 +476,29 @@ func item_options(id: int) -> Dictionary:
 
 
 func discard_item(id: int, instance_id: String) -> Dictionary:
-	if not _can_act(id):
-		return _failure("UNIT_NOT_READY")
-	if not _pending_move.is_empty() and _pending_move["id"] != id:
-		return _failure("ACTION_PENDING")
+	var error: String = _action_error(id)
+	if not error.is_empty():
+		return _failure(error)
 	return _inventory.discard(_units[id], instance_id)
 
 
 func attack_weapons(id: int) -> Array[Dictionary]:
-	if not _can_act(id) or (not _pending_move.is_empty() and _pending_move["id"] != id):
+	if not _action_error(id).is_empty():
 		return []
 	return _map_attack.weapons(_units[id], _units.values(), round_number, _commander())
 
 
 func attack_options(id: int, instance_id: String) -> Dictionary:
-	if not _can_act(id):
-		return _failure("UNIT_NOT_READY")
-	if not _pending_move.is_empty() and _pending_move["id"] != id:
-		return _failure("ACTION_PENDING")
+	var error: String = _action_error(id)
+	if not error.is_empty():
+		return _failure(error)
 	return _map_attack.options(_units[id], instance_id, _units.values(), round_number)
 
 
 func map_attack_preview(id: int, instance_id: String, primary_id: int = -1) -> Dictionary:
-	if not _can_act(id):
-		return _failure("UNIT_NOT_READY")
-	if not _pending_move.is_empty() and _pending_move["id"] != id:
-		return _failure("ACTION_PENDING")
+	var error: String = _action_error(id)
+	if not error.is_empty():
+		return _failure(error)
 	return _map_attack.prepare(
 		_units[id], instance_id, _units.values(), round_number, _commander(), primary_id
 	)
@@ -576,10 +571,9 @@ func combat_forecast(id: int, target_id: int) -> Dictionary:
 
 
 func attack_unit(id: int, target_id: int) -> Dictionary:
-	if not _can_act(id):
-		return _failure("UNIT_NOT_READY")
-	if not _pending_move.is_empty() and _pending_move["id"] != id:
-		return _failure("ACTION_PENDING")
+	var error: String = _action_error(id)
+	if not error.is_empty():
+		return _failure(error)
 	if _combat.action_mode(_combat.weapon_id(_units[id])) != "battle_clip":
 		return _failure("INVALID_ACTION_MODE")
 	if not _units.has(target_id) or not _map_attack.target_valid(_units[id], _units[target_id]):
@@ -812,10 +806,9 @@ func heal_targets(id: int, instance_id: String) -> Array[int]:
 
 
 func heal_unit(id: int, target_id: int, instance_id: String) -> Dictionary:
-	if not _can_act(id):
-		return _failure("UNIT_NOT_READY")
-	if not _pending_move.is_empty() and _pending_move["id"] != id:
-		return _failure("ACTION_PENDING")
+	var error: String = _action_error(id)
+	if not error.is_empty():
+		return _failure(error)
 	if target_id not in heal_targets(id, instance_id):
 		return _failure("INVALID_HEAL_TARGET")
 	var actor: Dictionary = _units[id]
@@ -840,10 +833,9 @@ func heal_unit(id: int, target_id: int, instance_id: String) -> Dictionary:
 
 
 func use_item(id: int, instance_id: String) -> Dictionary:
-	if not _can_act(id):
-		return _failure("UNIT_NOT_READY")
-	if not _pending_move.is_empty() and _pending_move["id"] != id:
-		return _failure("ACTION_PENDING")
+	var error: String = _action_error(id)
+	if not error.is_empty():
+		return _failure(error)
 	var result: Dictionary = _inventory.use_item(_units[id], instance_id)
 	if result["ok"]:
 		_units[id]["action"] = 2
@@ -872,10 +864,9 @@ func movement_committed(id: int) -> bool:
 
 
 func begin_trade(id: int, target_id: int) -> Dictionary:
-	if not _can_act(id):
-		return _failure("UNIT_NOT_READY")
-	if not _pending_move.is_empty() and _pending_move["id"] != id:
-		return _failure("ACTION_PENDING")
+	var error: String = _action_error(id)
+	if not error.is_empty():
+		return _failure(error)
 	if target_id not in trade_targets(id):
 		return _failure("INVALID_TRADE_TARGET")
 	_commit_position(id)
@@ -891,10 +882,9 @@ func _commit_position(id: int) -> void:
 func trade_item(
 	id: int, target_id: int, instance_id: String, exchange_id: String = ""
 ) -> Dictionary:
-	if not _can_act(id):
-		return _failure("UNIT_NOT_READY")
-	if not _pending_move.is_empty() and _pending_move["id"] != id:
-		return _failure("ACTION_PENDING")
+	var error: String = _action_error(id)
+	if not error.is_empty():
+		return _failure(error)
 	if target_id not in trade_targets(id):
 		return _failure("INVALID_TRADE_TARGET")
 	var source: Dictionary = _units[id]

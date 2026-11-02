@@ -6,7 +6,7 @@ import tempfile
 import unittest
 import zipfile
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from emblem_dev.commands.qa import qa_android
 from emblem_dev.qa.android import Flow, run_cases
@@ -73,6 +73,62 @@ class ChapterAndroidQaTest(unittest.TestCase):
 
     def run_case(self, handler):
         run_cases(self.flow, ["case"], {"case": handler}, self.apk)
+
+    def test_video_signals_only_its_own_remote_process_and_copies_evidence(self):
+        self.flow.output.mkdir()
+        self.client.command = ["adb", "-s", "fixture"]
+        commands = []
+
+        def adb(*args, **kwargs):
+            commands.append(args)
+            if args[:2] == ("shell", "cat"):
+                return b"42\n"
+            if args[:2] == ("shell", "pidof"):
+                return b"7 42\n"  # Another recording belongs to someone else.
+            if args[:2] == ("shell", "stat"):
+                return b"20"
+            if args[:2] == ("exec-out", "cat"):
+                return b"motion evidence"
+            return b""
+
+        self.client.adb = adb
+        process = Mock()
+        process.poll.return_value = None
+        process.communicate.return_value = (b"", b"")
+        with patch("emblem_dev.qa.android.subprocess.Popen", return_value=process):
+            with self.flow.video("action"):
+                pass
+        signals = [c for c in commands if c[:2] == ("shell", "kill")]
+        self.assertEqual(signals, [("shell", "kill", "-2", "42")])
+        self.assertEqual((self.flow.output / "action.mp4").read_bytes(), b"motion evidence")
+
+    def test_failed_video_start_never_signals_an_unowned_process(self):
+        self.flow.output.mkdir()
+        self.client.command = ["adb"]
+        process = Mock()
+        process.poll.return_value = 1
+        process.communicate.return_value = (b"", b"start failed")
+        with patch("emblem_dev.qa.android.subprocess.Popen", return_value=process):
+            with self.assertRaisesRegex(RuntimeError, "ended before recording"):
+                with self.flow.video("failed"):
+                    self.fail("Entered failed recording")
+        self.assertFalse(any(c[:2] == ("shell", "kill") for c in self.client.commands))
+        self.assertEqual((self.flow.output / "failed-recording.log").read_bytes(), b"start failed")
+
+    def test_invalid_recording_pid_never_becomes_a_signal_target(self):
+        self.flow.output.mkdir()
+        self.client.command = ["adb"]
+        self.client.adb = Mock(return_value=b"7 42")
+        process = Mock()
+        process.poll.return_value = None
+        process.communicate.return_value = (b"", b"")
+        with patch("emblem_dev.qa.android.subprocess.Popen", return_value=process):
+            with self.assertRaisesRegex(RuntimeError, "Invalid owned"):
+                with self.flow.video("invalid"):
+                    self.fail("Entered recording with an invalid PID")
+        self.assertFalse(
+            any(c.args[:2] == ("shell", "kill") for c in self.client.adb.call_args_list)
+        )
 
     def test_double_cell_scrolls_then_sends_same_point_taps_without_intervening_read(self):
         events = []

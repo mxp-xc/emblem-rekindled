@@ -6,16 +6,16 @@ import re
 import subprocess
 import time
 import uuid
+import zipfile
 from pathlib import Path
 from typing import Annotated
 
 import typer
 
 from emblem_dev.commands.state import SPEED_HELP, speed_parameter
-from emblem_dev.delivery import verify_android
 from emblem_dev.paths import GAME, GODOT, ROOT
+from emblem_dev.qa.android import install_captured_apk, record_session
 from emblem_dev.qa.client import PACKAGE, AndroidInput, Playtest, validate_speed
-from emblem_dev.qa.records import backup_records, restore_records
 
 app = typer.Typer()
 
@@ -215,48 +215,59 @@ def run_playtest(
     client = Playtest(serial)
     if not apk.is_file():
         raise ValueError("Export the debug APK first or provide --apk")
+    with zipfile.ZipFile(apk) as archive:
+        build_id = json.loads(archive.read("assets/content/build_info.json"))["buildId"]
     output = ROOT / "temp" / "playtest" / uuid.uuid4().hex[:8]
     output.mkdir(parents=True)
     print("OUTPUT", output, flush=True)
     try:
         client.adb("wait-for-device")
-        client.adb("install", "-r", str(apk))
-        verify_android(serial, apk)
-        client.adb("shell", "am", "force-stop", PACKAGE)
-        client.adb("shell", "run-as", PACKAGE, "mkdir", "-p", "files")
-
-        backup = backup_records(client, output / "records")
-        started = time.monotonic()
-        run = Run(client, output)
-        try:
-            state = run.play(speed)
-            progress = state["world"]
-            if progress["gold"] != 6000 or progress["route"] != 0:
-                raise AssertionError("Unexpected first-battle completion")
-            (output / "completed-progress.json").write_text(
-                json.dumps(progress, ensure_ascii=False, indent=2)
-            )
-        except BaseException:
-            try:
-                (output / "failure.png").write_bytes(client.adb("exec-out", "screencap", "-p"))
-                (output / "failure-state.json").write_bytes(
-                    client.adb(
-                        "shell", "run-as", PACKAGE, "cat", "files/playtest_state.json", check=False
-                    )
-                )
-                pid = client.adb("shell", "pidof", PACKAGE).decode().strip()
-                (output / "process-log.txt").write_bytes(client.adb("logcat", "-d", "--pid=" + pid))
-            except Exception:
-                logging.exception("Could not capture playtest failure evidence")
-            raise
-        finally:
+        installed = client.adb("shell", "pm", "list", "packages", PACKAGE).splitlines()
+        first_install = ("package:" + PACKAGE).encode() not in installed
+        if first_install:
+            install_captured_apk(client, apk, output, build_id)
             client.adb("shell", "am", "force-stop", PACKAGE)
-            restore_records(client, backup)
-            print("ORIGINAL_JSON_RESTORED", flush=True)
+            client.adb("shell", "run-as", PACKAGE, "mkdir", "-p", "files")
+        with record_session(client, output / "records") as protection:
+            started = time.monotonic()
+            if not first_install:
+                install_captured_apk(client, apk, output, build_id)
+            run = Run(client, output)
+            try:
+                state = run.play(speed)
+                progress = state["world"]
+                if progress["gold"] != 6000 or progress["route"] != 0:
+                    raise AssertionError("Unexpected first-battle completion")
+                (output / "completed-progress.json").write_text(
+                    json.dumps(progress, ensure_ascii=False, indent=2)
+                )
+            except BaseException:
+                try:
+                    (output / "failure.png").write_bytes(client.adb("exec-out", "screencap", "-p"))
+                    (output / "failure-state.json").write_bytes(
+                        client.adb(
+                            "shell",
+                            "run-as",
+                            PACKAGE,
+                            "cat",
+                            "files/playtest_state.json",
+                            check=False,
+                        )
+                    )
+                    pid = client.adb("shell", "pidof", PACKAGE).decode().strip()
+                    (output / "process-log.txt").write_bytes(
+                        client.adb("logcat", "-d", "--pid=" + pid)
+                    )
+                except Exception:
+                    logging.exception("Could not capture playtest failure evidence")
+                raise
+        print("ORIGINAL_JSON_RESTORED", flush=True)
         (output / "result.json").write_text(
             json.dumps(
                 {
                     "passed": True,
+                    "buildId": build_id,
+                    "restoreSeconds": protection["restoreSeconds"],
                     "speed": state["speed"],
                     "playerActions": len(run.journal),
                     "roundCheckpoints": run.saves,

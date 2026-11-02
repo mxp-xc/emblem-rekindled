@@ -1113,13 +1113,19 @@ func start_new_game() -> void:
 	map.set_zoom(maxf(3.0, fill_height))
 	busy = true
 	await story_player.play(content["story"]["sequences"]["newGame"])
+	if not await _play_opening():
+		return
+	resume_battle(battle)
+
+
+func _play_opening() -> bool:
 	await story_player.play(
 		content["story"]["sequences"]["opening"], battle.command_configuration()
 	)
 	if not await _commit_opening_commander():
-		return
+		return false
 	battle.complete_event("opening")
-	resume_battle(battle)
+	return true
 
 
 func _commit_opening_commander() -> bool:
@@ -1743,13 +1749,9 @@ func _world_node(node_id: int) -> void:
 	map.prepare_opening(content["story"]["initialBattlePresentation"])
 	map_hud.hide()
 	menu_button.hide()
-	await story_player.play(
-		content["story"]["sequences"]["opening"], battle.command_configuration()
-	)
-	if not await _commit_opening_commander():
+	if not await _play_opening():
 		_world_transitioning = false
 		return
-	battle.complete_event("opening")
 	var saved: Dictionary = battle_store.write(battle, _play_minutes())
 	while not saved["ok"]:
 		push_error(str(saved))

@@ -54,16 +54,40 @@ def export(platform: str) -> dict:
             destination.mkdir(parents=True, exist_ok=True)
             if platform == "web":
                 publish_web(Path(directory), destination, identity["buildId"])
+                (destination / "build-info.json").write_text(json.dumps(identity, indent=2) + "\n")
             else:
-                for file in Path(directory).iterdir():
-                    shutil.copy2(file, destination / file.name)
-            (destination / "build-info.json").write_text(json.dumps(identity, indent=2) + "\n")
+                publish_android(output, destination, identity)
     finally:
         if previous is None:
             INFO.unlink(missing_ok=True)
         else:
             INFO.write_bytes(previous)
     return identity
+
+
+def publish_android(source: Path, destination: Path, identity: dict) -> None:
+    """Prepare both files before publication; the stable APK is the commit point.
+
+    A failed commit restores the old metadata. After an uncatchable interruption,
+    package identity remains authoritative rather than the advisory sidecar.
+    """
+    metadata = destination / "build-info.json"
+    with tempfile.TemporaryDirectory(prefix=".android-publish-", dir=destination) as directory:
+        staged = Path(directory)
+        shutil.copy2(source, staged / "emblem-rekindled.apk")
+        (staged / "build-info.json").write_text(json.dumps(identity, indent=2) + "\n")
+        old_metadata = staged / "previous-info.json"
+        if metadata.exists():
+            old_metadata.write_bytes(metadata.read_bytes())
+        (staged / "build-info.json").replace(metadata)
+        try:
+            (staged / "emblem-rekindled.apk").replace(destination / "emblem-rekindled.apk")
+        except BaseException:
+            if old_metadata.exists():
+                old_metadata.replace(metadata)
+            else:
+                metadata.unlink()
+            raise
 
 
 def publish_web(source: Path, destination: Path, build_id: str) -> None:

@@ -132,6 +132,45 @@ globalThis.indexedDB = {
     return req(() => db);
   },
 };
+const cyclic = {};
+cyclic.self = cyclic;
+for (const value of [
+  new Map([["slot", 7]]),
+  new Set([1, 2]),
+  /record/,
+  { __qaType: "Date", value: "2026-01-01T00:00:00Z", note: "ordinary" },
+  { nested: undefined },
+  [undefined],
+  new Array(1),
+  Object.assign([1], { note: "must not be discarded" }),
+  Object.assign([1], { note: new Map([["slot", 7]]) }),
+  { nested: NaN },
+  { nested: Infinity },
+  { nested: -0 },
+  { nested: 1n },
+  cyclic,
+]) {
+  rows.set("unsupported", value);
+  let ran = false,
+    persistedUnsupported = false;
+  await assert.rejects(
+    preserveStorage({
+      stop: async () => {},
+      persistBackup: async (saved) => {
+        persistedUnsupported = true;
+        return saved;
+      },
+      run: async () => {
+        ran = true;
+      },
+    }),
+    /Unsupported|Reserved|Cyclic/,
+  );
+  assert.equal(ran, false);
+  assert.equal(persistedUnsupported, false);
+  assert.strictEqual(rows.get("unsupported"), value);
+  rows.delete("unsupported");
+}
 const saved = await snapshot();
 const persisted = JSON.parse(JSON.stringify(saved));
 const lifecycle = [];

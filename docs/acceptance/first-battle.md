@@ -1,7 +1,7 @@
 # 首关验收
 
-本轮范围是初章第一战及其开场、结算、驻留世界、四档存读与物品整理。
-后续战斗关卡尚未开放，三章连续主线仍按[决策地图](https://github.com/mxp-xc/emblem-rekindled/issues/1)逐关推进。
+本页记录的验收批次范围是初章第一战及其开场、结算、驻留世界、四档存读与物品整理。
+后续关卡的当前进展由章级票维护，入口见[决策地图](https://github.com/mxp-xc/emblem-rekindled/issues/1)逐关推进。
 
 首关开发及本轮自测已完成，可集中验收。[第二轮12项反馈](https://github.com/mxp-xc/emblem-rekindled/issues/21)、[内部API与快速回归](https://github.com/mxp-xc/emblem-rekindled/issues/22)、[敌军掉落名称高亮](https://github.com/mxp-xc/emblem-rekindled/issues/23)均已完成对应验证。新增[滚轮导航与通关辅助](https://github.com/mxp-xc/emblem-rekindled/issues/24)已补齐相关自动与两端验证。
 

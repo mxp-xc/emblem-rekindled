@@ -268,17 +268,19 @@ class NativeCliTest(unittest.TestCase):
 
     def test_first_battle_keeps_existing_natural_regression_options(self):
         apk = self.directory / "current.apk"
-        apk.touch()
+        with zipfile.ZipFile(apk, "w") as archive:
+            archive.writestr("assets/content/build_info.json", json.dumps({"buildId": "fixed"}))
         play = Mock(journal=[], saves=0)
         play.play.return_value = {"world": {"gold": 6000, "route": 0}, "speed": 1}
         with (
             patch.object(first_battle, "ROOT", self.directory),
             patch.object(first_battle, "Playtest") as device,
             patch.object(first_battle, "Run", return_value=play),
-            patch.object(first_battle, "verify_android") as check,
-            patch.object(first_battle, "backup_records"),
-            patch.object(first_battle, "restore_records"),
+            patch.object(first_battle, "install_captured_apk") as check,
+            patch.object(first_battle, "record_session") as protection,
         ):
+            protection.return_value.__enter__.return_value = {"restoreSeconds": 0.0}
+            device.return_value.adb.return_value = b""
             result = self.invoke(
                 "qa",
                 "first-battle",
@@ -292,7 +294,8 @@ class NativeCliTest(unittest.TestCase):
             )
             self.assertEqual(result.exit_code, 0, result.output)
             device.assert_called_once_with("fixture")
-            check.assert_called_once_with("fixture", apk)
+            self.assertEqual(check.call_args.args[1], apk)
+            self.assertEqual(check.call_args.args[3], "fixed")
             play.play.assert_called_once_with(1)
             self.assertNotIn((("emu", "kill"), {}), device.return_value.adb.call_args_list)
 

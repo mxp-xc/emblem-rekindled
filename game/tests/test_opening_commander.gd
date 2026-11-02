@@ -4,6 +4,7 @@ const Session = preload("res://app/chapter_session.gd")
 const CHAPTER: String = "res://content/chapter_1/chapter.json"
 var _directory: String = ""
 var _selection_finished: bool = false
+var _selection_ok: bool = false
 var _commit_finished: bool = false
 var _commit_ok: bool = false
 
@@ -37,6 +38,7 @@ func run() -> void:
 		scene._adopt_content(opened["content"], opened["battle"])
 		scene.resume_battle(opened["battle"])
 		var before: Dictionary = scene.battle.snapshot()
+		scene.content["story"]["sequences"]["opening"] = [{"kind": "commanderSetup"}]
 		_selection_finished = false
 		_play_selection(scene)
 		await process_frame
@@ -44,6 +46,7 @@ func run() -> void:
 		if (
 			not screen.visible
 			or screen.draft["candidates"] != [{"id": id, "name": scene.battle.unit(id)["name"]}]
+			or scene.battle.event_completed("opening")
 		):
 			fail("The opening UI must expose exactly the domain's visible declared commander")
 			return
@@ -54,9 +57,15 @@ func run() -> void:
 			return
 		scene.story_player.go_back()
 		await process_frame
-		if not _selection_finished or scene.story_player.selected_commander != id:
-			fail("Back must commit the same eligible opening commander through the real story step")
+		if (
+			not _selection_finished
+			or not _selection_ok
+			or scene.story_player.selected_commander != id
+			or not scene.battle.event_completed("opening")
+		):
+			fail("Opening must complete only after Back submits the eligible commander")
 			return
+		before = scene.battle.snapshot()
 		# Simulate a stale selection at the UI/domain boundary. Main must explain
 		# the rejection and reopen the selector, rather than silently use its default.
 		scene.story_player.selected_commander = 0
@@ -103,9 +112,7 @@ func run() -> void:
 
 
 func _play_selection(scene: Control) -> void:
-	await scene.story_player.play(
-		[{"kind": "commanderSetup"}], scene.battle.command_configuration()
-	)
+	_selection_ok = await scene._play_opening()
 	_selection_finished = true
 
 

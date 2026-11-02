@@ -107,7 +107,14 @@ func _resolve(chapter_path: String, battle_id: String, source: Dictionary) -> Di
 	if not ordering["ok"]:
 		return ordering
 	context["partyOrder"] = ordering["ids"]
-	var loaded: Dictionary = Content.new().load_chapter(chapter_path, battle_id, context)
+	var documents: Dictionary = {
+		chapter_path: chapter,
+		chapter["battles"][battle_id]: definition,
+		chapter["library"]: library,
+		definition["deployments"]: records,
+		definition["story"]: story
+	}
+	var loaded: Dictionary = Content.new().load_chapter(chapter_path, battle_id, context, documents)
 	if not loaded["ok"]:
 		return loaded
 	loaded["inheritedParty"] = context["party"].duplicate(true)

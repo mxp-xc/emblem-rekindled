@@ -7,12 +7,88 @@ import zipfile
 from pathlib import Path
 from unittest.mock import patch
 
+from emblem_dev import delivery
 from emblem_dev.commands import build
-from emblem_dev.commands.build import publish_web
+from emblem_dev.commands.build import publish_android, publish_web
 from emblem_dev.delivery import verify_apk
 
 
 class DeliveryTest(unittest.TestCase):
+    def test_android_verification_uses_package_identity_even_with_stale_sidecar(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            destination = root / "build/android"
+            destination.mkdir(parents=True)
+            apk = destination / "emblem-rekindled.apk"
+            with zipfile.ZipFile(apk, "w") as archive:
+                archive.writestr("assets/content/build_info.json", '{"buildId":"committed"}')
+            (destination / "build-info.json").write_text('{"buildId":"interrupted"}')
+
+            def adb(*args):
+                if args[:3] == ("shell", "pm", "path"):
+                    return b"package:/installed/base.apk\n"
+                if args[0] == "pull":
+                    build.shutil.copy2(apk, args[2])
+                return b""
+
+            with (
+                patch.object(delivery, "ROOT", root),
+                patch("emblem_dev.qa.client.Playtest") as client,
+            ):
+                client.return_value.adb.side_effect = adb
+                delivery.verify_android()
+
+    def test_android_publication_preserves_previous_pair_on_failures(self):
+        for failure in ("copy", "metadata", "commit"):
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                source, destination = root / "new.apk", root / "published"
+                source.write_bytes(b"new package")
+                destination.mkdir()
+                apk = destination / "emblem-rekindled.apk"
+                metadata = destination / "build-info.json"
+                apk.write_bytes(b"old package")
+                metadata.write_bytes(b'{"buildId":"old"}\n')
+                original_write = Path.write_text
+                original_replace = Path.replace
+
+                def write(
+                    path, *args, destination=destination, original_write=original_write, **kwargs
+                ):
+                    if path.name == "build-info.json" and path.parent != destination:
+                        raise OSError("metadata failed")
+                    return original_write(path, *args, **kwargs)
+
+                def replace(path, target, apk=apk, original_replace=original_replace):
+                    if Path(target) == apk:
+                        raise OSError("commit failed")
+                    return original_replace(path, target)
+
+                def copy(_source, target):
+                    Path(target).write_bytes(b"partial")
+                    raise OSError("copy failed")
+
+                patches = {
+                    "copy": patch.object(build.shutil, "copy2", side_effect=copy),
+                    "metadata": patch.object(Path, "write_text", write),
+                    "commit": patch.object(Path, "replace", replace),
+                }
+                with patches[failure], self.assertRaisesRegex(OSError, failure):
+                    publish_android(source, destination, {"buildId": "new"})
+                self.assertEqual(apk.read_bytes(), b"old package")
+                self.assertEqual(metadata.read_bytes(), b'{"buildId":"old"}\n')
+
+    def test_android_publication_commits_complete_package_and_identity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source, destination = root / "new.apk", root / "published"
+            destination.mkdir()
+            source.write_bytes(b"new package")
+            identity = {"buildId": "new"}
+            publish_android(source, destination, identity)
+            self.assertEqual((destination / "emblem-rekindled.apk").read_bytes(), b"new package")
+            self.assertEqual(json.loads((destination / "build-info.json").read_text()), identity)
+
     def test_web_builds_have_distinct_asset_urls_and_keep_running_versions(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

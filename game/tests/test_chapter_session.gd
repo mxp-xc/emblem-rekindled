@@ -1,12 +1,30 @@
 extends SceneTree
 
 const Session = preload("res://app/chapter_session.gd")
+const Content = preload("res://app/chapter_content.gd")
 const Store = preload("res://persistence/battle_store.gd")
 const CHAPTER: String = "res://content/chapter_1/chapter.json"
 var _draws: int = 0
 
 
 func _initialize() -> void:
+	var entry: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(CHAPTER))
+	var definition: Dictionary = JSON.parse_string(
+		FileAccess.get_file_as_string(entry["battles"][entry["firstBattle"]])
+	)
+	var supplied_path: String = "user://already-read-chapter.json"
+	var documents: Dictionary = {
+		supplied_path: entry, entry["battles"][entry["firstBattle"]]: definition
+	}
+	for path: String in [entry["library"], definition["deployments"], definition["story"]]:
+		documents[path] = JSON.parse_string(FileAccess.get_file_as_string(path))
+	var originals: Dictionary = documents.duplicate(true)
+	var supplied: Dictionary = Content.new().load_chapter(supplied_path, "", {}, documents)
+	if not _expect(
+		supplied["ok"] and documents == originals,
+		"Already-read definitions must load without reopening their entry or mutating source documents"
+	):
+		return
 	var session := Session.new()
 	var first: Dictionary = session.open(CHAPTER, "", {"new": true}, _roll)
 	if not _expect(first["ok"], "New game must open the chapter's configured first battle"):

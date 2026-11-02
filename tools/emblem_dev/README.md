@@ -131,7 +131,7 @@ Android 另需在 Godot 编辑器 Export → Android 配置已有 Java SDK、And
 | `er build android` | 无参数；发布 `build/android/emblem-rekindled.apk` 与 `build-info.json` |
 | `er serve` | 可选 `--port INTEGER`，默认8765；只监听 `127.0.0.1`，前提是已有 Web 导出 |
 | `er verify web` | 可选 `--origin URL`，默认 `http://127.0.0.1:8765`；核对入口、响应头和实际 PCK |
-| `er verify android` | 可选 `--serial SERIAL`、`--apk PATH`；默认从本 checkout 的 `build/android/build-info.json` 取期望身份；指定 apk 时从该包取身份，核对已安装包 |
+| `er verify android` | 可选 `--serial SERIAL`、`--apk PATH`；默认从本 checkout 的 `build/android/emblem-rekindled.apk` 取期望身份；指定 apk 时从该包取身份，核对已安装包 |
 
 ```sh
 uv run er build templates /path/to/Godot_v4.7.2-stable_export_templates.tpz
@@ -150,6 +150,8 @@ uv run er verify android --serial <serial>
 Android verify 不负责安装；先用已有 ADB 安装当前 APK（QA 批次会自行安装），再核对已安装包。
 导出临时注入 buildId，包内验证通过才发布，结束恢复源身份文件。
 构建身份含 buildId、时间、revision 与 dirty；以实际包身份为准，不能只看源码或安装图标。
+Android 先准备完整 APK 和 metadata，再替换稳定包；普通发布失败保留旧包。
+APK 是发布提交点；进程被强制终止后旁置 `build-info.json` 可能尚不同步，核包始终从 APK 读取身份。
 Web 保持用户原地址，重新导出后普通刷新；入口 base 指向独立构建资源 URL，旧构建目录保留给仍运行的页面。
 serve 使用 `Cache-Control: no-store`，不发送清理浏览器数据的响应头；普通 `http.server` 不符合该验证契约。
 verify web 通过只证明 HTTP 返回的包；浏览器加载后还须核对 canvas 的 `data-emblem-build-id`
@@ -237,7 +239,8 @@ uv run er qa android --apk /path/to/captured.apk --build <buildId> --fixtures /p
 uv run er qa first-battle --speed 32 --serial <serial> --keep-emulator
 ```
 
-入口安装并核对当前 APK，force-stop 后完整备份，从新游戏经真实 ADB 输入自然完成首关；
+已有安装时，入口先 force-stop 并完整备份，再安装、核对本批捕获的 APK；
+首次安装时先安装核包、创建记录目录，再备份空记录集。从新游戏经真实 ADB 输入自然完成首关；
 只读状态用于规划，每回合保存一次，不是通用关卡规划器。
 输出自动创建于 `temp/playtest/<batch>/`，含回合记录、journal、完成进度、结果与恢复凭证，
 失败尽可能保存截图、状态及进程日志。备份失败停止，结束恢复全部原记录。
@@ -277,6 +280,8 @@ uv run er qa web-bridge --output temp/<batch>/web --origin http://127.0.0.1:8765
 POST 校验 Origin、文件名和大小，落盘读回核对后返回 verified。
 配套 harness、浏览器接口映射与真实输入要求见[Web 浏览器操作契约](../../docs/agents/verification.md#web-浏览器操作契约)。
 `preserveStorage` 需在备份和恢复前停止游戏写入；persistBackup 必须落盘并读回完整快照，验证成功后才允许测试写入。
+快照只接受能无损编码的普通对象、数组、JSON 标量、Date、ArrayBuffer 和支持的 typed-array/DataView；
+遇到其他类型、循环、非有限数值或普通对象的 `__qaType` 字段时，在测试写入前停止。
 退出恢复原 origin 全部记录，不以清空 IndexedDB 代替恢复；浏览器客户端仍按环境提供的能力操作。
 
 ## 大型生成源码的有限检索

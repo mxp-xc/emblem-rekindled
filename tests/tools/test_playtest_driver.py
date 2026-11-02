@@ -4,6 +4,7 @@ import json
 import subprocess
 import tempfile
 import unittest
+import zipfile
 from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
@@ -12,10 +13,66 @@ from unittest.mock import Mock, patch
 from emblem_dev.commands import first_battle as playtest_first_battle
 from emblem_dev.commands.state import state_read, state_speed
 from emblem_dev.qa.client import AndroidInput, Playtest
+from test_chapter_android_qa import Device
 from test_qa_records import Store
 
 
 class PlaytestDriverTest(unittest.TestCase):
+    def test_first_battle_uses_verified_protection_for_existing_and_fresh_installs(self):
+        for mode in ("backup-failure", "case-failure", "success", "fresh"):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                apk = root / "game.apk"
+                with zipfile.ZipFile(apk, "w") as archive:
+                    archive.writestr("assets/content/build_info.json", '{"buildId":"fixed"}')
+                device = Device(apk)
+                device.fail_backup = mode == "backup-failure"
+                if mode == "fresh":
+                    device.records.clear()
+                original = device.records.copy()
+                transport = device.adb
+
+                def adb(*args, transport=transport, mode=mode, **kwargs):
+                    result = transport(*args, **kwargs)
+                    if args[:4] == ("shell", "pm", "list", "packages"):
+                        return (
+                            b""
+                            if mode == "fresh"
+                            else (b"package:io.github.mxpxc.emblemrekindled\n")
+                        )
+                    return result
+
+                device.adb = adb
+                run = Mock(journal=[], saves=0)
+
+                def play(_speed, device=device, mode=mode):
+                    device.records["extra.json"] = b"temporary"
+                    if mode == "case-failure":
+                        raise RuntimeError("case failed")
+                    return {"world": {"gold": 6000, "route": 0}, "speed": 32}
+
+                run.play.side_effect = play
+                with (
+                    patch.object(playtest_first_battle, "ROOT", root),
+                    patch.object(playtest_first_battle, "Playtest", return_value=device),
+                    patch.object(playtest_first_battle, "Run", return_value=run),
+                ):
+                    if mode in ("backup-failure", "case-failure"):
+                        with self.assertRaises((OSError, RuntimeError)):
+                            playtest_first_battle.run_playtest(apk=apk, keep_emulator=True)
+                    else:
+                        playtest_first_battle.run_playtest(apk=apk, keep_emulator=True)
+                self.assertEqual(device.records, original)
+                batch = next((root / "temp/playtest").iterdir())
+                self.assertEqual((batch / "result.json").exists(), mode in ("success", "fresh"))
+                if mode == "backup-failure":
+                    run.play.assert_not_called()
+                    self.assertFalse(any(c[0] == "install" for c in device.commands))
+                else:
+                    self.assertTrue((batch / "records/restored.json").exists())
+                    self.assertTrue((batch / "captured.apk").exists())
+                    self.assertTrue((batch / "installed.apk").exists())
+
     def test_invalid_first_battle_speed_rejected_before_device_or_output(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -30,7 +87,7 @@ class PlaytestDriverTest(unittest.TestCase):
                         "Playtest",
                         side_effect=AssertionError("device access"),
                     ) as client,
-                    patch.object(playtest_first_battle, "verify_android") as verify,
+                    patch.object(playtest_first_battle, "install_captured_apk") as verify,
                     self.assertRaisesRegex(ValueError, "Speed must be one of"),
                 ):
                     playtest_first_battle.run_playtest(speed=speed, apk=apk)
@@ -120,7 +177,8 @@ class PlaytestDriverTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             apk = root / "game.apk"
-            apk.touch()
+            with zipfile.ZipFile(apk, "w") as archive:
+                archive.writestr("assets/content/build_info.json", json.dumps({"buildId": "fixed"}))
             store = Store(root / "records")
             store.write_record("battle_save.json", b"original")
             store.adb = Mock(return_value=b"")
@@ -136,7 +194,7 @@ class PlaytestDriverTest(unittest.TestCase):
                 patch.object(playtest_first_battle, "ROOT", root),
                 patch.object(playtest_first_battle, "Playtest", return_value=store),
                 patch.object(playtest_first_battle, "Run", return_value=run),
-                patch.object(playtest_first_battle, "verify_android"),
+                patch.object(playtest_first_battle, "install_captured_apk"),
                 redirect_stdout(output),
                 self.assertRaisesRegex(OSError, "write failed"),
             ):
