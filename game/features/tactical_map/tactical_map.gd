@@ -248,7 +248,7 @@ func set_action_field(field: Dictionary, targets: Array, kind: String) -> void:
 	set_movement_field(field, kind)
 	for target: Dictionary in targets:
 		target_cells.append(Vector2i(target["x"], target["y"]))
-	action_hint = {"attack": "选择攻击目标", "heal": "选择治疗目标", "trade": "选择交换对象"}.get(kind, "")
+	action_hint = {"attack": "选择攻击目标", "heal": "选择杖目标", "trade": "选择交换对象"}.get(kind, "")
 	queue_redraw()
 
 

@@ -160,7 +160,7 @@ func can_heal_with(actor: Dictionary, held: Dictionary) -> bool:
 	return (
 		not held.is_empty()
 		and held["durability"] > 0
-		and int(held["templateId"]) in [53, 54]
+		and int(held["templateId"]) in [53, 54, 55, 56]
 		and (int(actor["equipMask"]) & 32) != 0
 	)
 
@@ -176,6 +176,18 @@ func heal(actor: Dictionary, target: Dictionary, instance_id: String) -> Diction
 	if not can_heal(actor, target, instance_id):
 		return _failure("INVALID_HEAL_TARGET")
 	var held: Dictionary = held_item(actor, instance_id)
+	var template: int = int(held["templateId"])
+	if template in [55, 56]:
+		target["flags"] &= ~(8 | 32)
+		target["flags"] |= 8 if template == 55 else 32
+		return {
+			"ok": true,
+			"kind": "staff_buff",
+			"actor": actor["id"],
+			"target": target["id"],
+			"item": instance_id,
+			"expiredItem": _consume_held(actor, held)
+		}
 	# The original draws a critical roll here; its null-target healing formula ignores the flag.
 	_roll.call(100)
 	var before: int = int(target["hp"])

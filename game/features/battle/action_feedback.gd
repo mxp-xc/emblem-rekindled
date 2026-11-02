@@ -59,7 +59,17 @@ func play(result: Dictionary, actors: Array, tutorial_seen: bool, player_phase: 
 	_queue = Rewards.sequence(result, actors, _content["interface"], tutorial_seen, player_phase)
 	_combat = result.get("kind") == "combat"
 	_read_tutorial = false
-	if result.get("consumed") == false:
+	if result.get("kind") == "staff_buff":
+		_queue.push_front(
+			{
+				"kind": "message",
+				"text": _actor(int(result["target"]))["name"],
+				"secondLine": "能力提升",  # Original text83; message second lines are yellow.
+				"durationUnits": 1200,
+				"unit": result["target"]
+			}
+		)
+	elif result.get("consumed") == false:
 		_queue.push_front(
 			{
 				"kind": "message",

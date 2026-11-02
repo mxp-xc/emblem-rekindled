@@ -16,7 +16,14 @@ func _initialize() -> void:
 	)
 	var records: RefCounted = load("res://gameplay/unit_record.gd").new(content, combat)
 	for sample: Array in [
-		[9, 1, true], [9, 0, false], [23, 1, false], [53, 1, false], [60, 1, false], [999, 1, false]
+		[9, 1, true],
+		[9, 0, false],
+		[23, 1, false],
+		[53, 1, false],
+		[55, 1, false],
+		[56, 1, false],
+		[60, 1, false],
+		[999, 1, false]
 	]:
 		var actor: Dictionary = battle.unit(0)
 		var held: Dictionary = {
@@ -52,7 +59,7 @@ func _initialize() -> void:
 			"Auto equipment must choose the first permitted instance and preserve the remaining order"
 		)
 		return
-	for template: int in [9, 18, 26, 37, 60, 61, 62, 50, 53, 55]:
+	for template: int in [9, 18, 26, 37, 60, 61, 62, 50, 53, 55, 56]:
 		owner = battle.unit(0)
 		owner["hp"] = 1
 		var held: Dictionary = {"id": "use-case", "templateId": template, "durability": 2}
@@ -85,9 +92,9 @@ func _initialize() -> void:
 		owner = battle.unit(9)
 		var held: Dictionary = {"id": "staff-case", "templateId": template, "durability": 1}
 		owner["inventory"] = [held]
-		var allowed: bool = template in [53, 54]
+		var allowed: bool = template in [53, 54, 55, 56]
 		if inventory.can_heal_with(owner, held) != allowed or inventory.can_heal_with(owner, {}):
-			fail("Only HP staves 53/54 may enter healing; damageKind alone is insufficient")
+			fail("Only verified HP/auxiliary staffs53..56 may enter staff targeting")
 			return
 		held["durability"] = 0
 		if inventory.can_heal_with(owner, held):

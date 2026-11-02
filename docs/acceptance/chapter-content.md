@@ -394,6 +394,37 @@ Android两批原2JSON及方向均完整恢复、AVD关；Web35项type/offset/len
 正常启动新canvas后35项不变、console为空。证明在各批`records/restored.json`或`restored.json`及Web `normal-startup-proof.json`。
 原音乐/设置/视口复原，8766已关，8765保留最新包；六上下文、戒指逆序/RNG/边界与旧关全量回归留既有headless矩阵。
 
+## m7北方小镇实际验收（2026-11-02）
+
+[#44](https://github.com/mxp-xc/emblem-rekindled/issues/44)及[#43](https://github.com/mxp-xc/emblem-rekindled/issues/43)约定平台矩阵已通过，剩余项为无。
+Web `20261102-160711-cd36ec9d`、Android `20261102-160747-2c56de91`，已核实际canvas、已安装APK与进程build；原8765 PCK由协调者验证。
+汇总`temp/qa-chapter-content/m7-platform-summary.json`；使用已由Session/Store验证的九份记录，平台包固定，没有重导出或自然重打前置。
+
+- 两端世界取消不改继续档字节，再前往m7/cmd5/42单位，核86希撒斯/class17与信息页，真实普通557独立战斗、菜单保存和完整状态/字节冷读通过。
+  Android世界入口来自实际m6 route4/worldStep3/gold8000命名记录；Web来自合法m0选择route6/worldStep1/gold6000，不伪造m0route7。
+- Android六旧槽隐藏存活→南入原目的格，以32倍实际态核对；107..110新队列以1倍原视频取样。
+  `native-frame-15/18/23/25.png`分别在约3.50/4.25/5.50/6.00秒实际显示1/2/3/4只，均已看原图；原视频9.026秒。
+  authority会提前把四者标visible，不能据此证明视觉逐人顺序；`m7-four-native-monsters-arrived.png`相机已回旧队，仅作完成后状态证据。
+- Android普通558对白时首领body仍在原格（`dialogue-11.png`），随后退场原格清空，44仍活且不胜。
+  独立受控最后敌44清场后，固定route4/worldStep4/gold9000，命名世界冷读不重复奖励。
+- Web55为明确受控转移：把source44真实opaque持物`chapter_1:m7:unit_44:item_1`交给9，不称自然获得。
+  两层返回取消保持完整snapshot；对满HP雅木实际施放，显示白色姓名和黄色“能力提升”，采样全程无healing反馈，HP30不变、flags8。
+  持物耐久18→17、9行动2/EXP0→12，保存完整效果后cold1→UI32状态及字节一致，不重复耗用/经验。
+  受控最后敌44清场显示559，真实点`Choice_7`克雷贝（next6）后route7/worldStep2/gold7000，命名世界冷读奖励一次。
+
+Android批次`temp/qa-chapter-content/android-m7-20261102-160747-2c56de91/`保留
+`m7-native107-110-1x.mp4`、上述四张`native-frame`、`dialogue-11.png`及`m7-boss-retired-other-enemy-no-victory.png`。
+Web批次`temp/qa-chapter-content/web-m7-20261102-160711-cd36ec9d/`保留
+`m7-staff55-name-yellow-ability-message.png`、`m7-staff55-observations.json`、`m7-staff55-effect-once-cold-equal`、
+`m7-next6-route7-choice.png`及`m7-route7-named-world-cold-once`。协调者也已复看新队列、能力消息与退场前关键图。
+
+Android五case为11.324/28.423/24.859/12.587/19.221秒，共96.414秒；Web14.128/26.479/25.033/22.588，共88.228秒。
+包含case冷启、真实UI调速/输入/截图及相应存读，安装、完整保护和离线复核未独立计时，不报跨范围加速比。
+常规UI32、独立动作UI4、新队列及能力消息UI1；每次冷启核正常1倍。两端本批无失败重跑。
+Android原2JSON/方向完整恢复、AVD关；Web35项constructor/offset/length/字节/Date/mode先核对全部原项再清新增，
+正常新canvas启动后35项仍一致，console为空。各批`records/restored.json`或`restored.json`、Web `normal-startup-proof.json`为恢复凭证。
+原音乐/设置/视口保留，8766已关、原8765保留最新m7。六上下文、next8另一支、56、队列阻塞/一次性与失败优先留既有headless矩阵；用户集中验收单独记录。
+
 ## 阶段门槛
 
 | 阶段 | 必须取得的结果 |

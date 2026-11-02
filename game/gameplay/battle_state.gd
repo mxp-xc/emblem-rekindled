@@ -968,9 +968,9 @@ func end_phase() -> Dictionary:
 		phase_units.reverse()
 		for actor: Dictionary in phase_units:
 			actor["action"] = 0
-			actor["flags"] &= ~128
+			actor["flags"] &= ~64
 			if phase == 0:
-				actor["flags"] &= ~(16 | 64)
+				actor["flags"] &= ~(8 | 32)
 				for held: Dictionary in actor["inventory"]:
 					if int(held["templateId"]) == 81:
 						var percent: int = _roll(11) + 10

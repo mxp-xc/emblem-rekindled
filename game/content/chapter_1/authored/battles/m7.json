@@ -1,0 +1,268 @@
+{
+  "battleId": "m7",
+  "worldNode": 7,
+  "battleName": {
+    "sourceTextIndex": 146
+  },
+  "objective": {
+    "sourceTextIndex": 163
+  },
+  "initialBattlePresentation": {
+    "hiddenUnitIds": [],
+    "hiddenFactions": [],
+    "unitPositionOverrides": {}
+  },
+  "turnEvents": [
+    {
+      "id": "party_arrival",
+      "afterEnemyPhaseOfRound": 2,
+      "deploymentSlots": [0, 1, 2, 3, 4, 5],
+      "sequence": "party_arrival"
+    },
+    {
+      "id": "monster_arrival",
+      "afterEnemyPhaseOfRound": 4,
+      "unitIds": [107, 108, 109, 110],
+      "arrivalMode": "nativeQueue",
+      "sequence": "monster_arrival",
+      "source": "i.k m7; existing 107..110 through original a(unit,true), then556"
+    }
+  ],
+  "aiChanges": [],
+  "routeChoices": [
+    {
+      "kind": "route",
+      "nodeId": 6,
+      "characterId": 4,
+      "name": "克雷贝",
+      "nameTextIndex": 178,
+      "className": "狂战士",
+      "classTextIndex": 214,
+      "label": "克雷贝(狂战士)",
+      "portraitId": 4,
+      "routeIndex": 7
+    },
+    {
+      "kind": "route",
+      "nodeId": 8,
+      "characterId": 1,
+      "name": "希尔克",
+      "nameTextIndex": 175,
+      "className": "修女",
+      "classTextIndex": 210,
+      "label": "希尔克(修女)",
+      "portraitId": 1,
+      "routeIndex": 6
+    }
+  ],
+  "speakers": {
+    "0": {
+      "id": 0,
+      "name": "雅木",
+      "faction": 0,
+      "portraitId": 0
+    },
+    "9": {
+      "id": 9,
+      "name": "赛丽卡",
+      "faction": 0,
+      "portraitId": 9
+    },
+    "5": {
+      "id": 5,
+      "name": "克蕾雅",
+      "faction": 0,
+      "portraitId": 5
+    },
+    "86": {
+      "id": 86,
+      "name": "希撒斯",
+      "faction": 2,
+      "portraitId": 17
+    }
+  },
+  "sequences": {
+    "opening": [
+      {
+        "kind": "battleTitle",
+        "text": {
+          "sourceTextIndex": 146
+        },
+        "sourceDurationUnits": 2000
+      },
+      {
+        "kind": "focus",
+        "cell": [11, 1],
+        "instant": true,
+        "sourceWaitTicks": 12
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 550,
+          "speakerId": 86
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 551,
+          "speakerId": 5
+        },
+        "sourceWaitTicksAfter": 10
+      },
+      {
+        "kind": "objective",
+        "text": {
+          "sourceTextIndex": 163
+        }
+      },
+      {
+        "kind": "commanderSetup",
+        "candidates": [5],
+        "defaultCommanderId": 5,
+        "defaultMode": "automatic",
+        "defaultStance": "attack"
+      }
+    ],
+    "party_arrival": [
+      {
+        "kind": "parallelEntrances",
+        "focus": [10, 23],
+        "deploymentSlots": [0, 1, 2, 3, 4, 5],
+        "offset": [0, 3]
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 552,
+          "speakerId": 0
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 553,
+          "speakerId": 5
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 554,
+          "speakerId": 0
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 555,
+          "speakerId": 86
+        }
+      }
+    ],
+    "monster_arrival": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 556,
+          "speakerId": 5
+        }
+      }
+    ],
+    "boss_first_combat": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 557,
+          "speakerId": 86
+        }
+      }
+    ],
+    "boss_before_retirement": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 558,
+          "speakerId": 86
+        }
+      }
+    ],
+    "victory": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 559,
+          "speakerId": 5
+        },
+        "whenWorldStep": 1,
+        "sourceWaitTicksAfter": 10
+      },
+      {
+        "kind": "routeChoice",
+        "options": [
+          {
+            "kind": "route",
+            "nodeId": 6,
+            "characterId": 4,
+            "name": "克雷贝",
+            "nameTextIndex": 178,
+            "className": "狂战士",
+            "classTextIndex": 214,
+            "label": "克雷贝(狂战士)",
+            "portraitId": 4,
+            "routeIndex": 7
+          },
+          {
+            "kind": "route",
+            "nodeId": 8,
+            "characterId": 1,
+            "name": "希尔克",
+            "nameTextIndex": 175,
+            "className": "修女",
+            "classTextIndex": 210,
+            "label": "希尔克(修女)",
+            "portraitId": 1,
+            "routeIndex": 6
+          }
+        ],
+        "whenWorldStep": 1
+      },
+      {
+        "kind": "missionComplete",
+        "text": {
+          "sourceTextIndex": 34
+        },
+        "goldReward": 1000
+      }
+    ]
+  },
+  "combatEvents": [
+    {
+      "id": "boss_first_combat",
+      "trigger": "firstCombat",
+      "unitId": 86,
+      "sequence": "boss_first_combat"
+    },
+    {
+      "id": "boss_death",
+      "trigger": "unitDeath",
+      "unitId": 86,
+      "beforeRetirement": "boss_before_retirement"
+    }
+  ],
+  "outcomeRules": {
+    "checks": [
+      {
+        "kind": "defeat",
+        "condition": "requiredUnitFallen",
+        "unitIds": [0, 5]
+      },
+      {
+        "kind": "victory",
+        "condition": "noVisibleEnemies",
+        "faction": 2
+      }
+    ]
+  }
+}
