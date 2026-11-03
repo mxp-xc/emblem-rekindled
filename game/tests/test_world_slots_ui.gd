@@ -143,12 +143,10 @@ func run() -> void:
 			"The explicit title action must preserve the continue record and leave the world layer"
 		)
 		return
-	if scene.battle_store.read()["progress"]["gold"] != 6100:
-		fail(
-			"Returning to title must preserve current world progress separately from named records"
-		)
+	if not scene.battle_store.read().get("missing", false):
+		fail("Returning to title must not automatically create a continue record")
 		return
-	for code: int in [KEY_ENTER, KEY_RIGHT, KEY_ENTER, KEY_ENTER]:
+	for code: int in [KEY_ENTER, KEY_RIGHT, KEY_RIGHT, KEY_ENTER, KEY_ENTER]:
 		await key(code)
 	world = scene.story_player
 	if not world.visible or scene.world_progress["gold"] != 6000 or scene.title_screen.visible:

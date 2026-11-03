@@ -83,11 +83,12 @@ def share_textures(chapter: Path, *, dry_run: bool = False) -> dict[str, int]:
     for path in generated.rglob("*.png"):
         if path not in ownership:
             raise ValueError(f"Unowned generated texture: {path}")
+    owners_by_directory = {provenance.parent: provenance for provenance in owners}
     for path, owner in ownership.items():
         if path.is_relative_to(shared) and owner != shared_provenance:
             raise ValueError(f"A battle cannot own shared output: {path}")
-        nearest_owner = max(
-            (p for p in owners if path.is_relative_to(p.parent)), key=lambda p: len(p.parts)
+        nearest_owner = next(
+            (owners_by_directory[p] for p in path.parents if p in owners_by_directory), None
         )
         if nearest_owner != owner:
             raise ValueError(f"Output crosses another owner's directory: {path}")
@@ -127,10 +128,10 @@ def share_textures(chapter: Path, *, dry_run: bool = False) -> dict[str, int]:
     references: set[Path] = set()
     protected: set[Path] = set()
     for manifest, data in manifests.items():
-        visit(data, manifest)
         if manifest.is_relative_to(chapter / "authored") or manifest == chapter / "chapter.json":
+            visit(data, manifest)
             protected.update(references)
-        references.clear()
+            references.clear()
     for manifest, data in manifests.items():
         visit(data, manifest)
 
@@ -162,18 +163,22 @@ def share_textures(chapter: Path, *, dry_run: bool = False) -> dict[str, int]:
         replacements[path] = destination
 
     writes: dict[Path, bytes] = {}
-    references.clear()
-    updated = {}
-    for manifest, data in manifests.items():
-        if manifest.is_relative_to(chapter / "authored") or manifest == chapter / "chapter.json":
-            updated[manifest] = data
-        else:
-            updated[manifest] = visit(data, manifest, replacements)
-    references.clear()
-    for manifest, data in updated.items():
-        visit(data, manifest)
-        if data != manifests[manifest]:
-            writes[manifest] = (json.dumps(data, ensure_ascii=False, indent=2) + "\n").encode()
+    if replacements:
+        references.clear()
+        updated = {}
+        for manifest, data in manifests.items():
+            if (
+                manifest.is_relative_to(chapter / "authored")
+                or manifest == chapter / "chapter.json"
+            ):
+                updated[manifest] = data
+            else:
+                updated[manifest] = visit(data, manifest, replacements)
+        references.clear()
+        for manifest, data in updated.items():
+            visit(data, manifest)
+            if data != manifests[manifest]:
+                writes[manifest] = (json.dumps(data, ensure_ascii=False, indent=2) + "\n").encode()
 
     live_shared = {path for path in references if path.is_relative_to(shared)}
     if any(path not in ownership and path not in copies for path in live_shared):

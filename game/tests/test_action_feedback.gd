@@ -62,11 +62,40 @@ func run() -> void:
 	var kinds: Array[String] = ["healing"]
 	var checked_scroll_lock: bool = false
 	for tick: int in range(500):
-		if view.current_step.get("kind") == "tutorial":
+		if view.current_step.get("kind") == "summary":
+			await key(KEY_ENTER)
+		elif view.current_step.get("kind") == "tutorial":
 			if scene.map_hud.visible:
 				fail("The first XP tutorial must replace the bottom HUD, including staff rewards")
 				return
 			if not checked_scroll_lock:
+				for viewport: Vector2i in [
+					Vector2i(1280, 720), Vector2i(720, 1280), Vector2i(480, 720)
+				]:
+					root.size = viewport
+					for frame: int in range(8):
+						await process_frame
+					var clip: Control = view.get("_tutorial_clip")
+					if not view.get("_content_area").encloses(clip.get_global_rect()):
+						fail("Tutorial two-line viewport stays inside map bounds after rotation")
+						return
+					var text: Label = view.get("_tutorial_text")
+					var font: Font = text.get_theme_font("font")
+					var font_size: int = text.get_theme_font_size("font_size")
+					var factor: float = clip.size.x / 240.0
+					for line: String in view.get("_tutorial_lines"):
+						var line_width: float = (
+							font.get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+						)
+						if line_width + 4 * factor > clip.size.x:
+							fail("Each paged tutorial line fits without hiding characters")
+							return
+					if (
+						font.get_height(font_size) * 2 + text.get_theme_constant("line_spacing")
+						> clip.size.y
+					):
+						fail("Both tutorial rows include the full font ascent and descent")
+						return
 				var row_before: int = view.get("_tutorial_row")
 				for pressed: bool in [true, false]:
 					var touch := InputEventScreenTouch.new()
@@ -101,13 +130,8 @@ func run() -> void:
 		if not view.playing:
 			break
 	await process_frame
-	if kinds != ["healing", "experience", "tutorial", "message", "growth"]:
-		fail(
-			(
-				"Staff level-up must show source heal/XP/tutorial/upgrade/growth in order: "
-				+ str(kinds)
-			)
-		)
+	if kinds != ["healing", "summary", "tutorial"]:
+		fail("Staff level-up must show healing, combined summary and one tutorial: " + str(kinds))
 		return
 	settled["events"]["level_tutorial"] = true
 	if scene.busy or battle.snapshot() != settled or not battle.event_completed("level_tutorial"):

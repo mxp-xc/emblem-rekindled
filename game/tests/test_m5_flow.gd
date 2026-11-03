@@ -12,6 +12,10 @@ func _initialize() -> void:
 
 
 func run() -> void:
+	await run_cases([{"context": 3, "route": 5, "target": 46, "events": true}])
+
+
+func run_cases(samples: Array) -> void:
 	var started: int = Time.get_ticks_msec()
 	_owned = "user://test_m5_flow_%d" % Time.get_ticks_usec()
 	if DirAccess.dir_exists_absolute(_owned) or DirAccess.make_dir_absolute(_owned) != OK:
@@ -29,11 +33,7 @@ func run() -> void:
 	_scene.menu_layer.find_child("GameSpeed", true, false).pressed.emit()
 	_scene.menu_layer.find_child("Speed_32", true, false).pressed.emit()
 	_scene._set_menu_visible(false)
-	for sample: Dictionary in [
-		{"context": 3, "route": 5, "target": 46, "events": true},
-		{"context": 3, "route": 4, "target": 70, "events": false},
-		{"context": 2, "route": 2, "target": 70, "events": false}
-	]:
+	for sample: Dictionary in samples:
 		if not await _enter(Matrix.CONTEXTS[sample["context"]]):
 			return
 		if sample["events"] and not await _arrivals():
@@ -46,9 +46,7 @@ func run() -> void:
 	await process_frame
 	Engine.time_scale = 1
 	_cleanup()
-	print(
-		"PASS actual m5 Main: travel, both arrivals, source46 identities, battles, cold and routes"
-	)
+	print("PASS actual m5 Main: selected travel, events, battles, cold and route")
 	print("PASS m5 Main elapsed_ms=%d at temporary speed32" % (Time.get_ticks_msec() - started))
 	quit(0)
 
@@ -308,7 +306,7 @@ func _boss_and_world(route: int) -> bool:
 		await process_frame
 	var early: bool = int(state["campaign"]["worldStep"]) == 1
 	var saved: Dictionary = _scene.battle_store.read()
-	return _expect(
+	if not _expect(
 		(
 			_scene.story_player.world_ready
 			and seen.has(539)
@@ -318,9 +316,18 @@ func _boss_and_world(route: int) -> bool:
 			and _scene.world_progress["worldStep"] == int(state["campaign"]["worldStep"]) + 1
 			and other_enemies_alive
 			and saved["ok"]
-			and saved["progress"] == _scene.world_progress
+			and saved.has("battle")
 		),
-		"Boss dialogue/death and branch-or-fixed settlement preserve other enemies and the saved frontier"
+		"Boss settlement preserves other enemies and the previously saved battle"
+	):
+		return false
+	var progress: Dictionary = _scene.world_progress.duplicate(true)
+	if not _expect(_scene.battle_store.write_progress(progress)["ok"], "Explicitly save the world"):
+		return false
+	var restored: Dictionary = _scene.battle_store.read()
+	return _expect(
+		restored["ok"] and restored.has("progress") and restored["progress"] == progress,
+		"Cold world read preserves the selected route and completed progress"
 	)
 
 
@@ -339,7 +346,7 @@ func _save_restore() -> bool:
 func _drive() -> void:
 	if _scene.story_player.dialogue.visible:
 		_scene.story_player.advance()
-	if _scene.action_feedback.current_step.get("kind") == "tutorial":
+	if _scene.action_feedback.current_step.get("kind") in ["tutorial", "summary"]:
 		_scene.action_feedback.go_back()
 
 

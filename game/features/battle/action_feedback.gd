@@ -5,11 +5,12 @@ signal completed
 const Rewards = preload("res://features/battle/reward_timeline.gd")
 const Healing = preload("res://features/battle/healing_timeline.gd")
 const PixelTheme = preload("res://ui/pixel_theme.gd")
-const FONT = preload("res://ui/fonts/NotoSansCJKsc-Regular.otf")
-const ATTRIBUTE_FRAMES: Array[int] = [0, 1, 5, 6, 4, 2, 7, 3]
+const FONT = preload("res://ui/fonts/NotoSansCJKsc-Regular.woff2")
+const GrowthSummary = preload("res://features/battle/growth_summary.gd")
 var playing: bool = false
 var current_step: Dictionary = {}
 var model: RefCounted
+var summary: Control
 var _content: Dictionary
 var _map: Control
 var _hud: Control
@@ -25,7 +26,6 @@ var _tutorial_row: int = 0
 var _tutorial_scroll: int = 0
 var _tutorial_clip: Control
 var _tutorial_text: Label
-var _growth_effects: Array[Dictionary] = []
 var _content_area: Rect2
 
 
@@ -48,6 +48,10 @@ func setup(content: Dictionary, tactical_map: Control, hud: Control) -> void:
 	_tutorial_text.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_tutorial_text.add_theme_font_override("font", FONT)
 	_tutorial_clip.add_child(_tutorial_text)
+	summary = GrowthSummary.new()
+	summary.name = "GrowthSummary"
+	add_child(summary)
+	summary.confirmed.connect(_start_next)
 	gui_input.connect(_handle_touch)
 	resized.connect(queue_redraw)
 	set_process(false)
@@ -59,7 +63,11 @@ func play(result: Dictionary, actors: Array, tutorial_seen: bool, player_phase: 
 	_queue = Rewards.sequence(result, actors, _content["interface"], tutorial_seen, player_phase)
 	_combat = result.get("kind") == "combat"
 	_read_tutorial = false
-	if result.get("kind") == "staff_buff":
+	if result.get("kind") == "summon_notice":
+		_queue.push_front(
+			{"kind": "message", "text": "召唤", "durationUnits": 1200, "unit": result["actor"]}
+		)
+	elif result.get("kind") == "staff_buff":
 		_queue.push_front(
 			{
 				"kind": "message",
@@ -104,6 +112,8 @@ func play(result: Dictionary, actors: Array, tutorial_seen: bool, player_phase: 
 func advance() -> void:
 	if not playing:
 		return
+	if current_step.get("kind") == "summary":
+		return
 	if current_step.get("kind") == "tutorial":
 		_tutorial_scroll = maxi(0, _tutorial_scroll - 7)
 		queue_redraw()
@@ -111,14 +121,15 @@ func advance() -> void:
 	model.advance()
 	if current_step["kind"] == "healing":
 		_refresh_healed_hp()
-	elif current_step["kind"] == "growth" and model.changed_index >= 0:
-		_growth_effects.append({"index": model.changed_index, "tick": model.tick})
 	if model.finished:
 		_start_next()
 	queue_redraw()
 
 
 func go_back() -> void:
+	if current_step.get("kind") == "summary":
+		summary.confirm()
+		return
 	if current_step.get("kind") != "tutorial" or _tutorial_scroll > 0:
 		return
 	_tutorial_row += 1
@@ -131,6 +142,8 @@ func go_back() -> void:
 
 
 func handle_key(event: InputEventKey) -> bool:
+	if current_step.get("kind") == "summary":
+		return summary.handle_key(event)
 	if (
 		(event.is_action_pressed("ui_accept") or event.is_action_pressed("ui_down"))
 		and not event.is_echo()
@@ -140,8 +153,9 @@ func handle_key(event: InputEventKey) -> bool:
 	return false
 
 
-func handle_wheel(_direction: int) -> void:
-	pass
+func handle_wheel(direction: int) -> void:
+	if current_step.get("kind") == "summary":
+		summary.handle_wheel(direction)
 
 
 func _process(delta: float) -> void:
@@ -153,8 +167,8 @@ func _process(delta: float) -> void:
 
 
 func _start_next() -> void:
-	_growth_effects.clear()
 	_tutorial_clip.hide()
+	summary.hide()
 	if _queue.is_empty():
 		current_step = {}
 		playing = false
@@ -164,6 +178,11 @@ func _start_next() -> void:
 		return
 	current_step = _queue.pop_front()
 	_hud.visible = not (_combat or current_step["kind"] == "tutorial")
+	if current_step["kind"] == "summary":
+		model = null
+		summary.present(current_step["rows"])
+		queue_redraw()
+		return
 	var actor: Dictionary = _actor(int(current_step["unit"]))
 	_map.view.focus_cell(Vector2i(actor["x"], actor["y"]))
 	_map.queue_redraw()
@@ -200,6 +219,8 @@ func _refresh_healed_hp() -> void:
 
 
 func _handle_touch(event: InputEvent) -> void:
+	if current_step.get("kind") == "summary":
+		return
 	if (
 		(event is InputEventScreenTouch and not event.pressed and not event.canceled)
 		or (
@@ -213,13 +234,14 @@ func _handle_touch(event: InputEvent) -> void:
 
 
 func set_content_area(area: Rect2) -> void:
+	summary.set_content_area(area)
 	if _content_area != area:
 		_content_area = area
 		queue_redraw()
 
 
 func _draw() -> void:
-	if current_step.is_empty():
+	if current_step.is_empty() or current_step.get("kind") == "summary":
 		return
 	var bounds: Rect2 = _content_area if _content_area.has_area() else Rect2(Vector2.ZERO, size)
 	var area: Rect2 = PixelTheme.portrait_area(bounds.size)
@@ -232,10 +254,6 @@ func _draw() -> void:
 		return
 	var panel := Rect2(0, 0, 240, 28)
 	match kind:
-		"experience":
-			panel = Rect2(61, 0, 118, 28)
-		"growth":
-			panel = Rect2(55, 0, 130, 95)
 		"message":
 			if current_step.has("secondLine") or current_step.has("templateId"):
 				panel.size.y = 48
@@ -247,10 +265,6 @@ func _draw() -> void:
 	var origin: Vector2 = area.position + panel.position * factor
 	_draw_window(Rect2(origin, panel.size * factor), factor, kind == "growth", kind == "message")
 	match kind:
-		"experience":
-			_draw_experience(origin, factor)
-		"growth":
-			_draw_growth(origin, factor)
 		"message":
 			_draw_message(origin, panel.size, factor)
 		"tutorial":
@@ -308,16 +322,6 @@ func _draw_healing() -> void:
 		draw_arc(center, 11 * zoom, 0, TAU, 64, Color.CYAN, zoom)
 
 
-func _draw_experience(origin: Vector2, factor: float) -> void:
-	_icon("experience", origin + Vector2(44, 6) * factor, factor)
-	_number(str(model.experience % 100), origin + Vector2(59, 6) * factor, factor)
-	draw_rect(Rect2(origin + Vector2(8, 16) * factor, Vector2(102, 6) * factor), Color("502800"))
-	draw_rect(
-		Rect2(origin + Vector2(9, 17) * factor, Vector2(model.experience % 100, 4) * factor),
-		Color("ffbe33")
-	)
-
-
 func _draw_message(origin: Vector2, dimensions: Vector2, factor: float) -> void:
 	var baseline: float = 19
 	if current_step.get("noticeIcon") != null:
@@ -372,45 +376,9 @@ func _draw_message(origin: Vector2, dimensions: Vector2, factor: float) -> void:
 			)
 
 
-func _draw_growth(origin: Vector2, factor: float) -> void:
-	_icon("attribute_13", origin + Vector2(25, 7) * factor, factor)
-	_number(str(int(current_step["level"]) - 1), origin + Vector2(43, 9) * factor, factor)
-	_number("--", origin + Vector2(58, 9) * factor, factor)
-	_icon("attribute_13", origin + Vector2(78, 7) * factor, factor)
-	_number(str(int(current_step["level"])), origin + Vector2(96, 9) * factor, factor)
-	for index: int in range(8):
-		var position := Vector2(1 if index < 4 else 65, 24 + (index % 4) * 17)
-		_icon("attribute_" + str(ATTRIBUTE_FRAMES[index]), origin + position * factor, factor)
-		_number(str(model.values[index]), origin + (position + Vector2(28, 2)) * factor, factor)
-	for effect: Dictionary in _growth_effects:
-		var age: int = model.tick - int(effect["tick"])
-		if age >= 11:
-			continue
-		var index: int = int(effect["index"])
-		var position := Vector2(45 if index < 4 else 109, 26 + (index % 4) * 17)
-		_icon(
-			_content["interface"]["battleHud"]["forecast"]["advantageUp"],
-			origin + (position - Vector2(0, 3)) * factor,
-			factor
-		)
-		var bounce: float = -1 if age in [1, 2] else 0
-		_number(
-			"+" + str(int(current_step["increments"][index])),
-			origin + (position + Vector2(7, bounce)) * factor,
-			factor
-		)
-
-
 func _icon(key: String, position: Vector2, factor: float) -> void:
 	var texture: Texture2D = _textures[key]
 	draw_texture_rect(texture, Rect2(position, texture.get_size() * factor), false)
-
-
-func _number(value: String, position: Vector2, factor: float) -> void:
-	var font: Dictionary = _content["interface"]["battleHud"]["numberFont"]
-	for character: String in value:
-		_icon(font["glyphs"][character], position, factor)
-		position.x += int(font["advance"]) * factor
 
 
 func _text(

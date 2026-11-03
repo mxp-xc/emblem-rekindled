@@ -4,6 +4,7 @@ const Inventory = preload("res://gameplay/unit_inventory.gd")
 const Battle = preload("res://gameplay/battle_state.gd")
 const Session = preload("res://app/chapter_session.gd")
 const Deployment = preload("res://app/chapter_deployment.gd")
+const Statistics = preload("res://gameplay/chapter_statistics.gd")
 const SLOT_COUNT: int = 4
 var path: String
 var _content: Dictionary
@@ -198,10 +199,12 @@ func _decode_progress(value: Dictionary) -> Dictionary:
 		or int(value["commandPolicy"]) not in [0, 1, 4, 5]
 	):
 		return {"ok": false, "error": "INVALID_SAVE_PROGRESS"}
-	var route_valid: bool = false
-	for route: Dictionary in content["story"]["routeChoices"]:
-		if route["routeIndex"] == value["route"]:
-			route_valid = true
+	var chapter_completed: bool = value.get("chapterCompleted", false)
+	var route_valid: bool = chapter_completed
+	if not chapter_completed:
+		for choice: Dictionary in content["story"]["routeChoices"]:
+			if choice["routeIndex"] == value["route"]:
+				route_valid = true
 	if (
 		not route_valid
 		or not value.get("party") is Array
@@ -216,7 +219,11 @@ func _decode_progress(value: Dictionary) -> Dictionary:
 	if not _integer(world_step) or world_step < 1 or value["route"] >= routes.size():
 		return {"ok": false, "error": "INVALID_SAVE_WORLD_STEP"}
 	var route: Array = routes[int(value["route"])]
-	if world_step >= route.size() or route[int(world_step) - 1] != value["worldNode"]:
+	if (
+		world_step > route.size()
+		or (not chapter_completed and world_step == route.size())
+		or route[int(world_step) - 1] != value["worldNode"]
+	):
 		return {"ok": false, "error": "INVALID_SAVE_WORLD_STEP"}
 	if value.has("worldLocation"):
 		if not _integer(value["worldLocation"]):
@@ -228,7 +235,14 @@ func _decode_progress(value: Dictionary) -> Dictionary:
 	for unit: Dictionary in content["units"]:
 		if unit["formal"]:
 			expected[int(unit["id"])] = true
-	if value["party"].size() != expected.size() or not expected.has(int(value["commander"])):
+	var no_commander: bool = (
+		content["story"].get("commanderMode", "selection") == "none"
+		and int(value["commander"]) == -1
+	)
+	if (
+		value["party"].size() != expected.size()
+		or (not no_commander and not expected.has(int(value["commander"])))
+	):
 		return {"ok": false, "error": "INVALID_SAVE_PARTY"}
 	var combat: RefCounted = load("res://gameplay/combat_rules.gd").new(
 		content["rules"], content["map"]["terrain"]
@@ -264,6 +278,28 @@ func _decode_progress(value: Dictionary) -> Dictionary:
 		if not party_by_id.has(id):
 			return {"ok": false, "error": "INVALID_SAVE_PARTY"}
 		party.append(party_by_id[id])
+	if value.has("chapterStats") and value["chapterStats"] == null:
+		return {"ok": false, "error": "INVALID_CHAPTER_STATS"}
+	var statistics: Dictionary = Statistics.decode(value.get("chapterStats"))
+	if not statistics["ok"]:
+		return statistics
+	if value.has("chapterResult") != chapter_completed:
+		return {"ok": false, "error": "INVALID_CHAPTER_RESULT"}
+	if (
+		value.has("chapterResultHistorical")
+		and (not value["chapterResultHistorical"] is bool or not chapter_completed)
+	):
+		return {"ok": false, "error": "INVALID_CHAPTER_RESULT"}
+	var result: Dictionary = {}
+	if value.has("chapterResult"):
+		result = Statistics.validate_result(
+			value["chapterResult"],
+			party,
+			statistics["stats"],
+			value.get("chapterResultHistorical", false)
+		)
+		if not result["ok"]:
+			return result
 	var progress: Dictionary = {
 		"chapterId": _content["entry"]["id"],
 		"completedBattle": value["completedBattle"],
@@ -274,8 +310,15 @@ func _decode_progress(value: Dictionary) -> Dictionary:
 		"commander": int(value["commander"]),
 		"commandPolicy": int(value["commandPolicy"]),
 		"party": party,
-		"warehouse": warehouse
+		"warehouse": warehouse,
+		"chapterStats": statistics["stats"]
 	}
+	if value.has("chapterCompleted"):
+		progress["chapterCompleted"] = chapter_completed
+	if value.has("chapterResult"):
+		progress["chapterResult"] = result["result"]
+	if value.get("chapterResultHistorical", false):
+		progress["chapterResultHistorical"] = true
 	if value.has("elapsedMinutes"):
 		progress["elapsedMinutes"] = int(value["elapsedMinutes"])
 	if value.has("worldLocation"):

@@ -1,6 +1,7 @@
 extends RefCounted
 
 const Deployment = preload("res://app/chapter_deployment.gd")
+const Summons = preload("res://gameplay/battle_summons.gd")
 
 
 # The catalog is immutable source data. Each opening creates its own deployment aliases.
@@ -41,7 +42,10 @@ static func project(
 		context.get("party", []),
 		context.get("bindings", {}),
 		context.get("classes", {}),
-		context.get("replacedIndices", [])
+		context.get("replacedIndices", []),
+		context.get("_promotions", {}),
+		context.get("initializationContext"),
+		context.get("allowEmptySlots", false)
 	)
 	if not bound["ok"]:
 		return bound
@@ -56,14 +60,28 @@ static func project(
 	)
 	for binding: Dictionary in births:
 		var root: int = int(binding["templateDeploymentIndex"])
+		var identity: int = int(binding["unitId"])
+		var selected_class: int = -1
+		for saved: Dictionary in context["units"]:
+			if int(saved["id"]) == identity:
+				selected_class = int(saved["classId"])
+				break
+		if selected_class < 0:
+			return _failure("克隆绑定缺少单位")
 		var family: Dictionary = Deployment.bind(
-			[records[root]], library["profiles"], definition["profiles"], []
+			[records[root]],
+			library["profiles"],
+			definition["profiles"],
+			[],
+			{},
+			{0: selected_class}
 		)
 		if not family["ok"]:
 			return family
 		var unit: Dictionary = family["units"][0]
 		var source_id: int = int(unit["id"])
-		var identity: int = int(binding["unitId"])
+		if unit["faction"] == 2 and source_id >= 80 and source_id <= 94:
+			unit["bossInheritedStats"] = true
 		unit["id"] = identity
 		# A blueprint supplies static presentation; UnitRecord restores the saved
 		# mutable fields. Hidden blueprints do not reserve an initial map cell.
@@ -73,6 +91,55 @@ static func project(
 		bound["units"].append(unit)
 		bound["profiles"][identity] = family["profiles"][source_id]
 		unit_order["ids"].append(identity)
+	for binding: Dictionary in context.get("summonBindings", []):
+		var family: Dictionary = Summons.blueprint(
+			library.get("summons", {}), library["profiles"], binding
+		)
+		if not family["ok"]:
+			return family
+		var identity: int = int(binding["unitId"])
+		bound["units"].append(family["unit"])
+		bound["profiles"][identity] = family["profile"]
+		unit_order["ids"].append(identity)
+	# Anchors retain the interleaving of two bounded birth families without
+	# granting saved array order authority over the native actor vector.
+	var dynamic: Dictionary = {}
+	var ordered_births: Array[Dictionary] = []
+	for binding: Dictionary in births:
+		dynamic[int(binding["unitId"])] = true
+		ordered_births.append(
+			{
+				"unit": int(binding["unitId"]),
+				"anchor": int(binding["generation"]),
+				"kind": 0,
+				"generation": 0
+			}
+		)
+	for binding: Dictionary in context.get("summonBindings", []):
+		dynamic[int(binding["unitId"])] = true
+		ordered_births.append(
+			{
+				"unit": int(binding["unitId"]),
+				"anchor": int(binding["afterCloneGeneration"]),
+				"kind": 1,
+				"generation": int(binding["generation"])
+			}
+		)
+	ordered_births.sort_custom(
+		func(a: Dictionary, b: Dictionary) -> bool:
+			if a["anchor"] != b["anchor"]:
+				return a["anchor"] < b["anchor"]
+			if a["kind"] != b["kind"]:
+				return a["kind"] < b["kind"]
+			return a["generation"] < b["generation"]
+	)
+	var ordered: Array[int] = []
+	for identity: int in unit_order["ids"]:
+		if not dynamic.has(identity):
+			ordered.append(identity)
+	for birth: Dictionary in ordered_births:
+		ordered.append(int(birth["unit"]))
+	unit_order["ids"] = ordered
 	var stage: Dictionary = library["stages"][stage_id].duplicate(true)
 	stage["appearances"] = {}
 	var art: Dictionary = library["scenes"][scene_id].duplicate(true)
@@ -247,6 +314,35 @@ static func resolve_story(
 			var step: Dictionary = value.duplicate(true)
 			step.erase("whenWorldStep")
 			step.erase("unlessWorldStep")
+			if step.get("kind") == "commanderSetup" and step.has("candidateSource"):
+				if (
+					step["candidateSource"] != "formalParty"
+					or step.has("candidates")
+					or step.has("defaultCommanderId")
+					or not context.get("partyOrder") is Array
+				):
+					return _failure("指挥官队伍来源无效: " + str(name))
+				var candidates: Array[int] = []
+				var seen: Dictionary = {}
+				for id: Variant in context["partyOrder"]:
+					if not _integer(id) or seen.has(int(id)):
+						return _failure("指挥官队伍顺序无效: " + str(name))
+					seen[int(id)] = true
+					var actor: Dictionary = actors.get(int(id), {})
+					if (
+						actor.get("formal") == true
+						and actor.get("visible") == true
+						and actor.get("faction") == 0
+						and _integer(actor.get("sourceId"))
+						and actor["sourceId"] >= 0
+						and actor["sourceId"] < 10
+					):
+						candidates.append(int(id))
+				if candidates.is_empty():
+					return _failure("指挥官队伍没有可见正式成员: " + str(name))
+				step["candidates"] = candidates
+				step["defaultCommanderId"] = candidates[0]
+				step.erase("candidateSource")
 			if (
 				step.get("kind") == "parallelEntrances"
 				and (step.has("deploymentSlots") or step.has("unitIds"))
@@ -304,7 +400,41 @@ static func resolve_story(
 			chosen = step.get("options", []).duplicate(true)
 			break
 	if not chosen.is_empty():
+		if result.get("encounter", false) == true:
+			return _failure("遭遇战不能选择主线")
 		result["routeChoices"] = chosen
+	elif result.get("encounter", false) == true:
+		var route_id: Variant = context.get("route")
+		var world: Variant = result.get("world")
+		var routes: Variant = world.get("routes") if world is Dictionary else null
+		if (
+			result.has("chapterEnd")
+			or not _integer(route_id)
+			or not routes is Array
+			or route_id < 0
+			or route_id >= routes.size()
+			or not routes[int(route_id)] is Array
+			or world_step < 6
+			or world_step > routes[int(route_id)].size()
+			or not _integer(routes[int(route_id)][world_step - 1])
+		):
+			return _failure("遭遇战路线无效")
+		result["worldNode"] = int(routes[int(route_id)][world_step - 1])
+		result["routeChoices"] = []
+	elif result.has("chapterEnd"):
+		var route_id: Variant = context.get("route")
+		var routes: Variant = result.get("world", {}).get("routes")
+		if (
+			not _integer(route_id)
+			or not routes is Array
+			or route_id < 0
+			or route_id >= routes.size()
+			or not routes[int(route_id)] is Array
+			or world_step != routes[int(route_id)].size() - 1
+			or routes[int(route_id)][world_step] != result.get("worldNode")
+		):
+			return _failure("章终点路线无效")
+		result["routeChoices"] = []
 	elif context.has("route"):
 		var route_id: Variant = context["route"]
 		if not result.get("world") is Dictionary:

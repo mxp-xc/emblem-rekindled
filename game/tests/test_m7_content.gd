@@ -42,21 +42,23 @@ var _owned: String = ""
 
 
 func _initialize() -> void:
+	_run_contexts(CONTEXTS.slice(0, 2), true)
+
+
+func _run_contexts(contexts: Array, include_edges: bool) -> void:
 	_owned = "user://m7_content_%d" % Time.get_ticks_usec()
 	if DirAccess.make_dir_absolute(_owned) != OK:
 		_fail("Cannot claim fresh owned m7 content directory")
 		return
-	for context: Dictionary in CONTEXTS:
+	for context: Dictionary in contexts:
 		if not _context(context):
 			_cleanup()
 			return
-	if not _random_edges():
+	if include_edges and not _random_edges():
 		_cleanup()
 		return
 	_cleanup()
-	print(
-		"PASS actual m7 content: six contexts, slot binding, random borders, held drops and cold JSON"
-	)
+	print("PASS actual m7 content: selected contexts and requested random borders")
 	quit(0)
 
 

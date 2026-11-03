@@ -14,6 +14,10 @@ var _items: Array = []
 var _targets: Array = []
 var _panel: PanelContainer
 var _rows: VBoxContainer
+var _repair_rows: VBoxContainer
+var _repair_items: Array = []
+var _repair_index: int = 0
+var _destination: Vector2i
 var _footer: Control
 var _hud: Control
 var _map_forecast: Control
@@ -39,6 +43,10 @@ func setup(content: Dictionary) -> void:
 	_rows = VBoxContainer.new()
 	_rows.add_theme_constant_override("separation", 0)
 	_panel.add_child(_rows)
+	_repair_rows = VBoxContainer.new()
+	_repair_rows.add_theme_constant_override("separation", 0)
+	_panel.add_child(_repair_rows)
+	_repair_rows.hide()
 	_footer = ItemDetails.new()
 	add_child(_footer)
 	_footer.setup(content)
@@ -144,6 +152,86 @@ func show_targets(targets: Array) -> void:
 	_layout()
 
 
+func show_repair_items(items: Array) -> void:
+	_repair_items = items
+	_repair_index = 0
+	page = "repair_items"
+	_confirmed = false
+	_rows.hide()
+	_repair_rows.show()
+	_panel.show()
+	_footer.visible = not items.is_empty()
+	_hud.hide()
+	_map_forecast.hide()
+	_unavailable.text = "没有持有物品"
+	_unavailable.visible = items.is_empty()
+	_confirm.show()
+	_confirm.disabled = items.is_empty()
+	for child: Node in _repair_rows.get_children():
+		_repair_rows.remove_child(child)
+		child.queue_free()
+	for index: int in range(items.size()):
+		var held: Dictionary = items[index]
+		var metadata: Dictionary = _content["interface"]["items"][str(int(held["templateId"]))]
+		var button := Button.new()
+		button.name = "RepairItem_" + str(index)
+		button.text = "%s  %d" % [metadata["name"]["text"], held["durability"]]
+		button.icon = _textures.get(metadata["icon"])
+		button.expand_icon = true
+		button.add_theme_constant_override("icon_max_width", 30)
+		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		button.custom_minimum_size = Vector2(220, 56)
+		button.add_theme_font_size_override("font_size", 28)
+		button.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
+		button.focus_entered.connect(_select_repair.bind(index))
+		button.pressed.connect(_confirm_repair.bind(index))
+		_repair_rows.add_child(button)
+	if not items.is_empty():
+		_repair_rows.get_child(0).grab_focus()
+		_select_repair(0)
+	_layout()
+
+
+func _select_repair(index: int) -> void:
+	_repair_index = index
+	_footer.present(_repair_items[index])
+
+
+func _confirm_repair(index: int) -> void:
+	if page != "repair_items" or _confirmed or index < 0 or index >= _repair_items.size():
+		return
+	_confirmed = true
+	_confirm.disabled = true
+	intent.emit(
+		"repair_confirmed",
+		{
+			"target": target_id,
+			"item": _items[_item_index]["item"]["id"],
+			"targetItem": _repair_items[index]["id"]
+		}
+	)
+
+
+func show_destination(cell: Vector2i, valid: bool) -> void:
+	page = "destination"
+	_confirmed = false
+	_panel.hide()
+	_footer.hide()
+	_hud.hide()
+	_map_forecast.hide()
+	_unavailable.hide()
+	_confirm.show()
+	select_destination(cell, valid)
+	_layout()
+
+
+func select_destination(cell: Vector2i, valid: bool) -> void:
+	if page != "destination" or _confirmed:
+		return
+	_destination = cell
+	_confirm.disabled = not valid
+
+
 func select_target(id: int) -> void:
 	if page != "targets":
 		return
@@ -196,7 +284,7 @@ func show_map_forecast(preview: Dictionary) -> void:
 func handle_key(event: InputEventKey) -> bool:
 	if not event.pressed or event.echo:
 		return false
-	if page == "items":
+	if page in ["items", "repair_items"]:
 		if event.keycode in [KEY_ENTER, KEY_KP_ENTER, KEY_SPACE]:
 			_confirm_current()
 			return true
@@ -205,6 +293,20 @@ func handle_key(event: InputEventKey) -> bool:
 			return true
 		if event.keycode in [KEY_UP, KEY_DOWN]:
 			handle_wheel(-1 if event.keycode == KEY_UP else 1)
+			return true
+		return false
+	if page == "destination":
+		if event.keycode in [KEY_ENTER, KEY_KP_ENTER, KEY_SPACE]:
+			_confirm_current()
+			return true
+		if event.keycode in [KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT]:
+			var offset: Vector2i = {
+				KEY_UP: Vector2i.UP,
+				KEY_DOWN: Vector2i.DOWN,
+				KEY_LEFT: Vector2i.LEFT,
+				KEY_RIGHT: Vector2i.RIGHT
+			}[event.keycode]
+			intent.emit("destination_highlight", {"cell": _destination + offset})
 			return true
 		return false
 	if event.keycode in [KEY_ENTER, KEY_KP_ENTER, KEY_SPACE]:
@@ -221,6 +323,9 @@ func handle_wheel(direction: int) -> void:
 		if not _items.is_empty():
 			_item_index = posmod(_item_index + direction, _items.size())
 			_rows.get_child(_item_index).grab_focus()
+	elif page == "repair_items" and not _repair_items.is_empty():
+		_repair_index = posmod(_repair_index + direction, _repair_items.size())
+		_repair_rows.get_child(_repair_index).grab_focus()
 	elif page == "targets" and not _targets.is_empty():
 		var index: int = 0
 		for candidate: int in range(_targets.size()):
@@ -235,6 +340,20 @@ func _confirm_current() -> void:
 	match page:
 		"items":
 			_choose_item(_item_index)
+		"repair_items":
+			_confirm_repair(_repair_index)
+		"destination":
+			if not _confirmed and not _confirm.disabled:
+				_confirmed = true
+				_confirm.disabled = true
+				intent.emit(
+					"teleport_confirmed",
+					{
+						"target": target_id,
+						"item": _items[_item_index]["item"]["id"],
+						"cell": _destination
+					}
+				)
 		"targets":
 			select_target(target_id)
 		"forecast":
@@ -251,6 +370,11 @@ func _confirm_current() -> void:
 
 func go_back() -> void:
 	match page:
+		"repair_items", "destination":
+			var previous_target: int = target_id
+			show_targets(_targets)
+			_highlight(previous_target)
+			intent.emit("secondary_cancelled", {"target": previous_target})
 		"map_forecast":
 			_map_forecast.hide()
 			mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -282,6 +406,8 @@ func _show_items() -> void:
 	page = "items"
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_panel.show()
+	_rows.show()
+	_repair_rows.hide()
 	_footer.show()
 	_hud.hide()
 	_map_forecast.hide()

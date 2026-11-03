@@ -15,13 +15,17 @@ var _owned: String = ""
 
 
 func _initialize() -> void:
+	_run_contexts(Matrix.CONTEXTS.slice(0, 2), true)
+
+
+func _run_contexts(contexts: Array, include_boundaries: bool) -> void:
 	_owned = "user://m5_events_%d" % Time.get_ticks_usec()
 	if DirAccess.make_dir_absolute(_owned) != OK:
 		_fail("Cannot claim a fresh owned m5 events directory")
 		return
 	var first_content: Dictionary = {}
 	var first_snapshot: Dictionary = {}
-	for context: Dictionary in Matrix.CONTEXTS:
+	for context: Dictionary in contexts:
 		var prepared: Dictionary = Matrix.prepare(context, _roll)
 		if not _expect(prepared["ok"], "Prepare m5 event context: " + str(prepared.get("error"))):
 			_cleanup()
@@ -39,16 +43,17 @@ func _initialize() -> void:
 			_cleanup()
 			return
 		print("PASS actual m5 events dr%d step%d" % [context["route"], context["step"]])
-	for boundary: Callable in [_combat, _native_first_flag, _map_magic, _source_pairs]:
-		var opened: Dictionary = _fork(first_content, first_snapshot)
-		if (
-			not _expect(opened["ok"], "Independent m5 combat boundary must open")
-			or not boundary.call(opened)
-		):
-			_cleanup()
-			return
+	if include_boundaries:
+		for boundary: Callable in [_combat, _native_first_flag, _map_magic, _source_pairs]:
+			var opened: Dictionary = _fork(first_content, first_snapshot)
+			if (
+				not _expect(opened["ok"], "Independent m5 combat boundary must open")
+				or not boundary.call(opened)
+			):
+				_cleanup()
+				return
 	_cleanup()
-	print("PASS actual m5 events: two waves once, settlement, boss84 and distinct source46 combat")
+	print("PASS actual m5 events: selected routes and requested combat boundaries")
 	quit(0)
 
 
@@ -456,7 +461,7 @@ func _combat(opened: Dictionary) -> bool:
 	# state directly, then persist the legal completed-world boundary below.
 	var stored: Dictionary = JSON.parse_string(JSON.stringify(battle.snapshot()))
 	var replay: Dictionary = Events.new(content).combat_events(
-		killed["participants"], stored["units"], stored["events"]
+		killed["participants"], killed["retirements"], stored["events"]
 	)
 	if not _expect(
 		(

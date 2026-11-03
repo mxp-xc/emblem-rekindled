@@ -36,19 +36,17 @@ func _initialize() -> void:
 	var before: Dictionary = result.duplicate(true)
 	var queue: Array = script.sequence(result, actors, content["interface"], false)
 	var kinds: Array = queue.map(func(step: Dictionary) -> String: return step["kind"])
-	if kinds != ["message", "message", "experience", "tutorial", "message", "growth"]:
-		fail(
-			"Only C0 weapon break precedes loot/XP/tutorial/level/growth; enemy and shield stay silent"
-		)
+	if kinds != ["message", "message", "summary", "tutorial"]:
+		fail("Only C0 weapon break precedes loot/summary/tutorial; enemy and shield stay silent")
 		return
 	if queue[0]["text"] != "圣天剑消失" or queue[1]["text"] != "获得":
 		fail("Source break and loot wording must retain the original item name")
 		return
-	if queue[5]["increments"] != [1, 0, 0, 0, 0, 0, 1, 0]:
+	if queue[2]["rows"][0]["increments"] != [1, 0, 0, 0, 0, 0, 1, 0]:
 		fail("Growth presentation order must be HP/strength/skill/speed/magic/defense/luck/move")
 		return
 	queue = script.sequence(result, actors, content["interface"], true)
-	if queue.size() != 5 or result != before:
+	if queue.size() != 3 or result != before:
 		fail("Read tutorial must not repeat and constructing the queue must not modify settlement")
 		return
 	result["rewards"]["experience"]["growth"] = {}
@@ -57,7 +55,7 @@ func _initialize() -> void:
 		fail("The first player-phase XP must trigger the source tutorial even without a level-up")
 		return
 	queue = script.sequence(result, actors, content["interface"], false, false)
-	if queue[-1]["kind"] != "experience":
+	if queue[-1]["kind"] != "summary":
 		fail("The tutorial must wait until a player-phase XP window, not interrupt an enemy phase")
 		return
 	if not script.sequence({"kind": "wait"}, actors, content["interface"], false).is_empty():
@@ -74,7 +72,7 @@ func _initialize() -> void:
 		"rewards": {"experience": {"unit": 9, "before": 0, "amount": 12, "growth": {}}, "loot": []}
 	}
 	queue = script.sequence(expired, actors, content["interface"], true)
-	if queue.size() != 2 or queue[0]["kind"] != "experience" or queue[1]["text"] != "治疗之杖消失":
+	if queue.size() != 2 or queue[0]["kind"] != "summary" or queue[1]["text"] != "治疗之杖消失":
 		fail("The final staff charge must display XP before its automatic expiry notice")
 		return
 	result["rewards"]["loot"][0]["destination"] = "warehouse"

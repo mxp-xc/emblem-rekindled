@@ -59,6 +59,42 @@ func _initialize() -> void:
 	if prepared["timelines"][0]["actionGroup"] != appearances["97:13"]["actionGroup"]:
 		fail("A depleted thrown weapon must use ordinary geometry after auto-equipping a backup")
 		return
+	var action: String = appearances["0:9"]["actionGroup"]
+	var defense: String = appearances["54:40"]["defenseGroup"]
+	var missing: Dictionary = content["battleClips"].duplicate(false)
+	missing["clips"] = content["battleClips"]["clips"].duplicate()
+	missing["clips"].erase("%s/%s/1/miss" % [action, defense])
+	if not library.validate_catalog(
+		missing, content["entry"]["resourceDirectory"], content["battleArt"]
+	):
+		fail("A generated miss must not require a sampled clip mapping")
+		return
+	missing["clips"].erase("%s/%s/1/hit" % [action, defense])
+	if not library.validate_catalog(
+		missing, content["entry"]["resourceDirectory"], content["battleArt"]
+	):
+		fail("A generated hit must not require a sampled clip mapping")
+		return
+	missing["clips"].erase("%s/%s/1/critical" % [action, defense])
+	if not library.validate_catalog(
+		missing, content["entry"]["resourceDirectory"], content["battleArt"]
+	):
+		fail("A generated critical must not require a sampled clip mapping")
+		return
+	var sampled_action: String = appearances["53:48"]["actionGroup"]
+	var sampled_defense: String = appearances["0:9"]["defenseGroup"]
+	missing["clips"].erase("%s/%s/1/critical" % [sampled_action, sampled_defense])
+	if not library.validate_catalog(
+		missing, content["entry"]["resourceDirectory"], content["battleArt"]
+	):
+		fail("A generated special-magic critical must not require a sampled clip mapping")
+		return
+	missing["clips"] = {}
+	if not library.validate_catalog(
+		missing, content["entry"]["resourceDirectory"], content["battleArt"]
+	):
+		fail("A fully generated catalog must allow an empty clip mapping")
+		return
 	print(
 		"PASS battle clips: all native-side action/defense pairs, hit/miss/critical, depleted throws"
 	)

@@ -192,7 +192,7 @@ func _wait_for_action(scene: Control) -> bool:
 	var saw_map_player: bool = false
 	while scene.busy and Time.get_ticks_msec() < deadline:
 		saw_map_player = saw_map_player or scene.map_attack_player.playing
-		if scene.action_feedback.current_step.get("kind") == "tutorial":
+		if scene.action_feedback.current_step.get("kind") in ["tutorial", "summary"]:
 			# The assisted frontier has not read the normal first-XP tutorial.
 			# Advance its existing Back interaction instead of suppressing it.
 			scene.action_feedback.go_back()

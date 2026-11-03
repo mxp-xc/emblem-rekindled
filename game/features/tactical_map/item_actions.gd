@@ -20,6 +20,7 @@ var _details: Control
 var _confirm: Button
 var _back: Button
 var _selected: Dictionary = {}
+var _click_selected: String = ""
 
 
 func setup(content: Dictionary) -> void:
@@ -84,6 +85,13 @@ func go_back() -> void:
 
 
 func handle_key(event: InputEventKey) -> bool:
+	if page == "items" and event.pressed and not event.echo:
+		if event.keycode in [KEY_ENTER, KEY_KP_ENTER, KEY_SPACE]:
+			_ask(_selected)
+			return true
+		if event.keycode in [KEY_UP, KEY_DOWN]:
+			handle_wheel(-1 if event.keycode == KEY_UP else 1)
+			return true
 	if (
 		page == "confirm"
 		and event.pressed
@@ -103,6 +111,8 @@ func handle_wheel(direction: int) -> void:
 		if button.is_visible_in_tree() and not button.disabled and button.focus_mode != FOCUS_NONE:
 			rows.append(button)
 	MenuNavigation.step_buttons(rows, direction)
+	if page == "items":
+		_click_selected = _selected.get("id", "")
 
 
 func _render() -> void:
@@ -130,7 +140,7 @@ func _render() -> void:
 			button.expand_icon = true
 			button.add_theme_constant_override("icon_max_width", 30)
 			button.focus_entered.connect(_select.bind(held))
-			button.pressed.connect(_ask.bind(held))
+			button.pressed.connect(_item_pressed.bind(held))
 			_rows.add_child(button)
 			if held["id"] == _selected.get("id"):
 				selected = button
@@ -153,17 +163,31 @@ func _render() -> void:
 func _choose_operation(kind: String) -> void:
 	operation = kind
 	_selected = {}
+	_click_selected = ""
 	page = "items"
 	_render()
 
 
 func _select(held: Dictionary) -> void:
+	if _selected.get("id") != held["id"]:
+		_click_selected = ""
 	_selected = held
 	_details.present(held, _information.get(held["id"], {}) if operation == "equip" else {})
 
 
+func _item_pressed(held: Dictionary) -> void:
+	if page != "items":
+		return
+	if _click_selected == held["id"]:
+		_ask(held)
+	else:
+		_select(held)
+		_click_selected = held["id"]
+
+
 func _ask(held: Dictionary) -> void:
 	_selected = held
+	_click_selected = held["id"]
 	page = "confirm"
 	_render()
 

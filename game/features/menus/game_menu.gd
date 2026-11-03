@@ -20,6 +20,7 @@ var _speed: Button
 var _map_controls: VBoxContainer
 var _zoom: HSlider
 var _assisted_victory: Button
+var _assistance_buttons: Dictionary = {}
 var _notice: Label
 var _notice_remaining: float = 0
 var _title_context: bool = false
@@ -46,6 +47,7 @@ func setup(data: Dictionary, settings: Dictionary) -> void:
 	_commander_button = _button("指挥官配置", "commander")
 	main.add_child(_commander_button)
 	main.add_child(_button("游戏帮助", "help"))
+	main.add_child(_button("辅助功能", "assistance"))
 	main.add_child(_button("游戏设置", "settings"))
 	_return_title = _button("回主菜单", "return_title")
 	main.add_child(_return_title)
@@ -76,8 +78,8 @@ func setup(data: Dictionary, settings: Dictionary) -> void:
 	_zoom.gui_input.connect(_touch_slider.bind(_zoom))
 	_zoom.value_changed.connect(func(value: float) -> void: intent.emit("zoom", {"value": value}))
 	_map_controls.add_child(_zoom)
+	_map_controls.add_child(_button("自适应缩放", "fit_map"))
 	_map_controls.add_child(_button("查看全图", "overview"))
-	options.add_child(_button("辅助功能", "assistance"))
 	_speed = _button("", "speed")
 	_speed.name = "GameSpeed"
 	options.add_child(_speed)
@@ -95,8 +97,16 @@ func setup(data: Dictionary, settings: Dictionary) -> void:
 	speed_options.add_child(_button("返回", "back"))
 	var assistance: VBoxContainer = _page(column, "assistance")
 	assistance.add_child(_label("辅助功能", true))
-	_assisted_victory = _button("直接通关", "confirm_victory")
+	for option: Array in [["经验共享", "share_experience"], ["升级全属性", "full_growth"]]:
+		var toggle: Button = _button(option[0], "assistance_toggle", {"key": option[1]}, true)
+		toggle.name = option[1]
+		_assistance_buttons[option[1]] = toggle
+		assistance.add_child(toggle)
+	set_assistance(settings)
+	_assisted_victory = _button("直接通关", "confirm_victory", {}, true)
+	_assisted_victory.name = "AssistedVictory"
 	assistance.add_child(_assisted_victory)
+	assistance.add_child(_label("直接通关需确认后生效。"))
 	assistance.add_child(_button("返回", "back"))
 	var confirmation: VBoxContainer = _page(column, "confirm_victory")
 	confirmation.add_child(_label("确定直接通关当前关卡？", true))
@@ -149,6 +159,8 @@ func present(
 
 
 func show_page(value: String) -> void:
+	if value != "confirm_victory" and _assisted_victory != null:
+		_assisted_victory.set_pressed_no_signal(false)
 	var focused: Control = get_viewport().gui_get_focus_owner()
 	if _pages.has(page) and focused != null and _pages[page].is_ancestor_of(focused):
 		_page_focus[page] = focused
@@ -182,7 +194,9 @@ func show_page(value: String) -> void:
 func go_back() -> bool:
 	if page == "confirm_victory":
 		show_page("assistance")
-	elif page in ["assistance", "speed"]:
+	elif page == "assistance":
+		show_page("main")
+	elif page == "speed":
 		show_page("settings")
 	elif page == "commander":
 		_commander.commit()
@@ -214,6 +228,11 @@ func set_music_state(enabled: bool, started: bool) -> void:
 
 func set_game_speed(value: float) -> void:
 	_speed.text = "游戏速率 · %d×" % int(value)
+
+
+func set_assistance(settings: Dictionary) -> void:
+	for key: String in _assistance_buttons:
+		_assistance_buttons[key].set_pressed_no_signal(settings.get(key, false))
 
 
 func set_notice(message: String, transient: bool = false) -> void:
@@ -274,18 +293,23 @@ func _page(parent: VBoxContainer, key: String) -> VBoxContainer:
 	return column
 
 
-func _button(text: String, kind: String, details: Dictionary = {}) -> Button:
-	var button := Button.new()
+func _button(text: String, kind: String, details: Dictionary = {}, toggle: bool = false) -> Button:
+	var button: Button = CheckButton.new() if toggle else Button.new()
 	button.text = text
 	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	button.custom_minimum_size = Vector2(220, 56)
 	button.add_theme_font_size_override("font_size", 28)
 	button.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
-	button.pressed.connect(func() -> void: _choose(kind, details))
+	button.pressed.connect(
+		func() -> void:
+			_choose(kind, details.merged({"value": button.button_pressed}) if toggle else details)
+	)
 	return button
 
 
 func _choose(kind: String, details: Dictionary) -> void:
+	if _title_context and kind in ["assistance", "confirm_victory"]:
+		return
 	if (
 		kind
 		in ["settings", "objective", "help", "commander", "assistance", "confirm_victory", "speed"]

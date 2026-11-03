@@ -18,11 +18,19 @@ func _initialize() -> void:
 	broken["appearances"]["0:9"]["frames"][0].erase("offsetX")
 	cases.append(broken)
 	broken = content["battleArt"].duplicate(true)
+	var repeated: Dictionary = broken["appearances"]["0:9"]["frames"][0].duplicate()
+	repeated["offsetY"] = "invalid"
+	broken["appearances"]["0:9"]["frames"].append(repeated)
+	cases.append(broken)
+	broken = content["battleArt"].duplicate(true)
 	broken["appearances"]["0:9"]["nativeSide"] = -1
 	cases.append(broken)
 	broken = content["battleArt"].duplicate(true)
 	var background: String = broken["terrainBackgrounds"]["0"]
 	broken["backgrounds"][background]["frames"].resize(2)
+	cases.append(broken)
+	broken = content["battleArt"].duplicate(true)
+	broken["backgrounds"][background]["frames"][0]["texture"] = "missing.png"
 	cases.append(broken)
 	for index: int in range(cases.size()):
 		if library.validate_art(cases[index], directory, content["map"]["terrain"]):

@@ -8,6 +8,8 @@ from pathlib import Path
 
 import test_chapter_library as library_fixture
 from emblem_dev.content.configuration import (
+    generated_critical,
+    generated_noncritical,
     import_map,
     motion_requirements,
     normalize_deployment,
@@ -16,6 +18,45 @@ from emblem_dev.content.configuration import (
 
 
 class ChapterConfigurationTest(unittest.TestCase):
+    def test_generated_critical_requires_supported_thrown_weapon_and_projectile(self):
+        thrown = {"R": 2, "effectKind": 0, "thrown": True}
+        projectile = {"projectile": {"texture": "axe.png"}}
+        self.assertTrue(generated_critical(thrown, projectile))
+        self.assertFalse(generated_critical(thrown, {}))
+        self.assertTrue(generated_critical({**thrown, "thrown": False}, projectile))
+        self.assertTrue(generated_critical({**thrown, "R": 0, "thrown": False}, projectile))
+        self.assertFalse(generated_critical({**thrown, "R": 5}, projectile))
+        self.assertTrue(generated_critical({**thrown, "R": 5, "thrown": False}, projectile))
+        self.assertTrue(generated_critical({**thrown, "effectKind": 3}, projectile))
+        self.assertTrue(generated_critical({**thrown, "effectKind": 4}, projectile))
+        self.assertTrue(generated_critical({**thrown, "effectKind": 5}, projectile))
+        self.assertTrue(generated_critical({**thrown, "effectKind": 6}, projectile))
+        self.assertTrue(generated_critical({**thrown, "effectKind": 8}, projectile))
+        self.assertTrue(generated_critical({**thrown, "effectKind": 7}, projectile))
+        self.assertTrue(generated_critical({**thrown, "effectKind": 11}, projectile))
+        self.assertTrue(generated_critical({**thrown, "effectKind": 12}, projectile))
+        self.assertFalse(generated_critical({**thrown, "effectKind": 3}, {}))
+
+    def test_generated_noncritical_requires_projectile_for_thrown_weapon(self):
+        regular = {"R": 2, "effectKind": 0, "thrown": False}
+        thrown = {**regular, "thrown": True}
+        self.assertTrue(generated_noncritical(regular, {}))
+        self.assertFalse(generated_noncritical(thrown, {}))
+        self.assertTrue(generated_noncritical(thrown, {"projectile": {"texture": "axe.png"}}))
+        self.assertTrue(generated_noncritical({"R": 3, "effectKind": 4}, {}))
+        self.assertTrue(generated_noncritical({"R": 3, "effectKind": 7}, {}))
+        self.assertTrue(generated_noncritical({"R": 3, "effectKind": 5}, {}))
+        self.assertTrue(generated_noncritical({"R": 3, "effectKind": 6}, {}))
+        self.assertTrue(generated_noncritical({"R": 3, "effectKind": 11}, {}))
+        self.assertTrue(generated_noncritical({"R": 3, "effectKind": 12}, {}))
+        self.assertTrue(generated_noncritical({"R": 7, "effectKind": 0}, {}))
+        self.assertFalse(
+            generated_noncritical(
+                {"R": 7, "effectKind": 0, "thrown": True},
+                {"projectile": {"texture": "axe.png"}},
+            )
+        )
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)

@@ -1,0 +1,181 @@
+{
+  "battleId": "m10",
+  "worldNode": 10,
+  "battleName": {
+    "sourceTextIndex": 149
+  },
+  "objective": {
+    "sourceTextIndex": 166
+  },
+  "initialBattlePresentation": {
+    "hiddenUnitIds": [],
+    "hiddenFactions": [],
+    "unitPositionOverrides": {}
+  },
+  "turnEvents": [],
+  "aiChanges": [],
+  "routeChoices": [],
+  "speakers": {
+    "0": {
+      "id": 0,
+      "name": "雅木",
+      "faction": 0,
+      "portraitId": 0
+    },
+    "9": {
+      "id": 9,
+      "name": "赛丽卡",
+      "faction": 0,
+      "portraitId": 9
+    },
+    "8": {
+      "id": 8,
+      "name": "莎尼亚",
+      "faction": 0,
+      "portraitId": 8
+    },
+    "90": {
+      "id": 90,
+      "name": "玛拉",
+      "faction": 2,
+      "portraitId": 21
+    }
+  },
+  "sequences": {
+    "opening": [
+      {
+        "kind": "battleTitle",
+        "text": {
+          "sourceTextIndex": 149
+        },
+        "sourceDurationUnits": 2000
+      },
+      {
+        "kind": "focus",
+        "cell": [22, 3],
+        "instant": true,
+        "sourceWaitTicks": 22
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 572,
+          "speakerId": 90
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 573,
+          "speakerId": 0
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 574,
+          "speakerId": 90
+        },
+        "sourceWaitTicksAfter": 15
+      },
+      {
+        "kind": "objective",
+        "text": {
+          "sourceTextIndex": 166
+        }
+      },
+      {
+        "kind": "commanderSetup",
+        "candidateSource": "formalParty",
+        "defaultMode": "automatic",
+        "defaultStance": "attack"
+      }
+    ],
+    "boss_first_combat": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 575,
+          "speakerId": 90
+        }
+      }
+    ],
+    "boss_before_retirement": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 576,
+          "speakerId": 90
+        }
+      }
+    ],
+    "victory": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 577,
+          "speakerId": 8
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 578,
+          "speakerId": 0
+        },
+        "whenWorldStep": 5,
+        "sourceWaitTicksAfter": 15
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 579,
+          "speakerId": 0
+        },
+        "unlessWorldStep": 5,
+        "sourceWaitTicksAfter": 15
+      },
+      {
+        "kind": "missionComplete",
+        "text": {
+          "sourceTextIndex": 34
+        },
+        "goldReward": 1000
+      }
+    ]
+  },
+  "combatEvents": [
+    {
+      "id": "boss_first_combat",
+      "trigger": "firstCombat",
+      "unitId": 90,
+      "sequence": "boss_first_combat"
+    },
+    {
+      "id": "boss_death",
+      "trigger": "unitDeath",
+      "unitId": 90,
+      "beforeRetirement": "boss_before_retirement"
+    }
+  ],
+  "outcomeRules": {
+    "checks": [
+      {
+        "kind": "defeat",
+        "condition": "requiredUnitFallen",
+        "unitIds": [0]
+      },
+      {
+        "kind": "victory",
+        "condition": "noVisibleEnemies",
+        "faction": 2
+      }
+    ]
+  },
+  "deploymentAdjustments": [
+    {
+      "deploymentIndex": 25,
+      "id": 40
+    }
+  ]
+}

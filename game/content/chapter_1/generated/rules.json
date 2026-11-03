@@ -2734,5 +2734,97 @@
     [5, 10, 11, 65],
     [53, 54, 59, 50, 65]
   ],
-  "nodeShopStockIndices": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 1, 1, 1, 1, 1, 1, 1]
+  "nodeShopStockIndices": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 1, 1, 1, 1, 1, 1, 1],
+  "promotions": [
+    {
+      "fromClassId": 0,
+      "toClassId": 1,
+      "minimumLevel": 10,
+      "gains": {
+        "strength": 2,
+        "skill": 1,
+        "speed": 1,
+        "defense": 1,
+        "magic": 0,
+        "luck": 2,
+        "maxHp": 4,
+        "move": 1
+      }
+    },
+    {
+      "fromClassId": 4,
+      "toClassId": 5,
+      "minimumLevel": 10,
+      "gains": {
+        "strength": 0,
+        "skill": 1,
+        "speed": 1,
+        "defense": 1,
+        "magic": 3,
+        "luck": 3,
+        "maxHp": 5,
+        "move": 1
+      }
+    },
+    {
+      "fromClassId": 8,
+      "toClassId": 9,
+      "minimumLevel": 10,
+      "gains": {
+        "strength": 2,
+        "skill": 2,
+        "speed": 2,
+        "defense": 3,
+        "magic": 3,
+        "luck": 1,
+        "maxHp": 4,
+        "move": 1
+      }
+    },
+    {
+      "fromClassId": 12,
+      "toClassId": 13,
+      "minimumLevel": 10,
+      "gains": {
+        "strength": 0,
+        "skill": 2,
+        "speed": 1,
+        "defense": 1,
+        "magic": 3,
+        "luck": 2,
+        "maxHp": 4,
+        "move": 1
+      }
+    },
+    {
+      "fromClassId": 16,
+      "toClassId": 17,
+      "minimumLevel": 10,
+      "gains": {
+        "strength": 2,
+        "skill": 2,
+        "speed": 1,
+        "defense": 2,
+        "magic": 0,
+        "luck": 1,
+        "maxHp": 4,
+        "move": 0
+      }
+    },
+    {
+      "fromClassId": 20,
+      "toClassId": 21,
+      "minimumLevel": 10,
+      "gains": {
+        "strength": 2,
+        "skill": 3,
+        "speed": 3,
+        "defense": 1,
+        "magic": 0,
+        "luck": 1,
+        "maxHp": 3,
+        "move": 1
+      }
+    }
+  ]
 }

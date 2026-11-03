@@ -132,6 +132,9 @@ public final class Chapter1BattleClips {
     for (Variant variant : defenses.values()) shapes.put(variant.defense, variant.geometry);
     Map<String, SampleRequest> candidates = new LinkedHashMap<>();
     for (Variant attacker : attacks.values()) {
+      boolean normalGenerated = generatedNoncritical(attacker.behavior);
+      boolean criticalGenerated = generatedCritical(attacker.behavior);
+      if (normalGenerated && criticalGenerated) continue;
       for (Variant defender : defenses.values()) {
         if (attacker.side() == defender.side()) continue;
         for (int slot = 0; slot < 2; slot++) for (String outcome : List.of(
@@ -139,6 +142,8 @@ public final class Chapter1BattleClips {
           "miss",
           "critical"
         )) {
+          if (!outcome.equals("critical") && normalGenerated) continue;
+          if (outcome.equals("critical") && criticalGenerated) continue;
           String key = attacker.attack + "/" + defender.defense + "/" + slot + "/" + outcome;
           candidates.put(key, new SampleRequest(attacker, defender, outcome, slot));
         }
@@ -237,6 +242,55 @@ public final class Chapter1BattleClips {
         clips.size() +
         " textures=" +
         textures.size()
+    );
+  }
+
+  private static boolean generatedNoncritical(Map<String, Object> action) {
+    int kind = ((Number) action.get("effectKind")).intValue();
+    int presentation = ((Number) action.get("R")).intValue();
+    return (
+      kind == 3 ||
+      kind == 4 ||
+      kind == 5 ||
+      kind == 6 ||
+      kind == 7 ||
+      kind == 8 ||
+      kind == 11 ||
+      kind == 12 ||
+      ((kind == 0 || kind == 1) &&
+        (presentation == 0 ||
+          presentation == 2 ||
+          presentation == 4 ||
+          presentation == 5 ||
+          presentation == 6 ||
+          presentation == 8 ||
+          (presentation == 7 && !Boolean.TRUE.equals(action.get("thrown")))))
+    );
+  }
+
+  private static boolean generatedCritical(Map<String, Object> action) {
+    int kind = ((Number) action.get("effectKind")).intValue();
+    int presentation = ((Number) action.get("R")).intValue();
+    boolean thrown = Boolean.TRUE.equals(action.get("thrown"));
+    return (
+      kind == 3 ||
+      kind == 4 ||
+      kind == 5 ||
+      kind == 6 ||
+      kind == 7 ||
+      kind == 8 ||
+      kind == 11 ||
+      kind == 12 ||
+      ((kind == 0 || kind == 1) &&
+        ((thrown && (presentation == 0 || presentation == 2 || presentation == 4)) ||
+          (!thrown &&
+            (presentation == 0 ||
+              presentation == 2 ||
+              presentation == 4 ||
+              presentation == 5 ||
+              presentation == 6 ||
+              presentation == 7 ||
+              presentation == 8))))
     );
   }
 

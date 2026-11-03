@@ -91,6 +91,16 @@ func _snapshot() -> Dictionary:
 	var viewport: Vector2 = _scene.get_viewport_rect().size
 	var window: Vector2i = DisplayServer.window_get_size()
 	var view: RefCounted = _scene.map.view
+	var world_nodes: Array = []
+	if _scene.story_player.world_active:
+		var world_view: RefCounted = _scene.story_player._world_view
+		for id: int in _scene.story_player.visible_world_nodes:
+			var point: Vector2 = (
+				_scene.story_player._world_node_origin(id)
+				+ _scene.story_player._world_layer.position
+				+ Vector2(12, 12) * world_view.zoom
+			)
+			world_nodes.append({"id": id, "screen": [point.x, point.y]})
 	return {
 		"ok": true,
 		"speed": Engine.time_scale,
@@ -105,6 +115,8 @@ func _snapshot() -> Dictionary:
 			"state": _scene.battle.snapshot()
 		},
 		"world": _scene.world_progress.duplicate(true),
+		"worldEncounter": _scene._world_encounter.get("marker"),
+		"worldNodes": world_nodes,
 		"itemOptions":
 		_scene.battle.item_options(_scene.selected_unit) if _scene.selected_unit >= 0 else {},
 		"ui":

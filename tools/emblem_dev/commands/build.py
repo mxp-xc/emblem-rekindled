@@ -1,11 +1,13 @@
 """导出带 buildId 的资源包。"""
 
+import gzip
 import hashlib
 import json
 import shutil
 import tempfile
 import uuid
 import zipfile
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -18,6 +20,48 @@ from emblem_dev.paths import GAME, ROOT
 app = typer.Typer(help="导出带 buildId 的资源包。")
 
 INFO = GAME / "content/build_info.json"
+
+
+@contextmanager
+def compressed_catalog():
+    """Generate a compact export-only catalog without replacing checkout data."""
+    source = GAME / "content/chapter_1/generated/library/catalog.json"
+    target = source.with_name(source.name + ".gz")
+    presets = GAME / "export_presets.cfg"
+    original_presets = presets.read_bytes()
+    include = b'include_filter="content/**/*.json,ui/fonts/OFL.txt"'
+    exclude = b'exclude_filter="tests/*,tests/**/*,**/provenance.json"'
+    if original_presets.count(include) != 2 or original_presets.count(exclude) != 2:
+        raise ValueError("Export presets do not match the expected catalog filters")
+    temporary_presets = original_presets.replace(
+        include, b'include_filter="content/**/*.json,content/**/*.json.gz,ui/fonts/OFL.txt"'
+    ).replace(
+        exclude,
+        b'exclude_filter="tests/*,tests/**/*,**/provenance.json,**/generated/library/catalog.json"',
+    )
+    value = json.loads(source.read_text())
+    compact = json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode()
+    compressed = gzip.compress(compact, mtime=0)
+    if gzip.decompress(compressed) != compact:
+        raise ValueError("Compressed catalog differs from the source")
+    del value, compact
+    with target.open("xb") as output:
+        output.write(compressed)
+    try:
+        if presets.read_bytes() != original_presets:
+            raise RuntimeError("Export presets changed during preparation")
+        presets.write_bytes(temporary_presets)
+        yield compressed
+    finally:
+        current = presets.read_bytes()
+        preset_changed = current not in (temporary_presets, original_presets)
+        if current == temporary_presets:
+            presets.write_bytes(original_presets)
+        if target.read_bytes() != compressed:
+            raise RuntimeError(f"Export catalog changed; preserving it: {target}")
+        target.unlink()
+        if preset_changed:
+            raise RuntimeError(f"Export presets changed; preserving them: {presets}")
 
 
 def export(platform: str) -> dict:
@@ -36,20 +80,31 @@ def export(platform: str) -> dict:
         with tempfile.TemporaryDirectory(prefix="emblem-export-") as directory:
             filename = "index.html" if platform == "web" else "emblem-rekindled.apk"
             output = Path(directory) / filename
-            print(f"[EXPORT] {platform} {identity['buildId']}", flush=True)
-            delivery.run(
-                "godot",
-                "--headless",
-                "--path",
-                str(GAME),
-                "--export-debug",
-                "Web" if platform == "web" else "Android",
-                str(output),
-            )
-            if platform == "web":
-                delivery.verify_pack(output.with_suffix(".pck"), identity["buildId"])
-            else:
-                delivery.verify_apk(output, identity["buildId"])
+            with compressed_catalog() as catalog:
+                print(f"[EXPORT] {platform} {identity['buildId']}", flush=True)
+                delivery.run(
+                    "godot",
+                    "--headless",
+                    "--path",
+                    str(GAME),
+                    "--export-debug",
+                    "Web" if platform == "web" else "Android",
+                    str(output),
+                )
+                if platform == "web":
+                    delivery.verify_pack(
+                        output.with_suffix(".pck"),
+                        identity["buildId"],
+                        require_compressed_catalog=True,
+                    )
+                else:
+                    delivery.verify_apk(output, identity["buildId"])
+                    with zipfile.ZipFile(output) as archive:
+                        packed = archive.read(
+                            "assets/content/chapter_1/generated/library/catalog.json.gz"
+                        )
+                        if packed != catalog:
+                            raise RuntimeError("APK compressed catalog differs from the source")
             destination = ROOT / "build" / platform
             destination.mkdir(parents=True, exist_ok=True)
             if platform == "web":

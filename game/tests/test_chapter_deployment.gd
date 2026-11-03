@@ -55,6 +55,42 @@ func _initialize() -> void:
 	if early["spawns"][2]["policy"] != 0 or early["spawns"][2]["deploymentSlot"] != 2:
 		fail("A recruit slot must not become an AI policy bitmask")
 		return
+	var encounter: Dictionary = Deployment.bind(
+		records, profiles, recipes, party, {}, {}, [], {}, null, true
+	)
+	if (
+		not encounter["ok"]
+		or encounter["slots"] != {0: 0, 1: 9, 2: 6}
+		or encounter["units"].size() != 4
+	):
+		fail("An encounter must leave unused slots empty and keep fixed deployments")
+		return
+	var restored: Dictionary = Deployment.infer_bindings(
+		records, party, encounter["units"], [], {}, true
+	)
+	if not restored["ok"] or restored["bindings"][3] != -1:
+		fail("Encounter snapshots must preserve vacant deployment slots")
+		return
+	var rebound: Dictionary = Deployment.bind(
+		records,
+		profiles,
+		recipes,
+		party,
+		restored["bindings"],
+		restored["classes"],
+		[],
+		{},
+		null,
+		true
+	)
+	if not rebound["ok"] or rebound["units"] != encounter["units"]:
+		fail("Restoring an encounter must recover the same units without filling vacant slots")
+		return
+	var missing_fixed: Array = encounter["units"].duplicate(true)
+	missing_fixed.pop_back()
+	if Deployment.infer_bindings(records, party, missing_fixed, [], {}, true)["ok"]:
+		fail("Allowing vacant encounter slots must not permit missing fixed units")
+		return
 	party = []
 	for identity: int in [0, 9, 2, 4, 5, 1, 6]:
 		party.append({"id": identity, "classId": 0})

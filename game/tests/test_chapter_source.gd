@@ -32,9 +32,11 @@ func _initialize() -> void:
 	progress = JSON.parse_string(JSON.stringify(progress))
 	records = JSON.parse_string(JSON.stringify(records))
 	var before: Dictionary = progress.duplicate(true)
-	var entry: Dictionary = session._world_context(chapter, library, "m2", records, progress, false)
+	var entry: Dictionary = session._world_context(
+		chapter, library, "m2", records, {}, progress, false
+	)
 	var completed: Dictionary = session._world_context(
-		chapter, library, "m1", records, progress, true
+		chapter, library, "m1", records, {}, progress, true
 	)
 	if (
 		not entry["ok"]
@@ -58,7 +60,7 @@ func _initialize() -> void:
 		func(unit: Dictionary) -> bool: return unit["id"] != 6
 	)
 	var first_context: Dictionary = session._world_context(
-		chapter, library, "m0", records, first_progress, true
+		chapter, library, "m0", records, {}, first_progress, true
 	)
 	if (
 		not first_context["ok"]
@@ -84,7 +86,7 @@ func _initialize() -> void:
 		invalid.merge(changes, true)
 		var preserved: Dictionary = invalid.duplicate(true)
 		if (
-			session._world_context(chapter, library, "m2", records, invalid, false)["ok"]
+			session._world_context(chapter, library, "m2", records, {}, invalid, false)["ok"]
 			or invalid != preserved
 		):
 			fail("Invalid route, frontier or roster must fail without mutating the supplied source")

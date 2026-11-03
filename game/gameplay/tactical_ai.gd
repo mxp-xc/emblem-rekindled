@@ -3,6 +3,7 @@ extends RefCounted
 const Combat = preload("res://gameplay/combat_rules.gd")
 const MapRules = preload("res://gameplay/map_rules.gd")
 const MapAttacks = preload("res://gameplay/map_attack_rules.gd")
+const Summons = preload("res://gameplay/battle_summons.gd")
 var _combat: RefCounted
 var _movement: RefCounted
 var _map: Dictionary
@@ -94,6 +95,7 @@ func plan(
 		"attackTarget": -1,
 		"healTarget": -1,
 		"healItem": "",
+		"summonItem": "",
 		"equipItem": "",
 		"actionMode": "",
 		"mapItem": "",
@@ -127,6 +129,7 @@ func plan(
 			result["attackTarget"] = -1
 			result["healTarget"] = -1
 			result["actionMode"] = "map_attack"
+			result["summonItem"] = ""
 			result["mapItem"] = held["id"]
 			result["mapPrimary"] = -1
 			break
@@ -174,8 +177,27 @@ func plan(
 							)
 							result["healTarget"] = -1
 							result["actionMode"] = mode
+							result["summonItem"] = ""
 							result["mapItem"] = held["id"] if mode == "map_attack" else ""
 							result["mapPrimary"] = int(target["id"]) if mode == "map_attack" else -1
+				if (
+					weapon == 59
+					and cell == _cell(actor)
+					and Summons.placement(actor, units, _map)["ok"]
+				):
+					var summon_score: int = (
+						_score(actor, weapon, cell) + 600 + _combat.power(actor, commander)
+					)
+					if summon_score > best:
+						best = summon_score
+						chosen_slot = slot
+						result["cell"] = cell
+						result["attackTarget"] = -1
+						result["healTarget"] = -1
+						result["actionMode"] = "summon"
+						result["summonItem"] = held["id"]
+						result["mapItem"] = ""
+						result["mapPrimary"] = -1
 				if definition["damageKind"] == "healing":
 					var heal_candidates: Array = (
 						friends if weapon == 53 else (_friends if weapon == 54 else [])
@@ -195,6 +217,7 @@ func plan(
 							result["healTarget"] = int(target["id"])
 							result["healItem"] = held["id"]
 							result["actionMode"] = ""
+							result["summonItem"] = ""
 							result["mapItem"] = ""
 							result["mapPrimary"] = -1
 				var score: int = _score(actor, weapon, cell)
@@ -204,6 +227,7 @@ func plan(
 					result["attackTarget"] = -1
 					result["healTarget"] = -1
 					result["actionMode"] = ""
+					result["summonItem"] = ""
 					result["mapItem"] = ""
 					result["mapPrimary"] = -1
 	if (

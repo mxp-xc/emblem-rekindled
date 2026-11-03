@@ -139,10 +139,20 @@ def check_helpers(game: Path) -> tuple[list[str], int]:
 
         add_scope(tree)
 
+    parents = {}
+    for key, scope in scopes.items():
+        for child in scope.tree.children:
+            if isinstance(child, Tree) and child.data == "extends_stmt":
+                resource = literal(child.children[0])
+                if resource and resource.startswith("res://"):
+                    parents[key] = ((game / resource.removeprefix("res://")).resolve(), "")
+
     def resolve(node, scope, aliases):
         if isinstance(node, Token):
             if node == "self":
                 return (scope.path, scope.name)
+            if node == "super":
+                return parents.get((scope.path, scope.name))
             return aliases.get(str(node), global_classes.get(str(node)))
         if not isinstance(node, Tree):
             return None
@@ -175,8 +185,14 @@ def check_helpers(game: Path) -> tuple[list[str], int]:
             )
 
     def reference(target, name, owner):
-        if target in scopes and owner != (target, name):
-            scopes[target].used.add(name)
+        seen = set()
+        while target in scopes and target not in seen:
+            seen.add(target)
+            if name in scopes[target].functions:
+                if owner != (target, name):
+                    scopes[target].used.add(name)
+                return
+            target = parents.get(target)
 
     def visit(node, scope, aliases, owner):
         if isinstance(node, Token):

@@ -167,7 +167,7 @@ func _combat_dialogues() -> void:
 	var participants: Array = [_actor(0, 0), _actor(82, 2)]
 	var current: Array = participants.duplicate(true)
 	var before: Array = participants.duplicate(true)
-	var first: Dictionary = rules.combat_events(participants, current, {})
+	var first: Dictionary = rules.combat_events(participants, [], {})
 	_check(
 		(
 			first["before"] == ["first"]
@@ -181,14 +181,15 @@ func _combat_dialogues() -> void:
 		participants == before and current == before,
 		"Event selection cannot mutate the committed battle or captured participants"
 	)
-	var reversed: Dictionary = rules.combat_events([participants[1], participants[0]], current, {})
+	var reversed: Dictionary = rules.combat_events([participants[1], participants[0]], [], {})
 	_check(reversed == first, "Enemy-initiated combat uses the same first encounter and B4 flag")
 	current[1]["hp"] = 0
 	current[1]["visible"] = false
 	var retirement: Dictionary = {
 		"unitId": 82, "beforeRetirement": ["death"], "afterRetirement": ["response"]
 	}
-	var death: Dictionary = rules.combat_events(participants, current, {"boss_first": true})
+	var defeated: Array = [{"unitId": 82, "before": participants[1]}]
+	var death: Dictionary = rules.combat_events(participants, defeated, {"boss_first": true})
 	_check(
 		(
 			death["before"].is_empty()
@@ -198,7 +199,7 @@ func _combat_dialogues() -> void:
 		"Death sequences retain their retirement boundary without repeating first combat"
 	)
 	var restored: Dictionary = rules.combat_events(
-		participants, current, {"boss_first": true, "boss_death": true}
+		participants, defeated, {"boss_first": true, "boss_death": true}
 	)
 	_check(
 		(
@@ -211,7 +212,7 @@ func _combat_dialogues() -> void:
 		"Saved event markers prevent dialogue replay while retaining ordinary retirement"
 	)
 	participants[1]["flags"] |= 4
-	var old_flags: Dictionary = rules.combat_events(participants, before, {})
+	var old_flags: Dictionary = rules.combat_events(participants, [], {})
 	_check(
 		(
 			old_flags["before"].is_empty()
@@ -220,17 +221,17 @@ func _combat_dialogues() -> void:
 		),
 		"An older saved B4 prevents first combat without consuming a newly configured event"
 	)
-	var unrelated: Dictionary = rules.combat_events([_actor(0, 0), _actor(30, 2)], current, {})
+	var unrelated: Dictionary = rules.combat_events([_actor(0, 0), _actor(30, 2)], [], {})
 	_check(
 		unrelated["completed"].is_empty(), "An unrelated battle cannot trigger a hidden boss event"
 	)
 	participants[1]["flags"] = 0
-	var both: Dictionary = rules.combat_events(participants, current, {})
+	var both: Dictionary = rules.combat_events(participants, defeated, {})
 	_check(
 		both["before"] == ["first"] and both["retirements"] == [retirement],
 		"A first encounter that kills the boss keeps both ordered dialogue boundaries"
 	)
-	var same_side: Dictionary = rules.combat_events([_actor(30, 2), participants[1]], current, {})
+	var same_side: Dictionary = rules.combat_events([_actor(30, 2), participants[1]], defeated, {})
 	_check(
 		same_side["before"].is_empty() and same_side["flags"] == {30: 4},
 		"First combat follows the chosen actor when faction two attacks another faction two unit"
@@ -239,7 +240,12 @@ func _combat_dialogues() -> void:
 	current[0]["hp"] = 0
 	_check(
 		(
-			ordinary.combat_events(participants, current, {})["retirements"]
+			(
+				ordinary
+				. combat_events(
+					participants, [{"unitId": 0, "before": participants[0]}, defeated[0]], {}
+				)["retirements"]
+			)
 			== [
 				{"unitId": 0, "beforeRetirement": [], "afterRetirement": []},
 				{"unitId": 82, "beforeRetirement": [], "afterRetirement": []}
@@ -248,17 +254,17 @@ func _combat_dialogues() -> void:
 		"Every actual fallen participant retires in participant order even without dialogue"
 	)
 	_check(
-		ordinary.combat_events([_actor(0, 0), _actor(30, 2)], before, {})["flags"] == {30: 4},
+		ordinary.combat_events([_actor(0, 0), _actor(30, 2)], [], {})["flags"] == {30: 4},
 		"Ordinary first combat consumes source B4 even without a configured dialogue"
 	)
 	participants[0]["hp"] = 0
 	_check(
-		ordinary.combat_events(participants, current, {})["retirements"].size() == 1,
-		"An already fallen input participant is not a new retirement"
+		ordinary.combat_events(participants, defeated, {})["retirements"].size() == 1,
+		"Only the supplied final retirement is emitted"
 	)
 	_check(
 		ordinary.combat_events(participants, [], {})["retirements"].is_empty(),
-		"A missing current unit cannot fabricate a death transition"
+		"An empty final retirement queue emits no death"
 	)
 
 

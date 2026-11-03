@@ -40,7 +40,7 @@ class Run(AndroidInput):
             if (
                 state["ui"]["dialogue"]
                 or state["ui"]["choices"]
-                or state["ui"]["feedback"] == "tutorial"
+                or state["ui"]["feedback"] in ("tutorial", "summary")
             ):
                 self.key(66)
             time.sleep(0.03)

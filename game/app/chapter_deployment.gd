@@ -36,10 +36,20 @@ static func bind(
 	party: Array,
 	identity_bindings: Dictionary = {},
 	class_bindings: Dictionary = {},
-	replaced_indices: Array = []
+	replaced_indices: Array = [],
+	promotions: Dictionary = {},
+	initialization_context: Variant = null,
+	allow_empty_slots: bool = false
 ) -> Dictionary:
 	var resolved: Dictionary = _resolve(
-		records, party, identity_bindings, class_bindings, replaced_indices
+		records,
+		party,
+		identity_bindings,
+		class_bindings,
+		replaced_indices,
+		promotions,
+		initialization_context,
+		allow_empty_slots
 	)
 	if not resolved["ok"]:
 		return resolved
@@ -87,9 +97,16 @@ static func bind(
 
 # Saved coordinates can be anywhere inside the map, not only the initial region.
 static func infer_bindings(
-	records: Array, party: Array, saved_units: Array, replaced_indices: Array = []
+	records: Array,
+	party: Array,
+	saved_units: Array,
+	replaced_indices: Array = [],
+	promotions: Dictionary = {},
+	allow_empty_slots: bool = false
 ) -> Dictionary:
-	var resolved: Dictionary = _resolve(records, party)
+	var resolved: Dictionary = _resolve(
+		records, party, {}, {}, [], promotions, null, allow_empty_slots
+	)
 	if not resolved["ok"]:
 		return resolved
 	var bindings: Dictionary = {}
@@ -108,7 +125,7 @@ static func infer_bindings(
 		for descriptor: Dictionary in resolved["records"]:
 			if (
 				descriptor["deploymentIndex"] not in replaced_indices
-				and _matches_saved(descriptor, saved)
+				and _matches_saved(descriptor, saved, promotions)
 			):
 				candidates.append(int(descriptor["deploymentIndex"]))
 		if candidates.size() != 1:
@@ -120,9 +137,11 @@ static func infer_bindings(
 			return _failure("INVALID_SAVED_DEPLOYMENT_INDEX", index)
 		bindings[index] = identity
 		identities[identity] = true
-		if saved["formal"]:
+		if saved["formal"] or saved["classId"] != resolved["records"][index]["classId"]:
 			classes[index] = int(saved["classId"])
-	var verified: Dictionary = _resolve(records, party, bindings, classes, replaced_indices)
+	var verified: Dictionary = _resolve(
+		records, party, bindings, classes, replaced_indices, promotions, null, allow_empty_slots
+	)
 	if not verified["ok"]:
 		return verified
 	return {"ok": true, "bindings": bindings, "classes": classes}
@@ -133,7 +152,10 @@ static func _resolve(
 	party: Array,
 	identity_bindings: Dictionary = {},
 	class_bindings: Dictionary = {},
-	replaced_indices: Array = []
+	replaced_indices: Array = [],
+	promotions: Dictionary = {},
+	initialization_context: Variant = null,
+	allow_empty_slots: bool = false
 ) -> Dictionary:
 	if records.is_empty() or not _party_valid(party):
 		return _failure("INVALID_DEPLOYMENT_PARTY", -1)
@@ -145,24 +167,62 @@ static func _resolve(
 	var identities: Dictionary = {}
 	var slots: Dictionary = {}
 	var references: Array[int] = []
+	var fixed_formal: Dictionary = {}
 	var next_temporary: int = 95
 	for index: int in range(records.size()):
 		if not _record_valid(records[index]):
 			return _failure("INVALID_DEPLOYMENT_RECORD", index)
 		var record: Dictionary = records[index]
-		var descriptor: Dictionary = _identity(record, party)
+		var descriptor: Dictionary = _identity(record, party, allow_empty_slots)
+		if int(record["kind"]) == 1 and int(record["faction"]) != 0:
+			descriptor["automaticClassBase"] = int(record["classId"])
+		if int(record["kind"]) == 1 and initialization_context != null:
+			var internal_level: int = int(
+				(
+					initialization_context["maxInternalLevel"]
+					if int(record["faction"]) == 2
+					else initialization_context["averageInternalLevel"]
+				)
+			)
+			descriptor["initialLevel"] = internal_level + 1
+			if (
+				int(record["faction"]) != 0
+				and int(record["classId"]) % 4 == 0
+				and internal_level >= 9
+			):
+				descriptor["classId"] = int(record["classId"]) + 1
+		var pairs: Dictionary = promotions.get("pairs", {})
+		var bases: Dictionary = promotions.get("bases", {})
+		if descriptor["formal"] and not pairs.is_empty():
+			# A fixed record owns its source; a slot's source comes from inherited state.
+			if (
+				(descriptor["slot"] >= 0 and descriptor["sourceId"] != descriptor["id"])
+				or not bases.has(int(descriptor["sourceId"]))
+			):
+				return _failure("INVALID_PROMOTION_SOURCE", index)
+			descriptor["promotionBaseClassId"] = bases[int(descriptor["sourceId"])]
+		elif descriptor["temporary"] and pairs.has(int(record["classId"])):
+			descriptor["promotionBaseClassId"] = int(record["classId"])
+		if not _class_allowed(descriptor, int(descriptor["classId"]), promotions):
+			return _failure("INVALID_DEPLOYMENT_CLASSES", index)
 		var slot: int = descriptor["slot"]
 		if slot >= 0 and slots.has(slot):
 			return _failure("INVALID_DEPLOYMENT_SLOT", index)
 		if slot < 0:
 			references.append(int(descriptor["id"]))
+			if descriptor["formal"]:
+				fixed_formal[int(descriptor["id"])] = true
 		var identity: int = next_temporary if descriptor["temporary"] else descriptor["id"]
 		if not identity_bindings.is_empty():
 			var supplied: Variant = _index_value(identity_bindings, index)
 			if not _integer_in(supplied, -1, MAX_ID):
 				return _failure("INVALID_DEPLOYMENT_BINDINGS", index)
 			if int(supplied) == -1:
-				if not record.has("deploymentRegions") and index not in replaced_indices:
+				if (
+					identity != -1
+					and not record.has("deploymentRegions")
+					and index not in replaced_indices
+				):
 					return _failure("MISSING_FIXED_DEPLOYMENT", index)
 				identity = -1
 			elif int(supplied) != identity:
@@ -182,8 +242,13 @@ static func _resolve(
 			var current_class: Variant = _index_value(class_bindings, index)
 			if (
 				not _integer_in(current_class, 0, 40)
-				or not descriptor["formal"]
-				or (slot >= 0 and current_class != descriptor["classId"])
+				or not _class_allowed(descriptor, int(current_class), promotions)
+				or (
+					descriptor["formal"]
+					and slot >= 0
+					and promotions.get("pairs", {}).is_empty()
+					and current_class != descriptor["classId"]
+				)
 			):
 				return _failure("INVALID_DEPLOYMENT_CLASSES", index)
 			descriptor["classId"] = int(current_class)
@@ -199,6 +264,11 @@ static func _resolve(
 			]
 		)
 		result.append(descriptor)
+	# A fixed formal deployment can represent an inherited member without the
+	# source's slot flag. Count that identity against its existing party position.
+	for index: int in range(party.size()):
+		if not slots.has(index) and fixed_formal.has(int(party[index]["id"])):
+			slots[index] = int(party[index]["id"])
 	if party.size() > slots.size():
 		return _failure("DEPLOYMENT_PARTY_EXCEEDS_SLOTS", -1)
 	for slot: int in range(party.size()):
@@ -210,16 +280,24 @@ static func _resolve(
 	return {"ok": true, "records": result, "slots": slots, "referenceIds": references}
 
 
-static func _identity(record: Dictionary, party: Array) -> Dictionary:
+static func _identity(record: Dictionary, party: Array, allow_empty_slots: bool) -> Dictionary:
 	var source: int = int(record["sourceId"])
 	var identity: int = int(record.get("id", source))
 	var class_id: int = int(record["classId"])
 	var slot: int = int(record.get("deploymentSlot", -1))
 	var temporary: bool = slot >= party.size() and slot >= 0
-	if slot >= 0 and not temporary:
+	if temporary and allow_empty_slots:
+		identity = -1
+		temporary = false
+	elif slot >= 0 and not temporary:
 		identity = int(party[slot]["id"])
 		source = int(party[slot].get("sourceId", identity))
 		class_id = int(party[slot]["classId"])
+	elif slot < 0 and int(record["faction"]) == 0:
+		for member: Dictionary in party:
+			if int(member["id"]) == identity:
+				class_id = int(member["classId"])
+				break
 	return {
 		"id": identity,
 		"sourceId": source,
@@ -229,9 +307,13 @@ static func _identity(record: Dictionary, party: Array) -> Dictionary:
 		"temporary": temporary,
 		"formal":
 		(
-			true
-			if slot >= 0 and not temporary
-			else record.get("formal", record["faction"] == 0 and not temporary and source < 10)
+			false
+			if identity < 0
+			else (
+				true
+				if slot >= 0 and not temporary
+				else record.get("formal", record["faction"] == 0 and not temporary and source < 10)
+			)
 		)
 	}
 
@@ -241,6 +323,10 @@ static func _spawn(record: Dictionary, descriptor: Dictionary) -> Dictionary:
 	spawn.erase("kind")
 	for key: String in ["id", "sourceId", "classId", "formal", "temporary", "deploymentIndex"]:
 		spawn[key] = descriptor[key]
+	if descriptor.has("initialLevel"):
+		spawn["level"] = descriptor["initialLevel"]
+	if descriptor.has("promotionBaseClassId"):
+		spawn["promotionBaseClassId"] = descriptor["promotionBaseClassId"]
 	spawn["visible"] = (int(record["flags"]) & 1) == 0
 	spawn["policy"] = 0 if record["faction"] == 0 else int(record["policy"])
 	var class_id: int = descriptor["classId"]
@@ -401,7 +487,9 @@ static func _saved_identity_valid(saved: Dictionary) -> bool:
 	)
 
 
-static func _matches_saved(descriptor: Dictionary, saved: Dictionary) -> bool:
+static func _matches_saved(
+	descriptor: Dictionary, saved: Dictionary, promotions: Dictionary
+) -> bool:
 	var identity_matches: bool = (
 		_integer_in(saved["id"], 95, 104)
 		if descriptor["temporary"]
@@ -412,9 +500,24 @@ static func _matches_saved(descriptor: Dictionary, saved: Dictionary) -> bool:
 		and descriptor["sourceId"] == saved["sourceId"]
 		and descriptor["faction"] == saved["faction"]
 		and descriptor["formal"] == saved["formal"]
-		and (descriptor["formal"] or descriptor["classId"] == saved["classId"])
+		and _class_allowed(descriptor, int(saved["classId"]), promotions)
 		and (not saved.has("temporary") or saved["temporary"] == descriptor["temporary"])
 		and (not saved.has("deploymentSlot") or saved["deploymentSlot"] == descriptor["slot"])
+	)
+
+
+static func _class_allowed(descriptor: Dictionary, current: int, promotions: Dictionary) -> bool:
+	if descriptor.has("automaticClassBase"):
+		var automatic_base: int = int(descriptor["automaticClassBase"])
+		return (
+			current == automatic_base or (automatic_base % 4 == 0 and current == automatic_base + 1)
+		)
+	if descriptor.has("promotionBaseClassId"):
+		var base: int = int(descriptor["promotionBaseClassId"])
+		return current == base or current == promotions.get("pairs", {}).get(base, -1)
+	return (
+		(descriptor["formal"] and promotions.get("pairs", {}).is_empty())
+		or current == descriptor["classId"]
 	)
 
 

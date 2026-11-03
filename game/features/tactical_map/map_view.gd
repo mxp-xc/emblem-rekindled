@@ -11,13 +11,27 @@ var pointer_id: int = -1
 var pointer_origin := Vector2.ZERO
 var pointer_previous := Vector2.ZERO
 var dragging: bool = false
+var _adaptive: bool = false
+var _portrait: bool = true
 
 
-func configure(grid: Vector2i, viewport: Vector2, origin: Vector2 = Vector2.ZERO) -> void:
+func configure(
+	grid: Vector2i,
+	viewport: Vector2,
+	origin: Vector2 = Vector2.ZERO,
+	display_size: Vector2 = Vector2.ZERO
+) -> void:
 	grid_size = grid
 	viewport_size = viewport
 	viewport_origin = origin
-	zoom = maxf(zoom, minimum_zoom())
+	var orientation: Vector2 = (
+		display_size if display_size.x > 0 and display_size.y > 0 else viewport
+	)
+	_portrait = orientation.x <= orientation.y
+	if _adaptive:
+		fit_to_viewport()
+	else:
+		zoom = maxf(zoom, minimum_zoom())
 	_clamp_center()
 
 
@@ -44,9 +58,17 @@ func screen_at(world: Vector2) -> Vector2:
 
 
 func zoom_at(value: float, anchor: Vector2) -> void:
+	_adaptive = false
 	var world_anchor := world_at(anchor)
 	zoom = clampf(value, minimum_zoom(), maxf(6.0, minimum_zoom()))
 	center = world_anchor - (anchor - viewport_origin - viewport_size / 2.0) / (TILE_PIXELS * zoom)
+	_clamp_center()
+
+
+func fit_to_viewport() -> void:
+	_adaptive = true
+	var axis: int = 0 if _portrait else 1
+	zoom = maxf(minimum_zoom(), viewport_size[axis] / (grid_size[axis] * float(TILE_PIXELS)))
 	_clamp_center()
 
 

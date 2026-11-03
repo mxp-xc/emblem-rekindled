@@ -63,19 +63,21 @@ var _owned: String = ""
 
 
 func _initialize() -> void:
+	_run_contexts(CONTEXTS.slice(0, 2))
+
+
+func _run_contexts(contexts: Array) -> void:
 	var directory: String = "user://m2_content_%d" % Time.get_ticks_usec()
 	if DirAccess.make_dir_absolute(directory) != OK:
 		_fail("Cannot claim a fresh owned m2 test directory")
 		return
 	_owned = directory
-	for context: Dictionary in CONTEXTS:
+	for context: Dictionary in contexts:
 		if not _context(context):
 			_cleanup()
 			return
 	_cleanup()
-	print(
-		"PASS real m2 content: six routes, native order, profiles, resources, JSON restore, world slots"
-	)
+	print("PASS real m2 content: selected routes, native order, profiles and JSON/world restore")
 	quit(0)
 
 

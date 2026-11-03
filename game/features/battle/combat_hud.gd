@@ -1,6 +1,7 @@
 extends Control
 
 const PixelTheme = preload("res://ui/pixel_theme.gd")
+const SHAKE_INSET: float = 9.0
 var independent: bool = false
 var hp: Dictionary = {}
 var shake := Vector2.ZERO
@@ -53,6 +54,8 @@ func _draw() -> void:
 		else _metadata["forecast"]["nativeReferenceLayout"]
 	)
 	var origin := Vector2(area.position.x, (size.y - 320 * factor) / 2 if independent else 0)
+	# Keep the full native horizontal shake while leaving its leftmost glyph visible.
+	var content_origin := origin + Vector2(SHAKE_INSET * factor, 0) if independent else origin
 	for side: int in range(2):
 		var actor: Dictionary = _units[side]
 		var position: Array = reference["topRect" if side == 0 else "bottomRect"]
@@ -73,19 +76,22 @@ func _draw() -> void:
 		var forecast: Dictionary = _forecasts[str(int(actor["id"]))]
 		for column: Dictionary in _metadata["forecastColumns"]:
 			var start := Vector2(column["nativeX"], prediction_y) + shake
-			_draw_icon(column["icon"], origin + start * factor, factor)
+			_draw_icon(column["icon"], content_origin + start * factor, factor)
 			var field: String = "damage" if column["id"] == "attack" else column["id"]
 			var value: String = str(int(forecast[field])) if forecast["canAttack"] else "--"
-			_draw_number(value, origin + (start + Vector2(26, 6)) * factor, factor, true)
+			_draw_number(value, content_origin + (start + Vector2(26, 6)) * factor, factor, true)
 		var current: int = int(hp[int(actor["id"])])
 		if independent:
 			var point: Array = _metadata["currentHp"][
 				"textOriginTop" if side == 0 else "textOriginBottom"
 			]
 			_draw_number(
-				str(current), origin + (Vector2(point[0], point[1]) + shake) * factor, factor, true
+				str(current),
+				content_origin + (Vector2(point[0], point[1]) + shake) * factor,
+				factor,
+				true
 			)
-			_draw_segments(side, current, int(actor["maxHp"]), origin, factor)
+			_draw_segments(side, current, int(actor["maxHp"]), content_origin, factor)
 		else:
 			_draw_forecast_details(actor, forecast, current, prediction_y, origin, factor)
 			_draw_corners(side, Rect2(origin + rect.position * factor, rect.size * factor), factor)

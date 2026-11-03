@@ -25,12 +25,15 @@ public final class Chapter1MapAssets {
     Object[][] templates = (Object[][]) get(game, "V");
     Method mapClass = game.getClass().getMethod("r", int.class);
     Map<String, Object> definitions = new LinkedHashMap<>();
+    boolean hasGroup10 = false;
     for (Object unit : units) {
       int id = number(unit, "y");
       int group = number(unit, "R");
+      hasGroup10 |= group == 10;
       int faction = number(unit, "C");
       int mapped = ((Number) mapClass.invoke(null, group)).intValue();
-      Object completed = templates[faction == 2 ? 1 : 0][mapped];
+      // Original b drawing returns through its own sprite before the completed palette for group 10.
+      Object completed = group == 10 ? unit : templates[faction == 2 ? 1 : 0][mapped];
       Map<String, Object> definition = new LinkedHashMap<>();
       definition.put("deploymentId", id);
       definition.put("classId", number(unit, "S"));
@@ -52,6 +55,7 @@ public final class Chapter1MapAssets {
         "completedFrame",
         exportCycle(completed, sprite, output, "map_units/unit_" + id + "/completed").get(0)
       );
+      if (group == 10) definition.put("completedUsesActiveCycle", true);
       definition.put("directionalAnimation", false);
       definitions.put(String.valueOf(id), definition);
     }
@@ -65,7 +69,9 @@ public final class Chapter1MapAssets {
     );
     manifest.put(
       "completedPolicy",
-      "al=2 uses the native V[0/1] static completed-action palette; no active cycle"
+      hasGroup10
+        ? "al=2 uses V[0/1] except group 10, which freezes its current active frame"
+        : "al=2 uses the native V[0/1] static completed-action palette; no active cycle"
     );
     manifest.put("units", definitions);
     Files.createDirectories(output);

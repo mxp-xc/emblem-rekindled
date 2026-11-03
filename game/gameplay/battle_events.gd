@@ -35,18 +35,34 @@ func _outcome_check(check: Dictionary, units: Dictionary, round_number: int) -> 
 			var target: Dictionary = units.get(int(check["unitId"]), {})
 			if target.is_empty() or target["hp"] <= 0 or not target["visible"]:
 				reason = "boss_defeated"
-		"allEnemiesDefeated", "noVisibleEnemies":
+		"allUnitsRetired":
+			var retired: bool = true
+			for id: Variant in check["unitIds"]:
+				var target: Dictionary = units.get(int(id), {})
+				if not target.is_empty() and target["hp"] > 0 and target["visible"]:
+					retired = false
+					break
+			if retired:
+				reason = "boss_defeated"
+		"allEnemiesDefeated", "noVisibleEnemies", "noVisibleFaction":
 			var remaining: bool = false
 			for unit: Dictionary in units.values():
 				if (
 					unit["faction"] == check["faction"]
 					and unit["visible"]
-					and (check["condition"] == "noVisibleEnemies" or unit["hp"] > 0)
+					and (
+						check["condition"] in ["noVisibleEnemies", "noVisibleFaction"]
+						or unit["hp"] > 0
+					)
 				):
 					remaining = true
 					break
 			if not remaining:
-				reason = "all_enemies_defeated"
+				reason = (
+					"no_visible_faction"
+					if check["condition"] == "noVisibleFaction"
+					else "all_enemies_defeated"
+				)
 		"requiredUnitFallen":
 			for id: Variant in check["unitIds"]:
 				var unit: Dictionary = units.get(int(id), {})
@@ -69,22 +85,17 @@ func _outcome_check(check: Dictionary, units: Dictionary, round_number: int) -> 
 	return result
 
 
-func combat_events(participants: Array, battle_units: Array, completed: Dictionary) -> Dictionary:
+func combat_events(participants: Array, defeated: Array, completed: Dictionary) -> Dictionary:
 	var before: Array[String] = []
 	var retirements: Array[Dictionary] = []
 	var markers: Array[String] = []
 	var flags: Dictionary = {}
 	var initial: Dictionary = {}
-	var current: Dictionary = {}
 	for unit: Dictionary in participants:
 		initial[int(unit["id"])] = unit
-	for unit: Dictionary in battle_units:
-		current[int(unit["id"])] = unit
 	var retiring: Dictionary = {}
-	for unit: Dictionary in participants:
-		var id: int = int(unit["id"])
-		if unit["hp"] <= 0 or not current.has(id) or current[id]["hp"] > 0:
-			continue
+	for unit: Dictionary in defeated:
+		var id: int = int(unit["unitId"])
 		var death_before: Array[String] = []
 		var death_after: Array[String] = []
 		var retirement: Dictionary = {
@@ -99,11 +110,11 @@ func combat_events(participants: Array, battle_units: Array, completed: Dictiona
 			flags[int(enemy["id"])] = 4
 	for event: Dictionary in _combat_events:
 		var id: int = int(event["unitId"])
-		if completed.get(event["id"], false) or not initial.has(id):
+		if completed.get(event["id"], false):
 			continue
 		match event["trigger"]:
 			"firstCombat":
-				if enemy.get("id") != id or not flags.has(id):
+				if not initial.has(id) or enemy.get("id") != id or not flags.has(id):
 					continue
 				before.append(event["sequence"])
 			"unitDeath":
@@ -112,6 +123,8 @@ func combat_events(participants: Array, battle_units: Array, completed: Dictiona
 				for phase: String in ["beforeRetirement", "afterRetirement"]:
 					if event.has(phase):
 						retiring[id][phase].append(event[phase])
+				if event.has("revealUnitIds"):
+					retiring[id]["revealUnitIds"] = event["revealUnitIds"].duplicate()
 		markers.append(event["id"])
 	return {"before": before, "retirements": retirements, "completed": markers, "flags": flags}
 
@@ -141,6 +154,17 @@ func reinforce(units: Array, unit_ids: Array) -> Array[Dictionary]:
 	return arrivals
 
 
+func withdraw(units: Array, unit_id: int) -> Dictionary:
+	for unit: Dictionary in units:
+		if unit["id"] != unit_id or not unit["visible"]:
+			continue
+		var before: Dictionary = unit.duplicate(true)
+		unit["visible"] = false
+		unit["flags"] |= 1
+		return before
+	return {}
+
+
 func turn_events_due(round_number: int) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	for event: Dictionary in _turn_events:
@@ -150,11 +174,31 @@ func turn_events_due(round_number: int) -> Array[Dictionary]:
 
 
 func prepare_enemy_phase(round_number: int, units: Array) -> void:
+	prepare_automatic_phase(round_number, 2, units)
+
+
+func prepare_automatic_phase(round_number: int, faction: int, units: Array) -> void:
 	for change: Dictionary in _ai_changes:
-		if change["beforeEnemyPhaseOfRound"] != round_number:
+		var automatic: bool = change.has("beforeAutomaticPhase")
+		if automatic:
+			if (
+				int(change["beforeAutomaticPhase"]["round"]) != round_number
+				or int(change["beforeAutomaticPhase"]["faction"]) != faction
+			):
+				continue
+		elif faction != 2 or change["beforeEnemyPhaseOfRound"] != round_number:
 			continue
 		for id: Variant in change["unitIds"]:
 			for unit: Dictionary in units:
-				if unit["id"] == int(id):
+				if (
+					unit["id"] == int(id)
+					and (
+						not automatic
+						or (
+							unit["faction"] == faction
+							and (int(unit["flags"]) & int(change["flagsSet"])) == 0
+						)
+					)
+				):
 					unit["flags"] |= int(change["flagsSet"])
 					unit["policy"] &= ~int(change["policyClear"])

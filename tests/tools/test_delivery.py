@@ -1,5 +1,6 @@
 """Artifact verification reads identity from the package, rejecting a mismatching manifest."""
 
+import gzip
 import json
 import tempfile
 import unittest
@@ -14,6 +15,83 @@ from emblem_dev.delivery import verify_apk
 
 
 class DeliveryTest(unittest.TestCase):
+    def test_new_pack_requires_compressed_catalog_but_existing_pack_can_still_be_checked(self):
+        with patch.object(delivery, "run") as run:
+            delivery.verify_pack(Path("new.pck"), "new", require_compressed_catalog=True)
+            self.assertEqual(run.call_args.args[-2:], ("new", "--compressed-catalog"))
+            delivery.verify_pack(Path("existing.pck"), "existing")
+            self.assertEqual(run.call_args.args[-1], "existing")
+
+    def test_export_does_not_publish_if_presets_change_during_export(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            game = root / "game"
+            source = game / "content/chapter_1/generated/library/catalog.json"
+            source.parent.mkdir(parents=True)
+            source.write_text('{"profiles": {}}')
+            presets = game / "export_presets.cfg"
+            presets.write_text(
+                (
+                    'include_filter="content/**/*.json,ui/fonts/OFL.txt"\n'
+                    'exclude_filter="tests/*,tests/**/*,**/provenance.json"\n'
+                )
+                * 2
+            )
+
+            def command(*args, **_kwargs):
+                if args[0] == "godot":
+                    presets.write_text("changed by another process")
+                return "fixture" if "--short" in args else ""
+
+            with (
+                patch.object(build, "ROOT", root),
+                patch.object(build, "GAME", game),
+                patch.object(build, "INFO", game / "content/build_info.json"),
+                patch.object(delivery, "run", side_effect=command),
+                patch.object(delivery, "verify_pack"),
+                patch.object(build, "publish_web") as publish,
+                self.assertRaisesRegex(RuntimeError, "preserving"),
+            ):
+                build.export("web")
+            publish.assert_not_called()
+            self.assertEqual(presets.read_text(), "changed by another process")
+            self.assertFalse(source.with_name(source.name + ".gz").exists())
+
+    def test_export_catalog_is_compact_verified_and_removed_after_failure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            game = Path(directory)
+            source = game / "content/chapter_1/generated/library/catalog.json"
+            source.parent.mkdir(parents=True)
+            source.write_text(json.dumps({"profiles": {"角色": [1, 2, 3]}}, ensure_ascii=False))
+            presets = game / "export_presets.cfg"
+            original = (
+                'include_filter="content/**/*.json,ui/fonts/OFL.txt"\n'
+                'exclude_filter="tests/*,tests/**/*,**/provenance.json"\n'
+            ) * 2
+            presets.write_text(original)
+            compressed = source.with_name(source.name + ".gz")
+            with patch.object(build, "GAME", game):
+                with self.assertRaisesRegex(RuntimeError, "fixture"):
+                    with build.compressed_catalog() as data:
+                        self.assertEqual(
+                            json.loads(gzip.decompress(data)), json.loads(source.read_text())
+                        )
+                        self.assertEqual(compressed.read_bytes(), data)
+                        self.assertIn("content/**/*.json.gz", presets.read_text())
+                        raise RuntimeError("fixture")
+                self.assertFalse(compressed.exists())
+                self.assertEqual(presets.read_text(), original)
+                compressed.write_bytes(b"existing")
+                with self.assertRaises(FileExistsError), build.compressed_catalog():
+                    pass
+                self.assertEqual(compressed.read_bytes(), b"existing")
+                compressed.unlink()
+                with self.assertRaisesRegex(RuntimeError, "preserving"):
+                    with build.compressed_catalog():
+                        presets.write_text("changed by another process")
+                self.assertEqual(presets.read_text(), "changed by another process")
+                self.assertFalse(compressed.exists())
+
     def test_android_verification_uses_package_identity_even_with_stale_sidecar(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

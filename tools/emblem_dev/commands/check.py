@@ -51,9 +51,15 @@ def check_game(
     test: Annotated[list[str] | None, typer.Option(help="可重复指定行为测试文件")] = None,
     tests_only: Annotated[bool, typer.Option()] = False,
     timings: Annotated[Path | None, typer.Option()] = None,
+    jobs: Annotated[
+        int | None, typer.Option(min=1, max=8, help="并行测试工程数；1 表示串行")
+    ] = None,
 ) -> None:
     """执行隔离的 Godot 检查。"""
-    raise typer.Exit(godot.check(tests=test or (), tests_only=tests_only, timings=timings))
+    options = {"jobs": jobs} if jobs is not None else {}
+    raise typer.Exit(
+        godot.check(tests=test or (), tests_only=tests_only, timings=timings, **options)
+    )
 
 
 @app.command("restore-config")

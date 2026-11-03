@@ -79,6 +79,14 @@ class NativeCliTest(unittest.TestCase):
                 timings=Path("batch with spaces/time.json"),
             )
 
+    def test_game_jobs_are_forwarded(self):
+        with patch.object(godot, "check", return_value=0) as check:
+            result = self.invoke("check", "game", "--jobs", "2", "--test", "test_first.gd")
+        self.assertEqual(result.exit_code, 0, result.output)
+        check.assert_called_once_with(
+            tests=["test_first.gd"], tests_only=False, timings=None, jobs=2
+        )
+
     def test_invalid_parameters_stop_before_business(self):
         with patch.object(godot, "check") as check:
             for args in (
@@ -242,7 +250,7 @@ class NativeCliTest(unittest.TestCase):
             read.assert_called_once_with(ready=True, timeout=30)
         chapter = self.directory / "chapter"
         (chapter / "authored/battles").mkdir(parents=True)
-        (chapter / "authored/battles/m0.json").touch()
+        (chapter / "authored/battles/m13.json").touch()
         with (
             patch.object(configuration, "normalize_deployment"),
             patch("emblem_dev.content.definitions.read_deployment"),
@@ -252,7 +260,7 @@ class NativeCliTest(unittest.TestCase):
                 "import",
                 "chapter-1",
                 "--battle",
-                "m0",
+                "m13",
                 "--emulator",
                 "emulator.jar",
                 "--chapter",

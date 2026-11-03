@@ -24,6 +24,16 @@ public final class Chapter1BattleAssets {
   /** TSV deployment IDs are original runtime b.y identities, not p0 record indexes. */
   public static void export(Object game, ClassLoader loader, Path output, Path variantsFile)
     throws ReflectiveOperationException, IOException {
+    export(game, loader, output, variantsFile, Set.of());
+  }
+
+  public static void export(
+    Object game,
+    ClassLoader loader,
+    Path output,
+    Path variantsFile,
+    Set<Integer> dynamicTerrains
+  ) throws ReflectiveOperationException, IOException {
     Class<?> fighterClass = Class.forName("f", true, loader);
     Class<?> spriteClass = Class.forName("g", true, loader);
     Class<?> frameClass = Class.forName("d", true, loader);
@@ -96,7 +106,7 @@ public final class Chapter1BattleAssets {
     manifest.put("sidePolicy", "native faction side; no implicit flip_h");
     manifest.put("flagSemantics", "d.g after native-side constructor adjustments; not flip_h");
     manifest.put("appearances", appearances);
-    exportBackgrounds(game, fighterClass, spriteClass, directory, manifest);
+    exportBackgrounds(game, fighterClass, spriteClass, directory, manifest, dynamicTerrains);
     Map<String, Object> effects = new LinkedHashMap<>();
     String[][] effectFields = {
       { "smoke", "G" },
@@ -204,13 +214,14 @@ public final class Chapter1BattleAssets {
     Class<?> fighterClass,
     Class<?> spriteClass,
     Path directory,
-    Map<String, Object> manifest
+    Map<String, Object> manifest,
+    Set<Integer> dynamicTerrains
   ) throws ReflectiveOperationException, IOException {
     byte[] choices = (byte[]) field(fighterClass, "P").get(null);
     String[] sources = (String[]) field(fighterClass, "Q").get(null);
     byte[] palettes = (byte[]) field(game.getClass(), "bi").get(null);
     int palette = palettes[number(game, "bh")];
-    Set<Integer> terrains = new LinkedHashSet<>();
+    Set<Integer> terrains = new LinkedHashSet<>(dynamicTerrains);
     var terrainAt = game.getClass().getMethod("p", int.class, int.class);
     for (int y = 0; y < number(game, "ce"); y++) {
       for (int x = 0; x < number(game, "cf"); x++) {

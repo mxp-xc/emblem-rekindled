@@ -65,6 +65,8 @@ class ProcessCommandsTest(unittest.TestCase):
                         "bun",
                         "x",
                         "prettier",
+                        "--ignore-path",
+                        chapter_configuration.os.devnull,
                         "--config",
                         str(root / ".prettierrc.json"),
                         "--write",

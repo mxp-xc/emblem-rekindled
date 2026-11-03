@@ -15,6 +15,7 @@ var _model: RefCounted
 var _index: int = 0
 var _tab: int = 0
 var _item_index: int = 0
+var _click_selected: int = -1
 var _operation_index: int = 0
 var _shop_special: bool = false
 var _source_index: int = -1
@@ -131,6 +132,7 @@ func setup(content: Dictionary, model: RefCounted) -> void:
 
 func present(progress: Dictionary) -> void:
 	_progress = progress.duplicate(true)
+	_click_selected = -1
 	_index = 0
 	_operation_index = 0
 	page = "overview"
@@ -155,12 +157,13 @@ func present(progress: Dictionary) -> void:
 	_render()
 
 
-func _button(text: String) -> Button:
+func _button(text: String, hover_focus: bool = true) -> Button:
 	var button := Button.new()
 	button.text = text
 	button.expand_icon = true
 	button.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
-	button.mouse_entered.connect(button.grab_focus)
+	if hover_focus:
+		button.mouse_entered.connect(button.grab_focus)
 	return button
 
 
@@ -271,6 +274,7 @@ func _change_tab(index: int) -> void:
 		return
 	_tab = index
 	_item_index = 0
+	_click_selected = -1
 	stage = "tabs"
 	_render()
 
@@ -316,7 +320,7 @@ func _render() -> void:
 	for index: int in range(_items.size()):
 		var held: Dictionary = _items[index]
 		var metadata: Dictionary = _content["interface"]["items"][str(int(held["templateId"]))]
-		var button: Button = _button("")
+		var button: Button = _button("", page != "shop")
 		button.name = "Item_" + str(index)
 		button.disabled = stage in ["confirm", "notice"]
 		var line := HBoxContainer.new()
@@ -341,7 +345,7 @@ func _render() -> void:
 		line.add_child(uses)
 		button.add_child(line)
 		button.focus_entered.connect(_select_item.bind(index))
-		button.pressed.connect(_ask.bind(index))
+		button.pressed.connect(_shop_select.bind(index) if page == "shop" else _ask.bind(index))
 		_rows.add_child(button)
 	_item_index = mini(_item_index, maxi(0, _items.size() - 1))
 	if not _items.is_empty() and page not in ["operations", "exchange"]:
@@ -359,9 +363,23 @@ func _render() -> void:
 		_rows.get_child(_item_index).grab_focus()
 
 
+func _shop_select(index: int) -> void:
+	if stage in ["confirm", "notice"] or not _pending.is_empty():
+		return
+	if stage == "items" and _click_selected == index:
+		_ask(index)
+		return
+	stage = "items"
+	_item_index = index
+	_click_selected = index
+	_render()
+
+
 func _select_item(index: int) -> void:
 	if stage in ["confirm", "notice"] or index < 0 or index >= _items.size():
 		return
+	if _item_index != index:
+		_click_selected = -1
 	_item_index = index
 	_footer.present(_items[index])
 	if page == "shop" and stage == "items":
@@ -379,6 +397,7 @@ func _ask(index: int) -> void:
 		return
 	stage = "items"
 	_select_item(index)
+	_click_selected = index
 	var operation: String = _transaction()
 	_pending_details = {"unit": _owner()["id"]}
 	if operation == "buy":
@@ -438,6 +457,7 @@ func complete(result: Dictionary, progress: Dictionary) -> void:
 		_notice(result["error"])
 		return
 	_progress = progress.duplicate(true)
+	_click_selected = -1
 	if operation == "open_shop":
 		page = "shop"
 		_shop_special = result["special"]
@@ -533,6 +553,7 @@ func handle_wheel(direction: int) -> void:
 			elif stage == "items" and not _items.is_empty():
 				_item_index = posmod(_item_index + direction, _items.size())
 				_rows.get_child(_item_index).grab_focus()
+				_click_selected = _item_index
 		"operations":
 			var rows: Array[Button] = []
 			for button: Button in _operation_rows.get_children():

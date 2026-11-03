@@ -6,12 +6,13 @@ var terrain_values: Dictionary = {}
 var _content: Dictionary
 var _textures: Dictionary = {}
 var _map_texture: Texture2D
+var _tile_overlays: Dictionary = {}
 var _name: Label
 var _place_name: String
 
 
 func setup(data: Dictionary, place_name: String = "") -> void:
-	_content = data
+	_content = data.duplicate()
 	_place_name = place_name
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -23,6 +24,14 @@ func setup(data: Dictionary, place_name: String = "") -> void:
 	_name.text = place_name
 	add_child(_name)
 	resized.connect(_layout)
+
+
+func set_map_state(state: Dictionary) -> void:
+	_content["map"] = state["map"].duplicate(true)
+	_tile_overlays.clear()
+	for overlay: Dictionary in state["overlays"]:
+		_tile_overlays[overlay["cell"]] = load(overlay["texture"])
+	present(cell, actor)
 
 
 func present(selected_cell: Vector2i, selected_actor: Dictionary = {}) -> void:
@@ -108,11 +117,18 @@ func _draw() -> void:
 			)
 	elif not terrain_values.is_empty():
 		var tile_size: int = int(_content["map"]["tileSize"])
-		draw_texture_rect_region(
-			_map_texture,
-			Rect2(10 * factor, 13 * factor, 24 * factor, 24 * factor),
-			Rect2(Vector2(cell * tile_size), Vector2.ONE * tile_size)
-		)
+		if _tile_overlays.has(cell):
+			draw_texture_rect(
+				_tile_overlays[cell],
+				Rect2(10 * factor, 13 * factor, 24 * factor, 24 * factor),
+				false
+			)
+		else:
+			draw_texture_rect_region(
+				_map_texture,
+				Rect2(10 * factor, 13 * factor, 24 * factor, 24 * factor),
+				Rect2(Vector2(cell * tile_size), Vector2.ONE * tile_size)
+			)
 		var avoid: String = "%+d" % terrain_values["avoid"]
 		_icon(hud["icons"]["evasion"], Vector2(34, 24), factor)
 		_number(avoid, Vector2(60, 27), factor)

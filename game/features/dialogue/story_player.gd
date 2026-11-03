@@ -8,13 +8,18 @@ signal world_entrance_completed
 signal world_focus_completed
 signal world_action_requested(kind: String)
 signal world_node_requested(node_id: int)
+signal world_node_reached(node_id: int)
 signal arrival_queue_completed
 
+const ChapterStatistics = preload("res://gameplay/chapter_statistics.gd")
+const Prologue = preload("res://features/dialogue/prologue.gd")
 const MessagePanel = preload("res://ui/message_panel.gd")
 const CommanderScreen = preload("res://features/menus/commander_screen.gd")
 const PixelTheme = preload("res://ui/pixel_theme.gd")
 const MapHud = preload("res://features/tactical_map/map_hud.gd")
 const MapView = preload("res://features/tactical_map/map_view.gd")
+const WorldEncounters = preload("res://gameplay/world_encounters.gd")
+var prologue: Control
 var commander: Control
 var dialogue: Control
 var current_text_index: int = -1
@@ -56,6 +61,7 @@ var _world_focus_target: Vector2
 var _world_focus_pending: bool = false
 var _world_current_node: int = 0
 var _world_next_node: int = -1
+var _world_route: Array = []
 var _world_effect_node: int = 0
 var _world_wait_updates: int = 21
 var _battle_area: Rect2
@@ -64,6 +70,16 @@ var _world_touches: Dictionary = {}
 var _travel_confirmation: bool = false
 var _world_travel_position := Vector2(-1, -1)
 var _arrival_queue_updates_remaining: int = 0
+var _chapter_result: Dictionary = {}
+var _chapter_names: Dictionary = {}
+var _world_completed: bool = false
+var _world_bonus_available: bool = false
+var _world_encounter: Variant = null
+var _encounter_frames: Array[Texture2D] = []
+var _encounter_offset: Vector2
+var _encounter_frame: int = 0
+var _encounter_updates: int = 0
+var _encounter_interval: int = 1
 
 
 func setup(content: Dictionary, tactical_map: Control) -> void:
@@ -149,6 +165,13 @@ func setup(content: Dictionary, tactical_map: Control) -> void:
 	add_child(commander)
 	commander.setup(content)
 	commander.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+	prologue = Prologue.new()
+	prologue.name = "ChapterPrologue"
+	add_child(prologue)
+	prologue.setup(content)
+	prologue.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+	prologue.hide()
+	move_child(_confirm, get_child_count() - 1)
 	gui_input.connect(_handle_touch)
 	resized.connect(_layout)
 	_layout()
@@ -177,6 +200,25 @@ func play(sequence: Array, commander_configuration: Dictionary = {}) -> void:
 	background = null
 	hide()
 	queue_redraw()
+
+
+# Only committed completion snapshots are shown; this view never settles or saves them.
+func present_chapter_result(progress: Dictionary, full: bool = true) -> void:
+	if not _chapter_result.is_empty():
+		return
+	_chapter_result = progress["chapterResult"].duplicate(true)
+	background = null
+	_chapter_names.clear()
+	for actor: Dictionary in progress.get("party", data["units"]):
+		_chapter_names[int(actor["id"])] = actor["name"]
+	var sequence: Array = [
+		{"kind": "chapterParty"}, {"kind": "chapterSummary"}, {"kind": "chapterRating"}
+	]
+	if full:
+		sequence = data["story"]["sequences"][data["story"]["chapterEnd"]["sequence"]]
+	await play(sequence)
+	_chapter_result = {}
+	_chapter_names.clear()
 
 
 func choose_commander(configuration: Dictionary) -> Dictionary:
@@ -232,6 +274,56 @@ func play_unit_arrivals(arrivals: Array) -> void:
 
 func _step(step: Dictionary) -> void:
 	match step["kind"]:
+		"prologue":
+			current_text_index = int(step["text"]["sourceTextIndex"])
+			var image: Texture2D
+			if step.has("image"):
+				image = load(
+					_directory.path_join(data["story"]["images"][step["image"]]["texture"])
+				)
+			_elapsed = 0
+			_layout()
+			prologue.present(step["text"]["text"], image)
+			_confirm.show()
+			await prologue.completed
+			prologue.hide()
+			_confirm.hide()
+		"chapterParty":
+			for actor: Dictionary in _chapter_result["party"]:
+				await _notice(
+					{
+						"sourceTextIndex": -1,
+						"text": "Lv %d\n战斗力 %d" % [actor["level"], actor["power"]]
+					},
+					_chapter_names[int(actor["id"])]
+				)
+		"chapterSummary":
+			var stats: Dictionary = _chapter_result["chapterStats"]
+			var ability: Variant = ChapterStatistics.command_ability(stats)
+			await _notice(
+				{
+					"sourceTextIndex": -1,
+					"text":
+					(
+						"总资金 %d\n指挥能力 %s\n总战斗力 %d\n总回合 %s"
+						% [
+							_chapter_result["gold"],
+							"未记录" if ability == null else str(ability),
+							_chapter_result["totalPower"],
+							"未记录" if stats["rounds"] == null else str(int(stats["rounds"]))
+						]
+					)
+				},
+				"本章统计"
+			)
+		"chapterRating":
+			var rating: String = ChapterStatistics.rating(
+				_chapter_result["chapterStats"], int(_chapter_result["totalPower"])
+			)
+			await _notice(
+				{"sourceTextIndex": -1, "text": "无法评定（旧记录缺少累计数据）" if rating.is_empty() else rating},
+				"本章评价"
+			)
 		"worldNarration":
 			_world_hud.present_place(data["story"]["world"]["nodes"][0]["name"])
 			world_update = -1
@@ -264,7 +356,7 @@ func _step(step: Dictionary) -> void:
 				map.view.focus_cell(cell)
 				map.queue_redraw()
 			else:
-				await _focus_battle(cell)
+				await _focus_battle(cell, float(step.get("sourceMaxFocusPixels", 12)))
 			var hold: int = int(step.get("sourceWaitTicks", 0)) + int(step.get("holdTicksAfter", 0))
 			if hold > 0:
 				await get_tree().create_timer(hold * _tick_seconds).timeout
@@ -384,7 +476,7 @@ func _unit_position(id: int) -> Variant:
 	return null
 
 
-func _focus_battle(cell: Vector2i) -> void:
+func _focus_battle(cell: Vector2i, max_pixels: float = 12.0) -> void:
 	while true:
 		var current: Vector2 = map.view.center * 24.0
 		map.view.focus_cell(cell)
@@ -395,7 +487,7 @@ func _focus_battle(cell: Vector2i) -> void:
 		for axis: int in [0, 1]:
 			var delta: float = target[axis] - current[axis]
 			if not is_zero_approx(delta):
-				var distance: float = clampf(floorf(absf(delta) / 2.0), 1.0, 12.0)
+				var distance: float = clampf(floorf(absf(delta) / 2.0), 1.0, max_pixels)
 				current[axis] = move_toward(current[axis], target[axis], distance)
 		map.view.center = current / 24.0
 		map.queue_redraw()
@@ -410,7 +502,7 @@ func _speak(
 		var position: Variant = _unit_position(int(speaker_id))
 		if position != null:
 			await _focus_battle(Vector2i(position))
-	current_text_index = int(line["sourceTextIndex"])
+	current_text_index = int(line.get("sourceTextIndex", -1))
 	var speaker: Dictionary = (
 		data["story"]["speakers"].get(str(int(speaker_id)), {}) if speaker_id != null else {}
 	)
@@ -447,7 +539,9 @@ func _notice(line: Dictionary, heading: String = "", duration_units: int = -1) -
 
 
 func advance() -> void:
-	if dialogue.visible:
+	if prologue.visible:
+		prologue.skip()
+	elif dialogue.visible:
 		dialogue.advance()
 	elif choices.visible:
 		var focused: Control = get_viewport().gui_get_focus_owner()
@@ -459,9 +553,11 @@ func advance() -> void:
 
 func go_back() -> void:
 	_cancel_world_gesture()
-	if commander.visible:
+	if prologue.visible:
+		prologue.skip()
+	elif commander.visible:
 		commander.commit()
-	elif dialogue.visible and not dialogue.notice_mode:
+	elif dialogue.visible and (not dialogue.notice_mode or not _chapter_result.is_empty()):
 		dialogue.advance()
 	elif _travel_confirmation:
 		choice_selected.emit(0)
@@ -524,8 +620,8 @@ func _handle_touch(event: InputEvent) -> void:
 			and event.button_index == MOUSE_BUTTON_LEFT
 		)
 	):
-		if dialogue.visible:
-			dialogue.advance()
+		if dialogue.visible or prologue.visible:
+			advance()
 
 
 func _notification(what: int) -> void:
@@ -544,6 +640,7 @@ func _process(delta: float) -> void:
 		or dialogue == null
 		or (
 			not dialogue.visible
+			and not prologue.visible
 			and not world_active
 			and not (world_update >= 0 and world_update < _world_wait_updates)
 			and _arrival_queue_updates_remaining == 0
@@ -573,7 +670,15 @@ func tick() -> void:
 			_world_idle_updates = 0
 			world_actor_frame = (world_actor_frame + 1) % _world_actor_frames.size()
 			_world_layer.queue_redraw()
-	if dialogue.visible:
+		if not _encounter_frames.is_empty():
+			_encounter_updates += 1
+			if _encounter_updates >= _encounter_interval:
+				_encounter_updates = 0
+				_encounter_frame = (_encounter_frame + 1) % _encounter_frames.size()
+				_world_layer.queue_redraw()
+	if prologue.visible:
+		prologue.tick()
+	elif dialogue.visible:
 		dialogue.tick()
 	elif world_update >= 0 and world_update < _world_wait_updates:
 		world_update += 1
@@ -645,6 +750,8 @@ func _layout() -> void:
 		dialogue.set_content_area(controls)
 		commander.position = battle_area.position
 		commander.size = battle_area.size
+		prologue.position = area.position
+		prologue.size = area.size
 		var factor: float = minf(controls.size.x / 240.0, controls.size.y / 320.0)
 		_world_hud.position = Vector2(area.position.x, area.end.y - 45 * factor)
 		_world_hud.size = Vector2(area.size.x, 45 * factor)
@@ -679,7 +786,10 @@ func _layout() -> void:
 			)
 			_route_panel.position = area.get_center() - _route_panel.size / 2
 		elif world_active:
-			_route_panel.size = Vector2(84, 16 + choices.get_child_count() * 19) * factor
+			_route_panel.size = (
+				Vector2(112 if _world_completed else 84, 16 + choices.get_child_count() * 19)
+				* factor
+			)
 			_route_panel.position = area.position + Vector2(0, 14) * factor
 		else:
 			_route_panel.size = Vector2(118, 92) * factor
@@ -690,6 +800,8 @@ func _layout() -> void:
 func _draw() -> void:
 	_world_layer.visible = background != null
 	_world_hud.visible = background != null
+	if not _chapter_result.is_empty():
+		draw_rect(Rect2(Vector2.ZERO, size), Color("101818"))
 	if background == null:
 		return
 	draw_rect(Rect2(Vector2.ZERO, size), Color("101818"))
@@ -738,6 +850,14 @@ func _draw_world() -> void:
 					),
 					false
 				)
+		if _world_encounter is Dictionary and not _encounter_frames.is_empty():
+			var enemy: Texture2D = _encounter_frames[_encounter_frame]
+			var enemy_origin: Vector2 = _world_node_origin(int(_world_encounter["node"]))
+			_world_layer.draw_texture_rect(
+				enemy,
+				Rect2(enemy_origin + _encounter_offset * factor, enemy.get_size() * factor),
+				false
+			)
 		var origin: Vector2 = _world_node_origin(_world_current_node)
 		if _world_travel_position.x >= 0:
 			origin = _world_view.screen_at(_world_travel_position) - _world_layer.position
@@ -768,7 +888,11 @@ func _draw_world_circle() -> void:
 		_world_circle.draw_arc(center, 11, 0, TAU, 64, Color.CYAN, 1)
 
 
-func show_world(progress: Dictionary, guidance: bool = false) -> void:
+func show_world(
+	progress: Dictionary, guidance: bool = false, bonus_available: bool = false
+) -> void:
+	_world_completed = progress.get("chapterCompleted", false) and progress.has("chapterResult")
+	_world_bonus_available = bonus_available
 	show()
 	world_active = true
 	world_ready = false
@@ -786,6 +910,7 @@ func show_world(progress: Dictionary, guidance: bool = false) -> void:
 	_world_current_node = int(progress.get("worldLocation", progress["worldNode"]))
 	selected_world_node = _world_current_node
 	var path: Array = data["story"]["world"]["routes"][int(progress["route"])]
+	_world_route = path.duplicate()
 	var step: int = int(progress.get("worldStep", 1))
 	visible_world_nodes.assign(path.slice(0, step))
 	background = load(_directory.path_join(data["story"]["world"]["texture"]))
@@ -833,6 +958,27 @@ func show_world_notice(text: String) -> void:
 		_show_world_menu()
 
 
+func set_world_encounter(marker: Variant) -> void:
+	_world_encounter = marker.duplicate(true) if marker is Dictionary else null
+	_encounter_frames.clear()
+	_encounter_frame = 0
+	_encounter_updates = 0
+	if _world_encounter is Dictionary:
+		for profile: Dictionary in data.get("_library", {}).get("profiles", {}).values():
+			var unit: Dictionary = profile.get("unit", {})
+			if unit.get("classId") != _world_encounter.get("classId") or unit.get("faction") != 2:
+				continue
+			var animation: Dictionary = profile["mapAnimation"]
+			for index: Variant in animation["idleSequence"]:
+				_encounter_frames.append(load(animation["frames"][int(index)]["texture"]))
+			_encounter_offset = Vector2(animation["spriteOffsetX"], animation["spriteOffsetY"])
+			_encounter_interval = maxi(
+				1, roundi(float(animation["idleStepSeconds"]) / _tick_seconds)
+			)
+			break
+	_world_layer.queue_redraw()
+
+
 func confirm_travel(node_id: int) -> bool:
 	_travel_confirmation = true
 	_world_back.show()
@@ -844,35 +990,58 @@ func confirm_travel(node_id: int) -> bool:
 	return selected == 1
 
 
-func travel_to(node_id: int, enter_battle: bool = true) -> void:
+func confirm_bonus_battle() -> bool:
+	_travel_confirmation = true
+	_world_back.show()
+	var selected: int = await _choose([{"id": 1, "label": "前往奖励关卡"}, {"id": 0, "label": "返回"}])
+	_travel_confirmation = false
+	_world_back.hide()
+	_confirm.show()
+	if selected != 1:
+		_show_world_menu()
+	return selected == 1
+
+
+func travel_to(node_id: int, enter_battle: bool = true, stop_node: int = -1) -> Dictionary:
+	var path: Variant = WorldEncounters.travel_nodes(_world_route, _world_current_node, node_id)
+	if path == null:
+		push_error("Invalid world travel route")
+		return {"ok": false, "error": "INVALID_WORLD_TRAVEL"}
 	world_ready = false
 	_confirm.hide()
 	_world_back.hide()
 	_cancel_world_gesture()
 	var nodes: Array = data["story"]["world"]["nodes"]
-	var from := Vector2(
-		nodes[_world_current_node]["position"][0], nodes[_world_current_node]["position"][1]
-	)
-	var to := Vector2(nodes[node_id]["position"][0], nodes[node_id]["position"][1])
-	_world_travel_position = from
-	var tween := create_tween()
-	tween.tween_method(
-		func(point: Vector2) -> void:
-			_world_travel_position = point
-			_world_layer.queue_redraw(),
-		from,
-		to,
-		maxf(_tick_seconds, from.distance_to(to) * 2 * _tick_seconds)
-	)
-	await tween.finished
-	_world_current_node = node_id
+	var interrupted: bool = false
+	for waypoint: int in path:
+		var from := Vector2(
+			nodes[_world_current_node]["position"][0], nodes[_world_current_node]["position"][1]
+		)
+		var to := Vector2(nodes[waypoint]["position"][0], nodes[waypoint]["position"][1])
+		_world_travel_position = from
+		var tween := create_tween()
+		tween.tween_method(
+			func(point: Vector2) -> void:
+				_world_travel_position = point
+				_world_layer.queue_redraw(),
+			from,
+			to,
+			maxf(_tick_seconds, from.distance_to(to) * 2 * _tick_seconds)
+		)
+		await tween.finished
+		_world_current_node = waypoint
+		world_node_reached.emit(waypoint)
+		if waypoint == stop_node:
+			interrupted = true
+			break
 	_world_travel_position = Vector2(-1, -1)
-	_world_hud.present_place(nodes[node_id]["name"])
-	if enter_battle:
+	_world_hud.present_place(nodes[_world_current_node]["name"])
+	if enter_battle and not interrupted:
 		await _speak(nodes[node_id]["entryNarration"], "", "ally", true)
 	else:
 		world_ready = true
 		_confirm.show()
+	return {"ok": true, "node": _world_current_node, "interrupted": interrupted}
 
 
 func leave_world() -> void:
@@ -947,9 +1116,12 @@ func _show_world_menu() -> void:
 	for child: Node in choices.get_children():
 		choices.remove_child(child)
 		child.queue_free()
-	var actions: Dictionary = {
-		"inventory": "物品整理", "save": "记录存档", "load": "读取存档", "gold": "换取金币", "title": "回主菜单"
-	}
+	var actions: Dictionary = {"inventory": "物品整理"}
+	if _world_bonus_available:
+		actions["bonus"] = "奖励关卡"
+	actions.merge({"save": "记录存档", "load": "读取存档", "gold": "换取金币", "title": "回主菜单"})
+	if _world_completed:
+		actions["chapter_record"] = "查看通关记录"
 	for kind: String in actions:
 		var button := Button.new()
 		button.name = "World_" + kind

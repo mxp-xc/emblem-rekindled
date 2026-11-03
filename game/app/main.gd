@@ -3,6 +3,7 @@
 extends Control
 
 const Session = preload("res://app/chapter_session.gd")
+const DeploymentContext = preload("res://gameplay/deployment_context.gd")
 const Settings = preload("res://persistence/settings_store.gd")
 const UnitMenu = preload("res://features/tactical_map/unit_menu.gd")
 const UnitInformation = preload("res://features/tactical_map/unit_information.gd")
@@ -18,15 +19,17 @@ const TitleScreen = preload("res://features/menus/title_screen.gd")
 const SaveSlotScreen = preload("res://features/menus/save_slot_screen.gd")
 const WorldInventoryScreen = preload("res://features/world/inventory_screen.gd")
 const WorldInventory = preload("res://gameplay/world_inventory.gd")
+const WorldEncounters = preload("res://gameplay/world_encounters.gd")
 const StoryPlayer = preload("res://features/dialogue/story_player.gd")
 const BattleClips = preload("res://app/battle_clip_library.gd")
 const BattleView = preload("res://features/battle/battle_view.gd")
 const ActionFeedback = preload("res://features/battle/action_feedback.gd")
 const RetirementPlayer = preload("res://features/battle/retirement_player.gd")
 const MapAttackPlayer = preload("res://features/battle/map_attack_player.gd")
+const TeleportPlayer = preload("res://features/battle/teleport_player.gd")
 const TargetSelection = preload("res://features/tactical_map/target_selection.gd")
 const Battle = preload("res://gameplay/battle_state.gd")
-const FONT = preload("res://ui/fonts/NotoSansCJKsc-Regular.otf")
+const FONT = preload("res://ui/fonts/NotoSansCJKsc-Regular.woff2")
 const INK := Color("e8eadb")
 const GOLD := Color("e6c48b")
 const WORLD_GOLD_BENEFIT: int = 1000
@@ -45,6 +48,7 @@ var battle_view: Control
 var action_feedback: Control
 var retirement_player: Control
 var map_attack_player: Control
+var teleport_player: Control
 var target_selection: Control
 var title_screen: Control
 var story_player: Control
@@ -65,6 +69,7 @@ var exchange_screen: Control
 var menu_layer: ColorRect
 var player := AudioStreamPlayer.new()
 var music_started: bool = false
+var _deployment_context: Variant = null
 var _target_item: String = ""
 var _target_mode: String = ""
 var _last_system_back_millis: int = -1000
@@ -83,6 +88,8 @@ var _wheel_last_step_millis: int = -1000
 var _wheel_distance: float = 0.0
 var _rebuilding_interface: bool = false
 var _world_transitioning: bool = false
+var _world_encounter: Dictionary = {}
+var _world_encounter_rng := RandomNumberGenerator.new()
 
 
 func _ready() -> void:
@@ -133,6 +140,7 @@ func _ready() -> void:
 
 
 func _build_interface() -> void:
+	_apply_assistance()
 	_build_battlefield()
 	_build_menu()
 	map.setup(content)
@@ -200,6 +208,7 @@ func _adopt_content(next_content: Dictionary, next_battle: RefCounted = null) ->
 	battle_clips = BattleClips.new(content)
 	theme = PixelTheme.new().create(content["interface"], content["entry"]["resourceDirectory"])
 	_build_interface()
+	_sync_map_state()
 	_rebuilding_interface = false
 	_layout()
 	_update_music_button()
@@ -285,6 +294,10 @@ func _build_battlefield() -> void:
 	retirement_player.name = "RetirementPlayer"
 	add_child(retirement_player)
 	retirement_player.setup(content, map)
+	teleport_player = TeleportPlayer.new()
+	teleport_player.name = "TeleportPlayer"
+	add_child(teleport_player)
+	teleport_player.setup(content, map)
 	feedback = _label("", 25, GOLD)
 	feedback.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	feedback.add_theme_color_override("font_shadow_color", Color.BLACK)
@@ -322,8 +335,25 @@ func _menu_intent(kind: String, details: Dictionary) -> void:
 				Engine.time_scale = float(details["value"])
 				menu_layer.set_game_speed(Engine.time_scale)
 				menu_layer.show_page("settings")
+		"assistance_toggle":
+			if (
+				menu_layer.page != "assistance"
+				or details.get("key") not in ["share_experience", "full_growth"]
+			):
+				return
+			var updated: Dictionary = settings.merged({details["key"]: details["value"]}, true)
+			var saved: Dictionary = store.write(updated)
+			if saved["ok"]:
+				settings = updated
+				_apply_assistance()
+			else:
+				_report_storage_error(saved)
+			menu_layer.set_assistance(settings)
 		"overview":
 			_show_overview()
+		"fit_map":
+			map.fit_to_viewport()
+			_set_menu_visible(false)
 		"zoom":
 			map.set_zoom(details["value"])
 		"assisted_victory":
@@ -455,7 +485,12 @@ func _show_cell(cell: Vector2i) -> void:
 		item_actions.go_back()
 		return
 	if target_selection.visible:
-		if target_selection.page == "items":
+		if target_selection.page == "destination":
+			var was_selected: bool = map.selected == cell
+			_select_teleport_destination(cell)
+			if was_selected:
+				target_selection._confirm_current()
+		elif target_selection.page == "items":
 			target_selection.go_back()
 		else:
 			target_selection.select_target(_unit_at_cell(cell))
@@ -546,7 +581,10 @@ func _unit_intent(kind: String, _details: Dictionary) -> void:
 			var actor: Dictionary = battle.unit(selected_unit)
 			if kind == "heal":
 				for held: Dictionary in actor["inventory"]:
-					if not battle.heal_targets(selected_unit, held["id"]).is_empty():
+					if (
+						not battle.staff_targets(selected_unit, held["id"]).is_empty()
+						or battle.can_summon(selected_unit, held["id"])
+					):
 						choices.append({"item": held})
 			unit_panel.hide()
 			menu_button.disabled = true
@@ -562,6 +600,10 @@ func _unit_intent(kind: String, _details: Dictionary) -> void:
 			item_actions.present(battle.item_options(selected_unit), _item_information())
 		"trade":
 			_choose_trade_partner()
+		"open_chest":
+			await _present_player_action(battle.open_chest(selected_unit))
+		"visit_location":
+			await _present_player_action(battle.visit_location(selected_unit))
 		"wait":
 			_wait()
 		"cancel_move":
@@ -645,7 +687,15 @@ func _targeting_intent(kind: String, details: Dictionary) -> void:
 	match kind:
 		"item_selected":
 			_target_item = details["item"]
-			_target_mode = "heal" if details["action"] == "heal" else "battle_clip"
+			if details["action"] == "heal" and battle.can_summon(selected_unit, _target_item):
+				target_selection.hide()
+				await _present_player_action(battle.summon_unit(selected_unit, _target_item))
+				return
+			_target_mode = (
+				battle.staff_mode(selected_unit, _target_item)
+				if details["action"] == "heal"
+				else "battle_clip"
+			)
 			if details["action"] == "attack":
 				var options: Dictionary = battle.attack_options(selected_unit, _target_item)
 				if not options["ok"] or not options["available"]:
@@ -670,14 +720,14 @@ func _targeting_intent(kind: String, details: Dictionary) -> void:
 					return
 			var targets: Array = []
 			var ids: Array = (
-				battle.heal_targets(selected_unit, details["item"])
+				battle.staff_targets(selected_unit, details["item"])
 				if details["action"] == "heal"
 				else battle.attack_targets(selected_unit)
 			)
 			for id: int in ids:
 				targets.append(battle.unit(id))
 			var field: Dictionary = (
-				battle.healing_field(selected_unit, details["item"])
+				battle.staff_field(selected_unit, details["item"])
 				if details["action"] == "heal"
 				else battle.attack_field(selected_unit)
 			)
@@ -685,6 +735,17 @@ func _targeting_intent(kind: String, details: Dictionary) -> void:
 			target_selection.show_targets(targets)
 		"target_cancelled":
 			map.set_movement_field({})
+		"secondary_cancelled":
+			var targets: Array = []
+			for id: int in battle.staff_targets(selected_unit, _target_item):
+				targets.append(battle.unit(id))
+			map.set_action_field(battle.staff_field(selected_unit, _target_item), targets, "heal")
+			var target: Dictionary = battle.unit(details["target"])
+			map.selected = Vector2i(target["x"], target["y"])
+			map.view.focus_cell(map.selected)
+			map.queue_redraw()
+		"destination_highlight":
+			_select_teleport_destination(details["cell"])
 		"target_highlight":
 			var target: Dictionary = battle.unit(details["target"])
 			if target.is_empty():
@@ -707,6 +768,21 @@ func _targeting_intent(kind: String, details: Dictionary) -> void:
 			map.queue_redraw()
 		"target_selected":
 			if details["action"] == "heal":
+				if _target_mode == "repair":
+					target_selection.show_repair_items(
+						battle.repair_options(selected_unit, details["target"], details["item"])
+					)
+					return
+				if _target_mode == "teleport":
+					var target: Dictionary = battle.unit(details["target"])
+					map.set_action_field(
+						battle.teleport_field(selected_unit, details["target"], details["item"]),
+						[],
+						"heal"
+					)
+					target_selection.show_destination(Vector2i(target["x"], target["y"]), false)
+					map.action_hint = "选择传送落点"
+					return
 				target_selection.hide()
 				await _present_player_action(
 					battle.heal_unit(selected_unit, details["target"], details["item"])
@@ -725,6 +801,27 @@ func _targeting_intent(kind: String, details: Dictionary) -> void:
 				push_error(preloaded["error"])
 				return
 			target_selection.show_forecast(preview)
+		"repair_confirmed":
+			var repaired: Dictionary = battle.repair_unit(
+				selected_unit, details["target"], details["item"], details["targetItem"]
+			)
+			if repaired["ok"]:
+				target_selection.hide()
+				await _present_player_action(repaired)
+			else:
+				target_selection.show_repair_items(
+					battle.repair_options(selected_unit, details["target"], details["item"])
+				)
+		"teleport_confirmed":
+			var transported: Dictionary = battle.teleport_unit(
+				selected_unit, details["target"], details["item"], details["cell"]
+			)
+			if transported["ok"]:
+				target_selection.hide()
+				await _present_player_action(transported)
+			else:
+				target_selection.show_destination(details["cell"], false)
+				map.action_hint = "无法传送到这里"
 		"attack_confirmed":
 			target_selection.hide()
 			await _present_player_action(battle.attack_unit(selected_unit, details["target"]))
@@ -774,11 +871,29 @@ func _show_map_forecast(preview: Dictionary) -> void:
 	target_selection.show_map_forecast(preview)
 
 
+func _select_teleport_destination(cell: Vector2i) -> void:
+	var dimensions: Dictionary = content["map"]
+	cell = Vector2i(
+		clampi(cell.x, 0, dimensions["width"] - 1), clampi(cell.y, 0, dimensions["height"] - 1)
+	)
+	var valid: bool = (
+		battle.teleport_field(selected_unit, target_selection.target_id, _target_item).has(cell)
+	)
+	map.selected = cell
+	map.view.focus_cell(cell)
+	map.action_hint = "确认传送落点" if valid else "无法传送到这里"
+	target_selection.select_destination(cell, valid)
+	map.queue_redraw()
+
+
 func _wait() -> void:
 	if busy:
 		return
 	var result: Dictionary = battle.wait_unit(selected_unit)
 	if result["ok"]:
+		if result.has("location") or result.get("kind") == "open_chest":
+			await _present_player_action(result)
+			return
 		choosing_destination = false
 		map.set_movement_field({})
 		map.set_units(battle.snapshot()["units"])
@@ -873,7 +988,9 @@ func _input(event: InputEvent) -> void:
 		and event.pressed
 		and event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]
 	):
-		if _wheel_selection(-1 if event.button_index == MOUSE_BUTTON_WHEEL_UP else 1, event.factor):
+		if _wheel_selection(
+			-1 if event.button_index == MOUSE_BUTTON_WHEEL_UP else 1, event.factor, event.position
+		):
 			get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("ui_cancel") and not event.is_echo():
 		if OS.get_name() == "Android":
@@ -917,7 +1034,7 @@ func _input(event: InputEvent) -> void:
 		_wheel_owner = null
 
 
-func _wheel_selection(direction: int, factor: float) -> bool:
+func _wheel_selection(direction: int, factor: float, point: Vector2) -> bool:
 	var owner: Control = _active_navigation_target()
 	if owner == null:
 		_wheel_owner = null
@@ -940,7 +1057,9 @@ func _wheel_selection(direction: int, factor: float) -> bool:
 			return true
 		_wheel_distance = 0.0
 	_wheel_last_step_millis = now
-	if owner != battle_view:
+	if owner == action_feedback and action_feedback.current_step.get("kind") == "summary":
+		action_feedback.summary.handle_wheel(direction, point)
+	elif owner != battle_view:
 		owner.handle_wheel(direction)
 	return true
 
@@ -1055,6 +1174,37 @@ func _handle_system_back() -> void:
 func _process(delta: float) -> void:
 	if _played_seconds >= 0 and not _application_paused and not title_screen.visible:
 		_played_seconds += delta / Engine.time_scale
+	if (
+		not _world_encounter.is_empty()
+		and not _application_paused
+		and not _world_transitioning
+		and story_player.world_active
+		and story_player.world_ready
+		and not story_player.choices.visible
+		and not story_player.dialogue.visible
+		and not save_slots.visible
+		and not world_inventory_screen.visible
+	):
+		_update_world_encounter(Time.get_ticks_msec())
+
+
+func _update_world_encounter(now: int) -> void:
+	var route: Array = content["story"]["world"]["routes"][int(world_progress["route"])]
+	var step: int = int(world_progress["worldStep"])
+	var current: int = int(world_progress.get("worldLocation", world_progress["worldNode"]))
+	var advanced: Dictionary = WorldEncounters.advance(
+		_world_encounter, step, false, now, route.slice(0, step), current, _encounter_roll
+	)
+	if not advanced["ok"]:
+		push_error(str(advanced))
+		return
+	if advanced["state"] != _world_encounter:
+		_world_encounter = advanced["state"]
+		story_player.set_world_encounter(_world_encounter["marker"])
+
+
+func _encounter_roll(limit: int) -> int:
+	return _world_encounter_rng.randi_range(0, limit - 1)
 
 
 func _play_minutes() -> int:
@@ -1071,6 +1221,7 @@ func _label(text: String, font_size: int, color: Color = INK) -> Label:
 
 func _show_title() -> void:
 	busy = true
+	_world_encounter.clear()
 	story_player.leave_world()
 	map.hide()
 	map_hud.hide()
@@ -1091,7 +1242,9 @@ func _show_title() -> void:
 func start_new_game() -> void:
 	if not title_screen.visible or title_screen.prologue.visible:
 		return
-	var first: Dictionary = Session.new().open(content["entry"]["chapterPath"])
+	var first: Dictionary = Session.new().open(
+		content["entry"]["chapterPath"], "", {"new": true}, Callable(), _deployment_context
+	)
 	if not first["ok"]:
 		push_error(first["error"])
 		title_screen.message.text = "首关资源无法读取，当前记录已保留。"
@@ -1122,8 +1275,9 @@ func _play_opening() -> bool:
 	await story_player.play(
 		content["story"]["sequences"]["opening"], battle.command_configuration()
 	)
-	if not await _commit_opening_commander():
-		return false
+	if content["story"].get("commanderMode", "selection") != "none":
+		if not await _commit_opening_commander():
+			return false
 	battle.complete_event("opening")
 	return true
 
@@ -1153,6 +1307,8 @@ func _commit_opening_commander() -> bool:
 
 func resume_battle(restored_battle: RefCounted) -> void:
 	battle = restored_battle
+	_sync_map_state()
+	_apply_assistance()
 	_reset_tactical_selection()
 	busy = false
 	menu_button.disabled = false
@@ -1180,6 +1336,11 @@ func resume_battle(restored_battle: RefCounted) -> void:
 	_layout_overlays(true)
 
 
+func _apply_assistance() -> void:
+	battle.share_experience = settings.get("share_experience", false)
+	battle.full_growth = settings.get("full_growth", false)
+
+
 func load_game() -> void:
 	if not title_screen.visible or title_screen.prologue.visible:
 		return
@@ -1188,6 +1349,9 @@ func load_game() -> void:
 	if result["ok"]:
 		_adopt_content(result["content"], result.get("battle"))
 		if result.has("progress"):
+			_deployment_context = DeploymentContext.accumulate(
+				_deployment_context, result["progress"]["party"]
+			)
 			_played_seconds = float(result["progress"].get("elapsedMinutes", -1)) * 60
 			await _show_completed_progress(result["progress"])
 		else:
@@ -1237,9 +1401,13 @@ func _describe_save_slots() -> Array[Dictionary]:
 					"status": "world",
 					"description":
 					(
-						"第%d战\n%s\n%s"
+						"%s\n%s\n%s"
 						% [
-							progress["worldStep"],
+							(
+								"通关"
+								if progress.get("chapterCompleted", false)
+								else "第%d战" % progress["worldStep"]
+							),
 							content["story"]["world"]["nodes"][int(
 								progress.get("worldLocation", progress["worldNode"])
 							)]["name"],
@@ -1269,13 +1437,15 @@ func _accept_save_slot(slot: int) -> void:
 			return
 		_played_seconds = float(result["progress"].get("elapsedMinutes", -1)) * 60
 		_adopt_content(result["content"])
+		_deployment_context = DeploymentContext.accumulate(
+			_deployment_context, result["progress"]["party"]
+		)
 		await _show_completed_progress(result["progress"])
 
 
 func _save_and_title() -> void:
-	if _save_battle():
-		menu_layer.hide()
-		_show_title()
+	menu_layer.hide()
+	_show_title()
 
 
 func _change_music(kind: String) -> void:
@@ -1313,7 +1483,12 @@ func _present_player_action(result: Dictionary) -> void:
 	unit_panel.hide()
 	item_actions.hide()
 	map.set_movement_field({})
-	map.set_units(battle.snapshot()["units"])
+	if result.has("locationEvent"):
+		for arrival: Dictionary in result["locationEvent"]["arrivals"]:
+			map.presentation_hidden_ids.append(int(arrival["unit"]))
+	_sync_map_state()
+	if result.get("kind") != "summon":
+		map.set_units(battle.snapshot()["units"])
 	await _present_action_visuals(result)
 	busy = false
 	menu_button.disabled = false
@@ -1323,8 +1498,65 @@ func _present_player_action(result: Dictionary) -> void:
 		await _finish_outcome()
 
 
+func _sync_map_state() -> void:
+	var state: Dictionary = battle.map_state()
+	map.set_map_state(state)
+	map_hud.set_map_state(state)
+
+
 func _present_action_visuals(result: Dictionary) -> void:
-	if result.get("kind") == "combat":
+	if result.has("locationEvent"):
+		var event: Dictionary = result["locationEvent"]
+		var focus: Vector2i = event["focus"]
+		var entrances: Array[Dictionary] = []
+		for arrival: Dictionary in event["arrivals"]:
+			var origin: Vector2i = arrival["from"]
+			var destination: Vector2i = arrival["to"]
+			entrances.append(
+				{
+					"kind": "unitEntrance",
+					"unitId": arrival["unit"],
+					"from": [origin.x, origin.y],
+					"to": [destination.x, destination.y]
+				}
+			)
+		if entrances.is_empty():
+			await story_player.play([{"kind": "focus", "cell": [focus.x, focus.y]}])
+		else:
+			await story_player.play(
+				[{"kind": "parallelEntrances", "focus": [focus.x, focus.y], "units": entrances}]
+			)
+		map.clear_presentation()
+		if not event["sequence"].is_empty():
+			await story_player.play(content["story"]["sequences"][event["sequence"]])
+	if result.get("kind") == "summon":
+		var rebound: Dictionary = _bind_runtime_units(result["births"])
+		if not rebound["ok"]:
+			await _automatic_error(rebound)
+			return
+		for birth: Dictionary in result["births"]:
+			map.presentation_hidden_ids.append(int(birth["unit"]))
+		map.set_units(battle.snapshot()["units"])
+		await action_feedback.play(
+			{"kind": "summon_notice", "actor": result["actor"]},
+			battle.snapshot()["units"],
+			true,
+			battle.phase == 0
+		)
+		for birth: Dictionary in result["births"]:
+			var identity: int = int(birth["unit"])
+			map.presentation_positions[identity] = Vector2(birth["from"])
+			map.presentation_hidden_ids.erase(identity)
+			map.queue_redraw()
+			await map.play_move(identity, [birth["from"], birth["to"]])
+			map.presentation_positions.erase(identity)
+		map.clear_presentation()
+	elif result.get("kind") == "combat":
+		for retirement: Dictionary in result.get("retirements", []):
+			for arrival: Dictionary in retirement.get("arrivalQueue", []):
+				var identity: int = int(arrival["unit"])
+				if arrival["revealed"] and identity not in map.presentation_hidden_ids:
+					map.presentation_hidden_ids.append(identity)
 		if not result.get("storyBefore", []).is_empty():
 			var before_units: Array = battle.snapshot()["units"]
 			for index: int in range(before_units.size()):
@@ -1347,6 +1579,38 @@ func _present_action_visuals(result: Dictionary) -> void:
 		if not played["ok"]:
 			push_error(played["error"])
 			await story_player.show_notice("法术演出无法播放，结算结果已保留。", "继续")
+	elif result.get("kind") == "teleport":
+		var played: Dictionary = await teleport_player.play(result)
+		if not played["ok"]:
+			push_error(played["error"])
+			await story_player.show_notice("传送演出无法播放，结算结果已保留。", "继续")
+	if not result.get("revivals", []).is_empty():
+		var knocked_down: Array = battle.snapshot()["units"]
+		for revival: Dictionary in result["revivals"]:
+			for actor: Dictionary in knocked_down:
+				if actor["id"] == revival["unit"]:
+					actor["hp"] = revival["hpBefore"]
+		map.set_units(knocked_down)
+	for revival: Dictionary in result.get("revivals", []):
+		await story_player.play([{"kind": "focus", "unitId": revival["unit"]}])
+		var played: Dictionary = await retirement_player.play_revival(
+			battle.unit(revival["unit"]), revival
+		)
+		if not played["ok"]:
+			push_error(played["error"])
+			await story_player.show_notice("复活演出无法播放，结算结果已保留。", "继续")
+	var promoted: Array = []
+	if not result.get("promotion", {}).is_empty():
+		promoted.append(result["promotion"])
+	var experience: Dictionary = result.get("rewards", {}).get("experience", {})
+	for award: Dictionary in [experience] + experience.get("shared", []):
+		if not award.get("promotion", {}).is_empty():
+			promoted.append(award["promotion"])
+	if not promoted.is_empty():
+		var rebound: Dictionary = _bind_runtime_units(promoted)
+		if not rebound["ok"]:
+			await _automatic_error(rebound)
+			return
 	if await action_feedback.play(
 		result,
 		battle.snapshot()["units"],
@@ -1379,6 +1643,7 @@ func _present_retirements(retirements: Array) -> void:
 		if not played["ok"]:
 			push_error(played["error"])
 			await story_player.show_notice("退场演出无法播放，结算结果已保留。", "继续")
+		await story_player.play_unit_arrivals(retirement.get("arrivalQueue", []))
 		for sequence: String in retirement["afterRetirement"]:
 			await story_player.play(content["story"]["sequences"][sequence])
 	map.set_units(battle.snapshot()["units"])
@@ -1487,6 +1752,8 @@ func _end_turn() -> void:
 					await _automatic_error(preloaded)
 					return
 				result = battle.attack_unit(id, plan["attackTarget"])
+			elif plan.get("actionMode") == "summon":
+				result = battle.summon_unit(id, plan["summonItem"])
 			elif plan["healTarget"] >= 0:
 				result = battle.heal_unit(id, plan["healTarget"], plan["healItem"])
 			else:
@@ -1520,39 +1787,68 @@ func _end_turn() -> void:
 
 
 func _present_phase_events(events: Array) -> bool:
+	# end_phase commits the entire batch. Bind dynamic actors before any earlier
+	# event projects that snapshot, but keep later arrivals hidden until played.
+	var births_to_bind: Array = []
+	var pending_arrivals: Array[int] = []
 	for event: Dictionary in events:
+		if event["kind"] == "clones":
+			births_to_bind.append_array(event["births"])
+		for arrival: Dictionary in event.get("births", event.get("arrivals", [])):
+			var identity: int = int(arrival["unit"])
+			if identity not in pending_arrivals:
+				pending_arrivals.append(identity)
+	if not births_to_bind.is_empty():
+		var rebound: Dictionary = _bind_runtime_units(births_to_bind)
+		if not rebound["ok"]:
+			await _automatic_error(rebound)
+			return false
+	for identity: int in pending_arrivals:
+		if identity not in map.presentation_hidden_ids:
+			map.presentation_hidden_ids.append(identity)
+	for event: Dictionary in events:
+		for arrival: Dictionary in event.get("births", event.get("arrivals", [])):
+			pending_arrivals.erase(int(arrival["unit"]))
+		if event["kind"] == "withdrawal":
+			# The battle has committed the withdrawal; keep its previous projection
+			# until the accompanying dialogue has finished.
+			var units: Array = battle.snapshot()["units"]
+			for index: int in range(units.size()):
+				if int(units[index]["id"]) == int(event["unit"]["id"]):
+					units[index] = event["unit"].duplicate(true)
+					break
+			map.set_units(units)
+			if not event.get("sequence", "").is_empty():
+				await story_player.play(content["story"]["sequences"][event["sequence"]])
+			map.set_units(battle.snapshot()["units"])
+			continue
 		if event["kind"] == "clones":
 			var births: Array = event["births"]
 			if births.is_empty():
 				continue
-			var rebound: Dictionary = _bind_runtime_units(births)
-			if not rebound["ok"]:
-				await _automatic_error(rebound)
-				return false
-			for birth: Dictionary in births:
-				map.presentation_hidden_ids.append(int(birth["unit"]))
 			map.set_units(battle.snapshot()["units"])
 			await story_player.play_unit_arrivals(births)
 			map.clear_presentation()
+			map.presentation_hidden_ids.append_array(pending_arrivals)
 			continue
 		if event["kind"] != "reinforcements":
 			continue
 		if event.get("arrivalMode") == "nativeQueue":
-			for arrival: Dictionary in event["arrivalQueue"]:
-				map.presentation_hidden_ids.append(int(arrival["unit"]))
 			map.set_units(battle.snapshot()["units"])
 			await story_player.play_unit_arrivals(event["arrivalQueue"])
 			if not event.get("sequence", "").is_empty():
 				await story_player.play(content["story"]["sequences"][event["sequence"]])
 			map.clear_presentation()
+			map.presentation_hidden_ids.append_array(pending_arrivals)
 			continue
 		if event.get("sequence", "").is_empty():
+			for arrival: Dictionary in event["arrivals"]:
+				map.presentation_hidden_ids.erase(int(arrival["unit"]))
 			map.set_units(battle.snapshot()["units"])
 			continue
 		var sequence: Array = content["story"]["sequences"][event["sequence"]].duplicate(true)
 		var arrivals: Dictionary = {}
 		for arrival: Dictionary in event["arrivals"]:
-			map.presentation_hidden_ids.append(int(arrival["unit"]))
 			arrivals[int(arrival["unit"])] = arrival
 		for step: Dictionary in sequence:
 			if step["kind"] != "parallelEntrances":
@@ -1573,13 +1869,14 @@ func _present_phase_events(events: Array) -> bool:
 		map.set_units(battle.snapshot()["units"])
 		await story_player.play(sequence)
 		map.clear_presentation()
+		map.presentation_hidden_ids.append_array(pending_arrivals)
 	return true
 
 
 func _bind_runtime_units(births: Array) -> Dictionary:
 	var state: Dictionary = battle.snapshot()
 	var projected: Dictionary = preload("res://app/chapter_content.gd").new().reproject(
-		content, state["units"], state["cloneState"]
+		content, state["units"], state.get("cloneState", {}), state.get("summonState", {})
 	)
 	if not projected["ok"]:
 		return projected
@@ -1593,6 +1890,7 @@ func _bind_runtime_units(births: Array) -> Dictionary:
 	content.merge(projected, true)
 	battle.adopt_content(content)
 	battle_clips.rebind(content)
+	_sync_map_state()
 	return {"ok": true}
 
 
@@ -1623,7 +1921,9 @@ func _show_completed_progress(progress: Dictionary, guidance: bool = false) -> v
 	map.hide()
 	map_hud.hide()
 	menu_button.hide()
-	await story_player.show_world(progress, guidance)
+	await story_player.show_world(progress, guidance, _bonus_available(progress))
+	_world_encounter = {"lastCheckMs": Time.get_ticks_msec(), "marker": null}
+	story_player.set_world_encounter(null)
 
 
 func _world_action(kind: String) -> void:
@@ -1641,6 +1941,14 @@ func _world_action(kind: String) -> void:
 	elif kind == "inventory":
 		story_player.go_back()
 		world_inventory_screen.present(world_progress)
+	elif kind == "chapter_record" and world_progress.get("chapterCompleted", false):
+		await story_player.present_chapter_result(world_progress, false)
+		await story_player.show_world(world_progress, false, _bonus_available(world_progress))
+	elif kind == "bonus" and _bonus_available(world_progress):
+		_world_transitioning = true
+		if await story_player.confirm_bonus_battle():
+			await _open_world_battle(19, world_progress.duplicate(true), true)
+		_world_transitioning = false
 	elif kind == "gold":
 		var progress: Dictionary = world_progress.duplicate(true)
 		var received: int = mini(WORLD_GOLD_BENEFIT, Battle.MAX_GOLD - int(progress["gold"]))
@@ -1655,12 +1963,15 @@ func _world_action(kind: String) -> void:
 			return
 		await story_player.show_world_notice("获得%d金币。现有资金：%d。" % [received, int(progress["gold"])])
 	elif kind == "title":
-		var saved: Dictionary = _commit_world_progress(world_progress)
-		if not saved["ok"]:
-			push_warning(str(saved))
-			await story_player.show_world_notice("保存未完成，当前进度仍在，请重试。")
-			return
 		_show_title()
+
+
+func _bonus_available(progress: Dictionary) -> bool:
+	return (
+		int(progress.get("worldStep", 0)) >= 6
+		and not settings.get("bonus_battle_used", false)
+		and content["entry"].get("battles", {}).has("m19")
+	)
 
 
 func _world_inventory_command(operation: String, details: Dictionary) -> void:
@@ -1685,9 +1996,6 @@ func _commit_world_progress(candidate: Dictionary) -> Dictionary:
 	var minutes: int = _play_minutes()
 	if minutes >= 0:
 		progress["elapsedMinutes"] = minutes
-	var saved: Dictionary = battle_store.write_progress(progress)
-	if not saved["ok"]:
-		return saved
 	world_progress = progress
 	return {"ok": true}
 
@@ -1711,27 +2019,57 @@ func _world_node(node_id: int) -> void:
 		return
 	var path: Array = content["story"]["world"]["routes"][int(world_progress["route"])]
 	var step: int = int(world_progress.get("worldStep", 1))
+	var stop_node: int = -1
+	var marker: Variant = _world_encounter.get("marker")
+	if marker is Dictionary:
+		var current: int = int(world_progress.get("worldLocation", world_progress["worldNode"]))
+		var travel_path: Variant = WorldEncounters.travel_nodes(path, current, node_id)
+		if travel_path is Array and int(marker["node"]) in travel_path:
+			stop_node = int(marker["node"])
 	if path.slice(0, step).any(func(id: Variant) -> bool: return id == node_id):
 		_world_transitioning = true
-		var visited: Dictionary = world_progress.duplicate(true)
-		visited["worldLocation"] = node_id
-		var saved_location: Dictionary = _commit_world_progress(visited)
-		if saved_location["ok"]:
-			await story_player.travel_to(node_id, false)
+		var travel: Dictionary = await story_player.travel_to(node_id, false, stop_node)
+		if travel["ok"]:
+			var visited: Dictionary = world_progress.duplicate(true)
+			visited["worldLocation"] = int(travel["node"])
+			var saved_location: Dictionary = _commit_world_progress(visited)
+			if not saved_location["ok"]:
+				push_error(str(saved_location))
+				await story_player.show_world_notice("地点无法保存，当前进度已保留。")
+			elif travel["interrupted"]:
+				await _enter_world_encounter(int(travel["node"]), int(marker["classId"]))
 		else:
-			push_error(str(saved_location))
+			push_error(str(travel))
 			await story_player.show_world_notice("地点无法保存，当前进度已保留。")
 		_world_transitioning = false
 		return
 	if step >= path.size() or path[step] != node_id:
 		await story_player.show_world_notice("请选择路线中亮起的下一目标。")
 		return
+	if stop_node >= 0:
+		_world_transitioning = true
+		if await story_player.confirm_travel(node_id):
+			var travel: Dictionary = await story_player.travel_to(node_id, true, stop_node)
+			if travel["ok"] and travel["interrupted"]:
+				var visited: Dictionary = world_progress.duplicate(true)
+				visited["worldLocation"] = int(travel["node"])
+				_commit_world_progress(visited)
+				await _enter_world_encounter(int(travel["node"]), int(marker["classId"]))
+			else:
+				push_error(str(travel))
+				await story_player.show_world_notice("地点无法到达，当前进度已保留。")
+		_world_transitioning = false
+		return
 	var next_id: String = "m%d" % node_id
 	if not content["entry"].get("battles", {}).has(next_id):
 		await story_player.show_world_notice("这一关卡内容尚在制作，当前进度已保留。")
 		return
 	var opened: Dictionary = Session.new().open(
-		content["entry"]["chapterPath"], next_id, {"progress": world_progress}
+		content["entry"]["chapterPath"],
+		next_id,
+		{"progress": world_progress},
+		Callable(),
+		_deployment_context
 	)
 	if not opened["ok"]:
 		push_error(str(opened))
@@ -1752,13 +2090,54 @@ func _world_node(node_id: int) -> void:
 	if not await _play_opening():
 		_world_transitioning = false
 		return
-	var saved: Dictionary = battle_store.write(battle, _play_minutes())
-	while not saved["ok"]:
-		push_error(str(saved))
-		await story_player.show_notice("下一战进度无法保存，原记录已保留。请检查存储后重试。", "重试保存")
-		saved = battle_store.write(battle, _play_minutes())
 	world_progress = {}
 	_world_transitioning = false
+	resume_battle(battle)
+
+
+func _enter_world_encounter(node: int, class_id: int) -> void:
+	var battle_id: int = WorldEncounters.battle_for_class(class_id)
+	if battle_id < 0:
+		push_error("Invalid world encounter class: %d" % class_id)
+		await story_player.show_world_notice("遭遇战无法加载，当前进度已保留。")
+		return
+	var progress: Dictionary = world_progress.duplicate(true)
+	progress["worldLocation"] = node
+	await _open_world_battle(battle_id, progress, false)
+
+
+func _open_world_battle(battle_id: int, progress: Dictionary, bonus: bool) -> void:
+	var opened: Dictionary = Session.new().open(
+		content["entry"]["chapterPath"],
+		"m%d" % battle_id,
+		{"encounter": progress},
+		Callable(),
+		_deployment_context
+	)
+	if not opened["ok"]:
+		push_error(str(opened))
+		await story_player.show_world_notice("遭遇战无法加载，当前进度已保留。")
+		return
+	if bonus:
+		var updated: Dictionary = settings.duplicate(true)
+		updated["bonus_battle_used"] = true
+		var saved: Dictionary = store.write(updated)
+		if not saved["ok"]:
+			push_error(str(saved))
+			await story_player.show_world_notice("奖励关卡状态无法保存，当前进度已保留。")
+			return
+		settings = updated
+	_world_encounter.clear()
+	_adopt_content(opened["content"], opened["battle"])
+	busy = true
+	title_screen.hide()
+	map.set_units(battle.snapshot()["units"])
+	map.prepare_opening(content["story"]["initialBattlePresentation"])
+	map_hud.hide()
+	menu_button.hide()
+	if not await _play_opening():
+		return
+	world_progress = {}
 	resume_battle(battle)
 
 
@@ -1773,9 +2152,13 @@ func _finish_outcome() -> void:
 	if battle.outcome["kind"] == "victory":
 		await story_player.play(content["story"]["sequences"]["victory"])
 		var routes: Array = content["story"]["routeChoices"]
-		var route: int = (
-			int(routes[0]["routeIndex"]) if routes.size() == 1 else story_player.selected_route
-		)
+		var route: int
+		if routes.is_empty():
+			route = int(battle.snapshot()["campaign"]["route"])
+		else:
+			route = (
+				int(routes[0]["routeIndex"]) if routes.size() == 1 else story_player.selected_route
+			)
 		var completed: Dictionary = battle.complete_victory(route)
 		if not completed["ok"]:
 			push_error(completed["error"])
@@ -1783,15 +2166,28 @@ func _finish_outcome() -> void:
 			_show_title()
 			return
 		var progress: Dictionary = completed["progress"].duplicate(true)
+		var encounter: bool = content["story"].get("encounter", false) == true
 		var minutes: int = _play_minutes()
 		if minutes >= 0:
 			progress["elapsedMinutes"] = minutes
-		var saved: Dictionary = battle_store.write_progress(progress)
-		while not saved["ok"]:
-			push_error(saved["error"])
-			await story_player.show_notice("保存失败，原记录已保留。请检查可用存储后重试。", "重试保存")
-			saved = battle_store.write_progress(progress)
-		await _show_completed_progress(progress, true)
+		if not completed.get("alreadyComplete", false):
+			_deployment_context = DeploymentContext.accumulate(
+				_deployment_context, progress["party"]
+			)
+		if progress.get("chapterCompleted", false) and not encounter:
+			map.hide()
+			await story_player.present_chapter_result(progress)
+		if encounter:
+			var previous: Dictionary = Session.new().completed_content(
+				content["entry"]["chapterPath"], progress
+			)
+			if not previous["ok"]:
+				push_error(str(previous))
+				await story_player.show_notice("遭遇战结算无法加载世界，原存档已保留。", "回到标题")
+				_show_title()
+				return
+			_adopt_content(previous["content"])
+		await _show_completed_progress(progress, not encounter)
 	else:
 		await story_player.play(content["story"]["sequences"]["defeat"])
 		_show_title()

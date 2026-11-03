@@ -9,12 +9,19 @@ var hidden: Dictionary = {}
 var impact: bool = false
 var _hits: Array
 var _effect: Dictionary
+var _updates: Array
+var _has_updates: bool
+var _revival_ids: Array[int] = []
 var _elapsed_units: int = 0
 
 
 func _init(result: Dictionary, effect: Dictionary) -> void:
 	_hits = result["hits"]
 	_effect = effect
+	_has_updates = result.has("updates")
+	_updates = result.get("updates", [])
+	for revival: Dictionary in result.get("revivals", []):
+		_revival_ids.append(int(revival["unit"]))
 	finished = _hits.is_empty()
 	for hit: Dictionary in _hits:
 		hp[int(hit["target"])] = int(hit["hpBefore"])
@@ -44,7 +51,19 @@ func advance(camera_ready: bool = true) -> void:
 		"impact":
 			if _elapsed_units >= 150:
 				var id: int = int(current_hit()["target"])
-				if hp[id] <= 0:
+				if _has_updates:
+					for update: Dictionary in _updates:
+						if int(update["triggerUnitId"]) != id:
+							continue
+						for unit: Dictionary in update["units"]:
+							var unit_id: int = int(unit["unitId"])
+							if unit_id in _revival_ids:
+								hidden[unit_id] = true
+							else:
+								hp[unit_id] = int(unit["hp"])
+								if not bool(unit["visible"]):
+									hidden[unit_id] = true
+				elif hp[id] <= 0:
 					hidden[id] = true
 				impact = false
 				phase = "tail"

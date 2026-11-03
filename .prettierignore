@@ -1,0 +1,3 @@
+# Compact native-rendering test observations are generated data.
+/game/tests/fixtures/chapter_1_native*.json
+/game/tests/fixtures/chapter_1_battle_miss.json

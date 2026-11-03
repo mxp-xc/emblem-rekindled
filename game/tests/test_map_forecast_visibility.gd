@@ -114,7 +114,7 @@ func run() -> void:
 	confirm.pressed.emit()
 	var deadline: int = Time.get_ticks_msec() + 5000
 	while scene.busy and Time.get_ticks_msec() < deadline:
-		if scene.action_feedback.current_step.get("kind") == "tutorial":
+		if scene.action_feedback.current_step.get("kind") in ["tutorial", "summary"]:
 			scene.action_feedback.go_back()
 		await process_frame
 	if (

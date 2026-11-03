@@ -114,6 +114,29 @@ class ChapterLibraryTest(unittest.TestCase):
             if p.is_file()
         }
 
+    def test_import_does_not_overwrite_a_retained_texture_after_pruning(self):
+        import_presentation(self.chapter, self.native("first"))
+        catalog = self.chapter / "generated/library/catalog.json"
+        bank = json.loads(catalog.read_text())
+        stage = next(iter(bank["stages"].values()))
+        existing = stage["textures"].pop("texture_0")
+        stage["textures"]["texture_1"] = existing
+        self.write(catalog, bank)
+
+        source = self.native("second")
+        manifest = source / "battle/clips/manifest.json"
+        motion = json.loads(manifest.read_text())
+        motion["textures"]["effect"]["width"] = 9
+        motion["clips"] = {}
+        motion["deaths"] = {}
+        self.write(manifest, motion)
+        import_presentation(self.chapter, source)
+
+        updated = json.loads(catalog.read_text())
+        textures = next(iter(updated["stages"].values()))["textures"]
+        self.assertEqual(textures["texture_1"], existing)
+        self.assertEqual(textures["texture_2"]["width"], 9)
+
     def test_identical_motion_and_profiles_reuse_without_deployment_identity(self):
         first = import_presentation(self.chapter, self.native("first"))
         second = import_presentation(self.chapter, self.native("second", identity=9))

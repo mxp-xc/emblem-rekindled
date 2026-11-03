@@ -15,13 +15,21 @@ var _map: Dictionary
 var _stat_caps: Dictionary
 var _chapter_id: String
 var _battle_id: String
+var _initialization_context: Variant
 
 
-func _init(content: Dictionary, combat: RefCounted, inventory: RefCounted, roll: Callable) -> void:
+func _init(
+	content: Dictionary,
+	combat: RefCounted,
+	inventory: RefCounted,
+	roll: Callable,
+	initialization_context: Variant = null
+) -> void:
 	_content = content
 	_combat = combat
 	_inventory = inventory
 	_random_source = roll
+	_initialization_context = initialization_context
 	_map = content["map"]
 	_stat_caps = content["rules"]["statCaps"]
 	_chapter_id = content["entry"]["id"]
@@ -106,7 +114,7 @@ func create() -> Dictionary:
 			spawn,
 			choices,
 			point,
-			inherited.get(int(current["id"]), {}) if spawn.has("deploymentSlot") else {}
+			inherited.get(int(current["id"]), {}) if spawn["formal"] else {}
 		)
 		var identity: int = int(current["id"])
 		bindings[deployment_index] = identity
@@ -174,11 +182,19 @@ func _initialize_unit(
 		values = {}
 		var base: Dictionary = _base_stats[int(spawn["baseTemplateId"])]
 		var growth: Dictionary = _growth_rates[int(spawn["initialGrowthTemplateId"])]
+		var initial_weapon: Dictionary = _combat.item_definition(
+			int(spawn.get("initialWeaponId", 0))
+		)
 		for index: int in range(STAT_ORDER.size()):
 			var stat: String = STAT_ORDER[index]
 			var value: int = int(base[stat]) + int(float(growth[stat]) * current["level"] / 100.0)
 			if current["faction"] != 0:
-				value += int(_random_source.call(INITIAL_NOISE[index] + 1))
+				var noise: int = INITIAL_NOISE[index]
+				if stat == "strength" and int(initial_weapon.get("categoryMask", 0)) == 16:
+					noise = 0
+				value += int(_random_source.call(noise + 1))
+			if stat == "maxHp" and _combat.is_named_boss(current):
+				value += 20
 			if value < 0 or value > int(_stat_caps[stat]):
 				value = int(_stat_caps[stat])
 			values[stat] = value
@@ -189,6 +205,32 @@ func _initialize_unit(
 		else:
 			current["attributes"][stat] = int(values[stat])
 	current["hp"] = current["maxHp"]
+	if _combat.is_named_boss(current):
+		for stat: String in STAT_ORDER:
+			if stat == "move":
+				continue
+			if stat == "maxHp":
+				var target: int = (
+					int(_initialization_context["maxHp"])
+					if _initialization_context != null
+					else int(current[stat])
+				)
+				current[stat] = mini(99, current[stat] + (maxi(0, target - current[stat]) >> 1))
+			else:
+				var value: int = current["attributes"][stat]
+				var target: int = (
+					int(_initialization_context["attributes"][stat])
+					if _initialization_context != null
+					else value
+				)
+				current["attributes"][stat] = mini(99, value + (maxi(0, target - value) >> 1))
+		var proficiency: int = int(current["proficiency"])
+		var difference: int = (
+			maxi(0, int(_initialization_context["maxProficiency"]) - int(proficiency / 10))
+			if _initialization_context != null
+			else 0
+		)
+		current["proficiency"] = mini(800, proficiency + (difference >> 1) * 10)
 	_inventory.auto_equip(current)
 
 

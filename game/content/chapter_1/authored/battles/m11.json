@@ -1,0 +1,291 @@
+{
+  "battleId": "m11",
+  "worldNode": 11,
+  "battleName": {
+    "sourceTextIndex": 150
+  },
+  "objective": {
+    "sourceTextIndex": 167
+  },
+  "initialBattlePresentation": {
+    "hiddenUnitIds": [],
+    "hiddenFactions": [],
+    "unitPositionOverrides": {
+      "50": [11, 13]
+    }
+  },
+  "turnEvents": [
+    {
+      "id": "city_reinforcements",
+      "afterEnemyPhaseOfRound": 2,
+      "unitIds": [44, 45, 46, 56, 57, 58, 59, 47, 48, 49, 55, 61, 62, 63],
+      "sequence": "city_reinforcements"
+    }
+  ],
+  "aiChanges": [],
+  "routeChoices": [],
+  "speakers": {
+    "0": {
+      "id": 0,
+      "name": "雅木",
+      "faction": 0,
+      "portraitId": 0
+    },
+    "9": {
+      "id": 9,
+      "name": "赛丽卡",
+      "faction": 0,
+      "portraitId": 9
+    },
+    "4": {
+      "id": 4,
+      "name": "克雷贝",
+      "faction": 0,
+      "portraitId": 4
+    },
+    "50": {
+      "id": 50,
+      "name": "",
+      "faction": 2
+    },
+    "88": {
+      "id": 88,
+      "name": "莱卡",
+      "faction": 2,
+      "portraitId": 19
+    }
+  },
+  "sequences": {
+    "opening": [
+      {
+        "kind": "battleTitle",
+        "text": {
+          "sourceTextIndex": 150
+        },
+        "sourceDurationUnits": 2000
+      },
+      {
+        "kind": "focus",
+        "cell": [11, 12],
+        "instant": true,
+        "sourceWaitTicks": 26
+      },
+      {
+        "kind": "focus",
+        "cell": [11, 1],
+        "sourceMaxFocusPixels": 4
+      },
+      {
+        "kind": "unitEntrance",
+        "unitId": 50,
+        "from": [11, 13],
+        "to": [11, 12]
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 580,
+          "speakerId": 50
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 581,
+          "speakerId": 88
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 582,
+          "speakerId": 0
+        },
+        "sourceWaitTicksAfter": 15
+      },
+      {
+        "kind": "objective",
+        "text": {
+          "sourceTextIndex": 167
+        }
+      },
+      {
+        "kind": "commanderSetup",
+        "candidateSource": "formalParty",
+        "defaultMode": "automatic",
+        "defaultStance": "attack"
+      }
+    ],
+    "city_reinforcements": [
+      {
+        "kind": "focus",
+        "cell": [5, 9]
+      },
+      {
+        "kind": "revealUnits",
+        "unitIds": [44, 45, 46]
+      },
+      {
+        "kind": "focus",
+        "cell": [5, 9],
+        "sourceWaitTicks": 13
+      },
+      {
+        "kind": "focus",
+        "cell": [4, 14]
+      },
+      {
+        "kind": "revealUnits",
+        "unitIds": [56, 57, 58, 59]
+      },
+      {
+        "kind": "focus",
+        "cell": [4, 14],
+        "sourceWaitTicks": 13
+      },
+      {
+        "kind": "focus",
+        "cell": [17, 9]
+      },
+      {
+        "kind": "revealUnits",
+        "unitIds": [47, 48, 49]
+      },
+      {
+        "kind": "focus",
+        "cell": [17, 9],
+        "sourceWaitTicks": 13
+      },
+      {
+        "kind": "focus",
+        "cell": [17, 14]
+      },
+      {
+        "kind": "revealUnits",
+        "unitIds": [55, 61, 62, 63]
+      },
+      {
+        "kind": "focus",
+        "cell": [17, 14],
+        "sourceWaitTicks": 13
+      }
+    ],
+    "boss_first_combat": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 583,
+          "speakerId": 88
+        }
+      }
+    ],
+    "boss_before_retirement": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 584,
+          "speakerId": 88
+        }
+      }
+    ],
+    "victory": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 585,
+          "speakerId": 4
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 586,
+          "speakerId": 0
+        },
+        "whenWorldStep": 5,
+        "sourceWaitTicksAfter": 15
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 587,
+          "speakerId": 0
+        },
+        "unlessWorldStep": 5,
+        "sourceWaitTicksAfter": 15
+      },
+      {
+        "kind": "missionComplete",
+        "text": {
+          "sourceTextIndex": 34
+        },
+        "goldReward": 1000
+      }
+    ]
+  },
+  "combatEvents": [
+    {
+      "id": "boss_first_combat",
+      "trigger": "firstCombat",
+      "unitId": 88,
+      "sequence": "boss_first_combat"
+    },
+    {
+      "id": "boss_death",
+      "trigger": "unitDeath",
+      "unitId": 88,
+      "beforeRetirement": "boss_before_retirement"
+    }
+  ],
+  "outcomeRules": {
+    "checks": [
+      {
+        "kind": "defeat",
+        "condition": "requiredUnitFallen",
+        "unitIds": [0]
+      },
+      {
+        "kind": "victory",
+        "condition": "unitRetired",
+        "unitId": 88
+      }
+    ]
+  },
+  "deploymentAdjustments": [
+    {
+      "sourceId": 50,
+      "position": [11, 12]
+    }
+  ],
+  "periodicClones": {
+    "id": "cavalry_clones",
+    "pool": [105, 127],
+    "throughRound": 8,
+    "branches": [
+      {
+        "period": 3,
+        "templateUnitIds": [114, 115]
+      },
+      {
+        "period": 4,
+        "templateUnitIds": [114, 115]
+      },
+      {
+        "period": 5,
+        "templateUnitIds": [114, 115]
+      },
+      {
+        "period": 6,
+        "templateUnitIds": [114, 115]
+      },
+      {
+        "period": 7,
+        "templateUnitIds": [114, 115]
+      },
+      {
+        "period": 8,
+        "templateUnitIds": [114, 115]
+      }
+    ]
+  }
+}

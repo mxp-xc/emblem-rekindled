@@ -176,6 +176,7 @@ public final class Chapter1Rules {
     result.put("baseStats", statRows(field(units, "u").get(null)));
     result.put("growthRates", statRows(field(units, "t").get(null)));
     result.put("statCaps", stats(field(units, "d").get(null)));
+    result.put("promotions", promotions(loader));
     result.put("terrainDefense", field(game.getClass(), "ev").get(null));
     result.put("terrainEvasion", field(game.getClass(), "ew").get(null));
     result.put("baseMovementCosts", field(game.getClass(), "ex").get(null));
@@ -186,6 +187,25 @@ public final class Chapter1Rules {
     result.put("nodeShopStockIndices", field(units, "ao").get(null));
     Files.createDirectories(output);
     Files.writeString(output.resolve("rules.json"), json(result) + "\n");
+  }
+
+  /** Current obtainable emblem stage only; values come from the original tables. */
+  public static List<Object> promotions(ClassLoader loader) throws ReflectiveOperationException {
+    Class<?> units = Class.forName("b", true, loader);
+    Object thresholds = field(units, "c").get(null);
+    Object gains = field(units, "s").get(null);
+    List<Object> result = new ArrayList<>();
+    for (int group = 0; group <= 5; group++) {
+      int from = group * 4,
+        to = from + 1;
+      Map<String, Object> row = new LinkedHashMap<>();
+      row.put("fromClassId", from);
+      row.put("toClassId", to);
+      row.put("minimumLevel", ((Number) Array.get(thresholds, 0)).intValue() + 1);
+      row.put("gains", stats(Array.get(gains, group * 3 + (to % 4) - 1)));
+      result.add(row);
+    }
+    return result;
   }
 
   private static Map<String, Object> stats(Object row) {

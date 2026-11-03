@@ -52,54 +52,41 @@ func run() -> void:
 	view.present(keyed)
 	view.find_child("Party_0", true, false).pressed.emit()
 	view.find_child("Shop", true, false).pressed.emit()
-	if view.stage != "notice" or scene.world_progress != keyed:
-		fail("A shop key must remain owned when its entry cannot be persisted")
-		return
-	if FileAccess.get_file_as_string(sentinel_path) != "preserve":
-		fail("A failed commit must preserve the existing storage target")
-		return
-	scene.battle_store.path = path
-	view.present(keyed)
-	view.find_child("Party_0", true, false).pressed.emit()
-	view.find_child("Shop", true, false).pressed.emit()
-	var saved: Dictionary = scene.battle_store.read()
 	if (
 		view.page != "shop"
 		or view.stage != "tabs"
-		or not saved["ok"]
-		or saved["progress"] != scene.world_progress
 		or scene.world_progress.get("elapsedMinutes") != 3
 		or scene.world_inventory.actor(scene.world_progress, 0)["inventory"].size() != 2
 		or keyed["party"] == scene.world_progress["party"]
 	):
-		fail(
-			"Special shop entry must persist one key consumption and elapsed time before publication"
-		)
+		fail("Special shop entry consumes one key in memory and stamps elapsed time")
+		return
+	if FileAccess.get_file_as_string(sentinel_path) != "preserve":
+		fail("World changes must not overwrite the storage target automatically")
 		return
 	if keyed.get("elapsedMinutes", -1) != -1:
 		fail("Committing must not mutate the caller's candidate")
 		return
+	var committed: Dictionary = scene.world_progress.duplicate(true)
 	view.go_back()
 	view.find_child("Shop", true, false).pressed.emit()
-	if scene.world_progress != saved["progress"]:
+	if scene.world_progress != committed:
 		fail("Reentering without a key must preserve the committed business state")
+		return
+	scene.battle_store.path = path
+	if not scene.battle_store.write_progress(scene._world_snapshot())["ok"]:
+		fail("Explicit world save must succeed")
+		return
+	var saved: Dictionary = scene.battle_store.read()
+	if not saved["ok"] or saved["progress"] != committed:
+		fail("Explicit world save must retain the committed state")
 		return
 	view.hide()
 	world.advance()
 	scene._played_seconds = 300
-	scene.battle_store.path = blocked
 	world.find_child("World_title", true, false).pressed.emit()
-	if scene.title_screen.visible or scene.world_progress != saved["progress"]:
-		fail("Returning to title must retain the world when persisting elapsed time fails")
-		return
-	await close_notice(world)
-	scene.battle_store.path = path
-	world.find_child("World_title", true, false).pressed.emit()
-	if (
-		not scene.title_screen.visible
-		or scene.battle_store.read()["progress"].get("elapsedMinutes") != 5
-	):
-		fail("Returning to title must persist elapsed time even without business changes")
+	if not scene.title_screen.visible or scene.battle_store.read()["progress"] != committed:
+		fail("Returning to title must leave the explicit save unchanged")
 		return
 	for owned: String in [path, sentinel_path]:
 		DirAccess.remove_absolute(owned)
@@ -107,7 +94,9 @@ func run() -> void:
 	DirAccess.remove_absolute(directory)
 	scene.queue_free()
 	await process_frame
-	print("PASS world commits: no-op, key failure/retry, candidate isolation, title time/failure")
+	print(
+		"PASS world commits: in-memory key consumption, candidate isolation, explicit save and title"
+	)
 	quit(0)
 
 

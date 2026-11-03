@@ -204,6 +204,30 @@ class TestHelperReferences(unittest.TestCase):
         self.assertTrue(any("Fixture._not_an_override" in problem for problem in problems))
         self.assertTrue(any("helper _input" in problem for problem in problems))
 
+    def test_inherited_helpers_are_counted_only_when_a_child_references_them(self):
+        self.script(
+            """
+            extends SceneTree
+            func _initialize(): pass
+            func _inherited(): pass
+            func _through_self(): pass
+            func _unused(): pass
+            """,
+            "tests/base.gd",
+        )
+        self.script(
+            """
+            extends "res://tests/base.gd"
+            func _initialize():
+                _inherited()
+                self._through_self()
+            """,
+            "tests/child.gd",
+        )
+        problems = self.problems()
+        self.assertEqual(len(problems), 1)
+        self.assertIn("unreferenced private test helper _unused", problems[0])
+
     def test_dynamic_entry_exception_requires_a_local_reason(self):
         self.script("""
             extends SceneTree

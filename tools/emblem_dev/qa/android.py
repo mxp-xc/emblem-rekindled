@@ -125,7 +125,7 @@ class Flow(AndroidInput):
             elif advance and (
                 state["ui"]["dialogue"]
                 or state["ui"]["prologue"]
-                or state["ui"]["feedback"] == "tutorial"
+                or state["ui"]["feedback"] in ("tutorial", "summary")
             ):
                 if observe_dialogues and state["ui"]["dialogue"]:
                     self.dialogues += 1

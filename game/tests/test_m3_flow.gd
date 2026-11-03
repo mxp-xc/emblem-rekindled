@@ -14,6 +14,10 @@ func _initialize() -> void:
 
 
 func run() -> void:
+	await run_cases([{"context": 0, "route": 0}])
+
+
+func run_cases(samples: Array) -> void:
 	var started: int = Time.get_ticks_msec()
 	root.size = Vector2i(720, 1280)
 	_owned = "user://test_m3_flow_%d" % Time.get_ticks_usec()
@@ -33,9 +37,7 @@ func run() -> void:
 	_scene._set_menu_visible(false)
 	# Both step1 choices start from m0's actual representative route2 record.
 	# Native route3/step1 is a valid controlled domain context, not an m0 UI choice.
-	for sample: Dictionary in [
-		{"context": 0, "route": 0}, {"context": 1, "route": 3}, {"context": 1, "route": 2}
-	]:
+	for sample: Dictionary in samples:
 		var prepared: Dictionary = Matrix.prepare(Matrix.CONTEXTS[sample["context"]], _roll)
 		if not _expect(prepared["ok"], "Prepare the actual m3 world frontier: " + str(prepared)):
 			return
@@ -51,7 +53,7 @@ func run() -> void:
 	if not _cleanup():
 		quit(1)
 		return
-	print("PASS actual m3 Main: world entry, groups, two-stage death, both branches/fixed route")
+	print("PASS actual m3 Main: selected world entry, events, death and route")
 	print("PASS m3 Main elapsed_ms=%d at temporary speed32" % (Time.get_ticks_msec() - started))
 	quit(0)
 
@@ -64,6 +66,7 @@ func _enter(progress: Dictionary) -> bool:
 	var saved_frontier: Dictionary = _scene.battle_store.write_progress(progress)
 	if not _expect(saved_frontier["ok"], "Save the owned frontier: " + str(saved_frontier)):
 		return false
+	var frontier_bytes: String = FileAccess.get_file_as_string(_scene.battle_store.path)
 	await _scene._show_completed_progress(progress)
 	_scene.story_player.world_node_requested.emit(3)
 	var seen: Dictionary = {}
@@ -100,10 +103,21 @@ func _enter(progress: Dictionary) -> bool:
 		"World travel, original opening/objective and commander precede playable m3: " + str(seen)
 	):
 		return false
+	if not _expect(
+		FileAccess.get_file_as_string(_scene.battle_store.path) == frontier_bytes,
+		"World entry does not overwrite the saved frontier"
+	):
+		return false
+	if not _expect(_scene._save_battle(), "Explicitly save the stable m3 battle"):
+		return false
 	var saved: Dictionary = _scene.battle_store.read()
 	return _expect(
-		saved["ok"] and saved["battle"].snapshot() == _scene.battle.snapshot(),
-		"World entry saves the complete m3 battle before enabling input"
+		(
+			saved["ok"]
+			and saved.has("battle")
+			and saved["battle"].snapshot() == _scene.battle.snapshot()
+		),
+		"An explicit save preserves the complete m3 battle"
 	)
 
 
@@ -273,7 +287,7 @@ func _death_and_world(selected_route: int) -> bool:
 			story.advance()
 		if _scene.retirement_player.playing:
 			saw_retirement = true
-		if _scene.action_feedback.current_step.get("kind") == "tutorial":
+		if _scene.action_feedback.current_step.get("kind") in ["tutorial", "summary"]:
 			_scene.action_feedback.go_back()
 		if story.choices.visible and not story.world_active:
 			choice_count += 1
@@ -301,10 +315,12 @@ func _death_and_world(selected_route: int) -> bool:
 			progress["completedBattle"] == "m3"
 			and progress["route"] == selected_route
 			and saved["ok"]
-			and saved["progress"] == progress
+			and saved.has("battle")
 		),
-		"m3 world keeps the actual selected/fixed route and matching continue record"
+		"m3 world keeps the selected/fixed route without overwriting the saved battle"
 	):
+		return false
+	if not _expect(_scene.battle_store.write_progress(progress)["ok"], "Write completed progress"):
 		return false
 	_scene._show_title()
 	_scene.load_game()

@@ -6,10 +6,12 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from emblem_dev.commands.content import import_chapter
-from emblem_dev.content.chapter1 import sample_spawns, variant_requests
-from emblem_dev.content.definitions import deployment_records
+from emblem_dev.content.chapter1 import _available_groups, sample_spawns, variant_requests
+from emblem_dev.content.configuration import normalize_deployment
+from emblem_dev.content.definitions import deployment_records, read_deployment
 
 
 class ChapterImportTest(unittest.TestCase):
@@ -35,7 +37,7 @@ class ChapterImportTest(unittest.TestCase):
     def test_import_rejects_invalid_workflows_before_loading_original_runtime(self):
         cases = [
             ({}, "required"),
-            ({"battle": "m8"}, "battle"),
+            ({"battle": "m20"}, "battle"),
             ({"route": 8}, "route"),
             (
                 {"native_input": [Path("prepared")], "native_output": Path("output")},
@@ -51,6 +53,21 @@ class ChapterImportTest(unittest.TestCase):
                     import_chapter(
                         **{"battle": "m0", "emulator": Path("emulator.jar"), **arguments}
                     )
+
+    def test_m16_native_sampling_accepts_verified_deployment(self):
+        with (
+            tempfile.TemporaryDirectory() as temporary,
+            patch("emblem_dev.commands.content.chapter1.export_native") as export,
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            import_chapter(
+                battle="m16",
+                emulator=Path("emulator.jar"),
+                route=2,
+                native_output=Path(temporary) / "native",
+            )
+        self.assertEqual(export.call_args.args[3]["battleId"], "m16")
+        self.assertEqual(len(export.call_args.args[3]["units"]), 54)
 
     def test_native_sampling_uses_actual_party_identity_and_keeps_slot_recipe(self):
         records = [
@@ -73,6 +90,47 @@ class ChapterImportTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "identity/class/slot"):
             sample_spawns(records, invalid)
 
+    def test_verified_m10_keeps_duplicate_source_and_unresolved_random_regions(self):
+        source = Path(__file__).resolve().parents[2] / "reference/original-jars/chapter-1.jar"
+        deployment = read_deployment(source, 10)
+        self.assertEqual((deployment["width"], deployment["height"]), (25, 22))
+        records = deployment["units"]
+        self.assertEqual(len(records), 27)
+        self.assertEqual(
+            [(index, row["classId"]) for index, row in enumerate(records) if row["sourceId"] == 36],
+            [(19, 5), (25, 12)],
+        )
+        self.assertEqual(records[25]["deploymentRegions"], [[15, 16, 23, 21]])
+        self.assertNotIn("position", records[25])
+        self.assertNotIn("id", records[25])
+        self.assertEqual(sum(row["randomEquipment"] for row in records), 4)
+        with self.assertRaisesRegex(ValueError, "Unverified chapter-1 battle: m20"):
+            read_deployment(Path("missing-source.jar"), 20)
+
+    def test_verified_m11_preserves_raw_deployment_order_and_random_regions(self):
+        source = Path(__file__).resolve().parents[2] / "reference/original-jars/chapter-1.jar"
+        deployment = read_deployment(source, 11)
+        self.assertEqual((deployment["width"], deployment["height"]), (23, 25))
+        records = deployment["units"]
+        self.assertEqual(len(records), 55)
+        self.assertEqual(len({row["sourceId"] for row in records}), 55)
+        self.assertEqual(sum(row["randomEquipment"] for row in records), 14)
+        self.assertEqual(sum("deploymentRegions" in row for row in records), 8)
+        self.assertEqual(
+            next(row for row in records if row["sourceId"] == 50)["position"], [11, 13]
+        )
+
+    def test_m11_normalization_only_moves_source50_to_its_opening_destination(self):
+        root = Path(__file__).resolve().parents[2]
+        deployment = read_deployment(root / "reference/original-jars/chapter-1.jar", 11)
+        normalized = normalize_deployment(root / "game/content/chapter_1", deployment)
+        expected = json.loads(json.dumps(deployment))
+        next(row for row in expected["units"] if row["sourceId"] == 50)["position"] = [11, 12]
+        self.assertEqual(normalized, expected)
+        self.assertEqual(
+            next(row for row in deployment["units"] if row["sourceId"] == 50)["position"], [11, 13]
+        )
+
     def test_variant_request_covers_transferable_allied_weapons_and_enemy_choices(self):
         request = variant_requests(
             [
@@ -82,6 +140,45 @@ class ChapterImportTest(unittest.TestCase):
         )
         self.assertEqual(request.splitlines()[0], "allies\t" + ",".join(map(str, range(52))))
         self.assertEqual(request.splitlines()[1], "82\t0,1,2")
+
+    def test_enemy_resampling_includes_only_matching_registered_profile_weapons(self):
+        records = [
+            {"sourceId": 33, "classId": 5, "faction": 2, "itemChoices": [1], "dropTemplateId": 0}
+        ]
+        profiles = {
+            "matching": {
+                "unit": {"sourceId": 33, "classId": 5, "faction": 2},
+                "appearances": {"45": {}},
+            },
+            "other_class": {
+                "unit": {"sourceId": 33, "classId": 8, "faction": 2},
+                "appearances": {"25": {}},
+            },
+            "other_source": {
+                "unit": {"sourceId": 34, "classId": 5, "faction": 2},
+                "appearances": {"42": {}},
+            },
+            "other_faction": {
+                "unit": {"sourceId": 33, "classId": 5, "faction": 1},
+                "appearances": {"43": {}},
+            },
+        }
+        self.assertEqual(variant_requests(records, profiles).splitlines()[1], "33\t0,1,45")
+        self.assertEqual(records[0]["itemChoices"], [1])
+        matching = profiles["matching"]
+        matching["unit"].update(formal=False, classGroup=1)
+        matching["motion"] = {
+            "stage_0": {
+                "45": {"canAttack": True, "actionGroup": "weapon45", "defenseGroup": "shape"}
+            }
+        }
+        attacks, _ = _available_groups(
+            {"profiles": {"matching": matching}},
+            "stage_0",
+            records,
+            {"source_33_job_5_faction_2"},
+        )
+        self.assertEqual(attacks, {"weapon45"})
 
     def test_distinct_actual_ids_preserve_duplicate_source_recipes_and_sampling_index(self):
         records = [

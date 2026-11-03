@@ -4,17 +4,9 @@ const LOGIC_UNITS: int = 50
 const GROWTH_ORDER: Array[String] = [
 	"maxHp", "strength", "skill", "speed", "magic", "defense", "luck", "move"
 ]
-var kind: String
 var tick: int = 0
 var finished: bool = false
-var experience: int = 0
-var values: Array[int] = []
-var changed_index: int = -1
-var _target: int
-var _after: Array[int] = []
-var _pending: Array[int] = []
-var _growth_age: int = 4
-var _remaining_units: int = -1
+var _remaining_units: int
 
 
 static func sequence(
@@ -26,6 +18,61 @@ static func sequence(
 ) -> Array[Dictionary]:
 	var queue: Array[Dictionary] = []
 	var expiry: Array[Dictionary] = []
+	if result.get("kind") == "repair":
+		queue.append(
+			{
+				"kind": "message",
+				"text":
+				interface["items"][str(int(result["repairedItem"]["templateId"]))]["name"]["text"],
+				"secondLine": "修复",
+				"durationUnits": 1200,
+				"unit": result["target"]
+			}
+		)
+	elif result.get("effect") == "gold":
+		queue.append(
+			{
+				"kind": "message",
+				"text": "获得",
+				"secondLine": "%d金" % int(result["creditedGold"]),
+				"durationUnits": 1200,
+				"unit": result["actor"]
+			}
+		)
+	elif result.get("effect") == "attribute":
+		var labels: Dictionary = {
+			"strength": "力量",
+			"skill": "技巧",
+			"speed": "速度",
+			"defense": "防御",
+			"magic": "魔力",
+			"luck": "幸运",
+			"maxHp": "最大HP",
+			"move": "移动"
+		}
+		queue.append(
+			{
+				"kind": "message",
+				"text": interface["items"][str(int(result["templateId"]))]["name"]["text"] + "使用",
+				"secondLine":
+				"%s %d→%d" % [labels[result["stat"]], result["statBefore"], result["statAfter"]],
+				"durationUnits": 1200,
+				"unit": result["actor"],
+				"noticeIcon": "item_10"
+			}
+		)
+	for revival: Dictionary in result.get("revivals", []):
+		var consumed: Dictionary = revival.get("expiredItem", {})
+		if not consumed.is_empty():
+			expiry.append(
+				{
+					"kind": "message",
+					"text": interface["items"]["80"]["name"]["text"] + "消失",
+					"durationUnits": 1200,
+					"unit": revival["unit"],
+					"noticeIcon": interface["items"]["80"]["icon"]
+				}
+			)
 	var expired: Dictionary = result.get("expiredItem", {})
 	if not expired.is_empty():
 		expiry.append(
@@ -63,7 +110,32 @@ static func sequence(
 							"noticeIcon": interface["items"][str(int(held["templateId"]))]["icon"]
 						}
 					)
-	var rewards: Dictionary = result.get("rewards", {})
+	var location: Dictionary = result.get("location", result)
+	if (
+		(result.get("kind") in ["open_chest", "visit"] or result.has("location"))
+		and not location.get("claimed", false)
+		and location.get("reason") == "WAREHOUSE_FULL"
+	):
+		queue.append(
+			{"kind": "message", "text": "仓库已满", "durationUnits": 1200, "unit": location["actor"]}
+		)
+	if result.get("kind") in ["visit", "open_chest"] and result.get("claimed", false):
+		var reward: Dictionary = result.get("reward", {})
+		if reward.get("kind") == "empty":
+			queue.append(
+				{"kind": "message", "text": "(空)", "durationUnits": 1200, "unit": result["actor"]}
+			)
+		elif reward.get("kind") == "gold":
+			queue.append(
+				{
+					"kind": "message",
+					"text": "获得",
+					"secondLine": "%d金" % int(reward["amount"]),
+					"durationUnits": 1200,
+					"unit": result["actor"]
+				}
+			)
+	var rewards: Dictionary = location.get("rewards", {})
 	for loot: Dictionary in rewards.get("loot", []):
 		queue.append(
 			{
@@ -76,93 +148,91 @@ static func sequence(
 		)
 		if loot["destination"] == "warehouse":
 			queue[-1]["warehouseNotice"] = "人物携带已满存入仓库"
-	var experience: Dictionary = rewards.get("experience", {})
-	if experience.is_empty():
-		return queue + expiry
-	queue.append(
-		{
-			"kind": "experience",
-			"unit": experience["unit"],
-			"before": experience["before"],
-			"amount": experience["amount"]
-		}
-	)
-	if not tutorial_seen and player_phase:
-		queue.append({"kind": "tutorial", "unit": experience["unit"]})
-	if experience["growth"].is_empty():
-		return queue + expiry
-	var unit: Dictionary = units[int(experience["unit"])]
-	queue.append(
-		{
-			"kind": "message",
+	var primary_experience: Dictionary = rewards.get("experience", {})
+	var awards: Array = []
+	if not primary_experience.is_empty():
+		awards = [primary_experience] + primary_experience.get("shared", [])
+	elif result.has("promotion"):
+		var actor: Dictionary = units[int(result["promotion"]["unit"])]
+		awards = [
+			{
+				"unit": actor["id"],
+				"level": actor["level"],
+				"before": actor["experience"],
+				"after": actor["experience"],
+				"amount": 0,
+				"growth": {},
+				"promotion": result["promotion"]
+			}
+		]
+	var rows: Array[Dictionary] = []
+	for experience: Dictionary in awards:
+		var unit: Dictionary = units[int(experience["unit"])]
+		var level: int = int(experience.get("level", unit["level"]))
+		var growth: Dictionary = {
 			"unit": unit["id"],
-			"text": unit["name"],
-			"secondLine": "升级",
-			"durationUnits": 1500
+			"name": unit["name"],
+			"levelBefore": level - int(not experience["growth"].is_empty()),
+			"levelAfter": level,
+			"experienceBefore": experience["before"],
+			"experienceAfter":
+			experience.get("after", (int(experience["before"]) + int(experience["amount"])) % 100),
+			"amount": experience["amount"],
+			"before": [],
+			"after": [],
+			"increments": []
 		}
-	)
-	var growth: Dictionary = {
-		"kind": "growth",
-		"unit": unit["id"],
-		"level": experience["level"],
-		"before": [],
-		"after": [],
-		"increments": []
-	}
-	for stat: String in GROWTH_ORDER:
-		var after: int = int(unit[stat] if stat in ["maxHp", "move"] else unit["attributes"][stat])
-		var increment: int = int(experience["growth"].get(stat, 0))
-		growth["before"].append(after - increment)
-		growth["after"].append(after)
-		growth["increments"].append(increment)
-	queue.append(growth)
+		var promotion: Dictionary = experience.get("promotion", {})
+		if not promotion.is_empty():
+			growth["promotion"] = promotion.duplicate(true)
+			growth["classBeforeName"] = interface["jobs"][str(int(promotion["classBefore"]))]["name"]["text"]
+			growth["classAfterName"] = interface["jobs"][str(int(promotion["classAfter"]))]["name"]["text"]
+			var equipment: Array[String] = []
+			var equipment_icons: Array[Dictionary] = []
+			var mask: int = int(promotion["equipMaskAfter"]) & ~int(promotion["equipMaskBefore"])
+			var names: Array[String] = ["剑", "枪", "斧", "弓", "魔法", "杖"]
+			for bit: int in range(6):
+				if mask & (1 << bit):
+					equipment.append(names[bit])
+					var icon_id: String = interface["equipMaskIcons"][str(1 << bit)]
+					var texture: String = interface["textures"][icon_id]["texture"]
+					equipment_icons.append(
+						{
+							"id": icon_id,
+							"texture": "res://" + texture.trim_prefix("res://"),
+							"name": names[bit]
+						}
+					)
+			growth["newEquipment"] = "、".join(equipment)
+			growth["newEquipmentIcons"] = equipment_icons
+		for stat: String in GROWTH_ORDER:
+			var after: int = int(
+				unit[stat] if stat in ["maxHp", "move"] else unit["attributes"][stat]
+			)
+			var increment: int = (
+				int(experience["growth"].get(stat, 0))
+				+ int(promotion.get("increments", {}).get(stat, 0))
+			)
+			growth["before"].append(after - increment)
+			growth["after"].append(after)
+			growth["increments"].append(increment)
+		rows.append(growth)
+	if not rows.is_empty():
+		queue.append({"kind": "summary", "unit": rows[0]["unit"], "rows": rows})
+	if not primary_experience.is_empty() and not tutorial_seen and player_phase:
+		queue.append({"kind": "tutorial", "unit": primary_experience["unit"]})
 	return queue + expiry
 
 
 func _init(step: Dictionary) -> void:
-	kind = step["kind"]
-	match kind:
-		"message":
-			_remaining_units = int(step["durationUnits"])
-		"experience":
-			experience = int(step["before"])
-			_target = experience + int(step["amount"])
-		"growth":
-			for index: int in range(8):
-				values.append(int(step["before"][index]))
-				_after.append(int(step["after"][index]))
-				_pending.append(int(step["increments"][index]))
-		_:
-			push_error("Unknown postbattle presentation: " + kind)
-			finished = true
+	_remaining_units = int(step["durationUnits"])
 
 
 func advance() -> void:
 	if finished:
 		return
 	tick += 1
-	changed_index = -1
-	if _remaining_units >= 0:
-		if _remaining_units > 0:
-			_remaining_units -= LOGIC_UNITS
-		else:
-			finished = true
-		return
-	if kind == "experience":
-		var increment: int = floori(float(_target - experience) / 4)
-		increment = 4 if increment <= 0 else mini(increment, 10)
-		experience = mini(_target, experience + increment)
-		if experience == _target:
-			_remaining_units = 300
-	elif kind == "growth":
-		_growth_age += 1
-		if _growth_age == 8:
-			for index: int in range(_pending.size()):
-				if _pending[index] != 0:
-					changed_index = index
-					values[index] = _after[index]
-					_pending[index] = 0
-					break
-			if changed_index < 0:
-				_remaining_units = 500
-			_growth_age = 0
+	if _remaining_units > 0:
+		_remaining_units -= LOGIC_UNITS
+	else:
+		finished = true

@@ -1,19 +1,26 @@
 extends RefCounted
 
+const Promotions = preload("res://app/chapter_promotions.gd")
 const BattleClips = preload("res://app/battle_clip_library.gd")
 const MapView = preload("res://features/tactical_map/map_view.gd")
 const ContentProjection = preload("res://app/chapter_projection.gd")
 const Deployment = preload("res://app/chapter_deployment.gd")
 const Clones = preload("res://gameplay/battle_clones.gd")
+const Summons = preload("res://gameplay/battle_summons.gd")
 const StoryContract = preload("res://app/chapter_story_contract.gd")
 const MapAttacks = preload("res://gameplay/map_attack_rules.gd")
 const TextureOverrides = preload("res://app/chapter_texture_overrides.gd")
 const RetirementPlayer = preload("res://features/battle/retirement_player.gd")
+const JsonDocument = preload("res://app/json_document.gd")
 
 
 # Content is validated once at the app boundary, before a scene receives it.
 func load_chapter(
-	path: String, battle_id: String = "", context: Dictionary = {}, documents: Dictionary = {}
+	path: String,
+	battle_id: String = "",
+	context: Dictionary = {},
+	documents: Dictionary = {},
+	prepare_promotions: bool = true
 ) -> Dictionary:
 	var entry: Variant = _read_json(path, documents)
 	if not entry is Dictionary:
@@ -55,7 +62,9 @@ func load_chapter(
 	entry["id"] = chapter_id
 	entry["battleId"] = battle_id
 	entry["chapterPath"] = path
-	return _resolve(entry, library, records, fragment, context, texture_plan["overrides"])
+	return _resolve(
+		entry, library, records, fragment, context, texture_plan["overrides"], prepare_promotions
+	)
 
 
 # Rebind after random placement or restore, without rereading or mutating the catalog.
@@ -75,11 +84,17 @@ func resolve_loaded(content: Dictionary, context: Dictionary) -> Dictionary:
 	)
 
 
-func reproject(content: Dictionary, units: Array, clone_state: Dictionary = {}) -> Dictionary:
+func reproject(
+	content: Dictionary, units: Array, clone_state: Dictionary = {}, summon_state: Dictionary = {}
+) -> Dictionary:
 	var context: Dictionary = content.get("_context", {}).duplicate(true)
 	context["units"] = units
 	context["cloneState"] = clone_state
-	return resolve_loaded(content, context)
+	context["summonState"] = summon_state
+	var projected: Dictionary = resolve_loaded(content, context)
+	if projected.get("ok", false) and content.has("inheritedParty"):
+		projected["inheritedParty"] = content["inheritedParty"].duplicate(true)
+	return projected
 
 
 func _resolve(
@@ -88,7 +103,8 @@ func _resolve(
 	records: Array,
 	fragment: Dictionary,
 	context: Dictionary,
-	texture_overrides: Dictionary
+	texture_overrides: Dictionary,
+	prepare_promotions: bool = true
 ) -> Dictionary:
 	var base_entry: Dictionary = entry.duplicate(true)
 	if (
@@ -103,23 +119,49 @@ func _resolve(
 	if not clones["ok"]:
 		return clones
 	context = context.duplicate(true)
+	context["allowEmptySlots"] = fragment.get("encounter", false) == true
+	var rules: Variant = _read_json(entry["rules"])
+	if not rules is Dictionary or not library.get("profiles") is Dictionary:
+		return _failure("章规则无法读取")
+	var promotions: Dictionary = Promotions.context(rules, library["profiles"])
+	if not promotions["ok"]:
+		return promotions
+	context["_promotions"] = promotions
 	context.erase("cloneBindings")
+	context.erase("summonBindings")
 	context.erase("replacedIndices")
 	if context.has("units"):
+		var summons: Dictionary = Summons.current_bindings(
+			library.get("summons", {}), records, context["units"], context.get("summonState", {})
+		)
+		if not summons["ok"]:
+			return summons
 		var current: Dictionary = Clones.current_bindings(
-			fragment.get("periodicClones"), records, context["units"], context.get("cloneState", {})
+			fragment.get("periodicClones"),
+			records,
+			summons["staticUnits"],
+			context.get("cloneState", {})
 		)
 		if not current["ok"]:
 			return current
+		for binding: Dictionary in summons["bindings"]:
+			if int(binding["afterCloneGeneration"]) >= int(current["nextGeneration"]):
+				return _failure("INVALID_SUMMON_CLONE_ANCHOR")
 		var bound: Dictionary = Deployment.infer_bindings(
-			records, context.get("party", []), current["staticUnits"], current["replacedIndices"]
+			records,
+			context.get("party", []),
+			current["staticUnits"],
+			current["replacedIndices"] + summons["replacedIndices"],
+			promotions,
+			context["allowEmptySlots"]
 		)
 		if not bound["ok"]:
 			return bound
 		context["bindings"] = bound["bindings"]
 		context["classes"] = bound["classes"]
 		context["cloneBindings"] = current["bindings"]
-		context["replacedIndices"] = current["replacedIndices"]
+		context["replacedIndices"] = current["replacedIndices"] + summons["replacedIndices"]
+		context["summonBindings"] = summons["bindings"]
 	entry["resourceDirectory"] = "res://"
 	var projected: Dictionary = ContentProjection.project(entry, entry, library, records, context)
 	if not projected["ok"]:
@@ -153,7 +195,7 @@ func _resolve(
 	projected["_deployments"] = records
 	projected["entry"] = entry
 	projected["map"] = _read_json(entry["map"])
-	projected["rules"] = _read_json(entry["rules"])
+	projected["rules"] = rules
 	projected["controls"] = _read_json(entry["controls"])
 	projected = TextureOverrides.apply(projected, texture_overrides)
 	for key: String in [
@@ -168,7 +210,52 @@ func _resolve(
 		result["_context"] = context.duplicate(true)
 		result["_baseEntry"] = base_entry
 		result["_textureOverrides"] = texture_overrides
+		if prepare_promotions:
+			_prepare_promotion_targets(result)
 	return result
+
+
+# Optional future art is checked before a command may consume the emblem or RNG.
+# A missing future family does not prevent opening an unrelated old battle.
+func _prepare_promotion_targets(content: Dictionary) -> void:
+	content["promotionTargets"] = {}
+	content["promotionErrors"] = {}
+	var promotions: Dictionary = content["_context"]["_promotions"]
+	for actor: Dictionary in content["units"]:
+		if not actor.has("promotionBaseClassId"):
+			continue
+		var base: int = int(actor["promotionBaseClassId"])
+		if actor["classId"] != base:
+			continue
+		var identity: int = int(actor["id"])
+		var target: int = int(promotions["pairs"][base])
+		var context: Dictionary = content["_context"].duplicate(true)
+		context["classes"] = context.get("classes", {}).duplicate()
+		for member: Dictionary in context.get("party", []):
+			if member["id"] == identity:
+				member["classId"] = target
+		context["classes"][int(actor["deploymentIndex"])] = target
+		for saved: Dictionary in context.get("units", []):
+			if saved["id"] == identity:
+				saved["classId"] = target
+		var future: Dictionary = _resolve(
+			content["_baseEntry"].duplicate(true),
+			content["_library"],
+			content["_deployments"],
+			content["_storyFragment"],
+			context,
+			content["_textureOverrides"],
+			false
+		)
+		if not future["ok"]:
+			content["promotionErrors"][identity] = future.get(
+				"error", "MISSING_PROMOTION_PRESENTATION"
+			)
+			continue
+		for candidate: Dictionary in future["units"]:
+			if candidate["id"] == identity:
+				content["promotionTargets"][identity] = candidate.duplicate(true)
+				break
 
 
 func _validate(content: Dictionary) -> Dictionary:
@@ -247,7 +334,12 @@ func _validate(content: Dictionary) -> Dictionary:
 		or not _grid_valid(map.get("terrain"), width, height, 0, 10)
 	):
 		return _failure("地形引用或地图尺寸无效")
-	if not BattleClips.validate_art(battle_art, entry["resourceDirectory"], map["terrain"]):
+	if not StoryContract.validate_locations(map, rules, story):
+		return _failure("地图地点、奖励或开启图块定义无效")
+	var reachable_terrain: Array = map["terrain"].duplicate(true)
+	for variant: Dictionary in map.get("tileVariants", {}).values():
+		reachable_terrain.append([int(variant["terrain"])])
+	if not BattleClips.validate_art(battle_art, entry["resourceDirectory"], reachable_terrain):
 		return _failure("独立战斗画面定义或资源引用无效")
 	if not RetirementPlayer.validate_definition(battle_art, entry["resourceDirectory"]):
 		return _failure("地图退场表现定义或资源引用无效")
@@ -368,6 +460,9 @@ func _spawn_references_valid(spawns: Array, rules: Dictionary) -> Dictionary:
 		bases[int(row["id"])] = true
 	for row: Dictionary in rules["growthRates"]:
 		growth[int(row["id"])] = true
+	var jobs: Dictionary = {}
+	for job: Dictionary in rules["jobTemplates"]:
+		jobs[int(job["id"])] = int(job["classGroup"])
 	for index: int in range(spawns.size()):
 		var spawn: Variant = spawns[index]
 		if not spawn is Dictionary or not spawn.get("itemChoices") is Array:
@@ -379,9 +474,16 @@ func _spawn_references_valid(spawns: Array, rules: Dictionary) -> Dictionary:
 				return _failure("部署物品编号无效: " + str(index))
 			if id != 0 and not declared.has(int(id)):
 				return _failure("部署%d引用未声明物品: %d" % [index, int(id)])
+		var unused_element_growth: bool = (
+			spawn.has("explicitStats")
+			and spawn.get("faction") == 2
+			and spawn.get("level") == 20
+			and jobs.get(int(spawn["classId"]), -1) == 10
+			and spawn.get("growthTemplateId") == 20
+		)
 		if (
 			not _integer(spawn.get("growthTemplateId"))
-			or not growth.has(int(spawn["growthTemplateId"]))
+			or (not growth.has(int(spawn["growthTemplateId"])) and not unused_element_growth)
 		):
 			return _failure("部署%d引用未声明成长模板" % index)
 		if not spawn.has("explicitStats"):
@@ -696,6 +798,7 @@ func _animation_valid(animation: Dictionary, directory: String) -> bool:
 		not animation.get("frames") is Array
 		or animation["frames"].is_empty()
 		or not animation.get("completedFrame") is Dictionary
+		or not animation.get("completedUsesActiveCycle", false) is bool
 		or not _integer(animation.get("spriteOffsetX"))
 		or not _integer(animation.get("spriteOffsetY"))
 	):
@@ -842,15 +945,7 @@ func _read_json(path: String, documents: Dictionary = {}) -> Variant:
 	# Reuse definitions within this open only; validation still follows the same path.
 	if documents.has(path):
 		return documents[path]
-	if not FileAccess.file_exists(path):
-		return null
-	var file := FileAccess.open(path, FileAccess.READ)
-	if file == null:
-		return null
-	var parser := JSON.new()
-	if parser.parse(file.get_as_text()) != OK:
-		return null
-	return parser.data
+	return JsonDocument.read(path)
 
 
 func _integer(value: Variant) -> bool:

@@ -29,6 +29,8 @@ func setup(data: Dictionary) -> void:
 		["Heal", "杖", "heal"],
 		["Trade", "交换", "trade"],
 		["Inventory", "物品", "inventory"],
+		["OpenChest", "打开宝箱", "open_chest"],
+		["Visit", "访问", "visit_location"],
 		["Wait", "待机", "wait"],
 		["Cancel", "取消移动", "cancel_move"]
 	]:
@@ -81,7 +83,15 @@ func _focus_current() -> void:
 	if not visible:
 		return
 	for kind: String in [
-		"attack", "heal", "trade", "inventory", "wait", "information", "cancel_move"
+		"visit_location",
+		"open_chest",
+		"attack",
+		"heal",
+		"trade",
+		"inventory",
+		"wait",
+		"information",
+		"cancel_move"
 	]:
 		var button: Button = _buttons[kind]
 		if button.visible and not button.disabled:

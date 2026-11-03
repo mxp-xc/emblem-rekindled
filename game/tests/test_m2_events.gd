@@ -12,12 +12,16 @@ var _owned: String = ""
 
 
 func _initialize() -> void:
+	_run_contexts(Matrix.CONTEXTS.slice(0, 2), false)
+
+
+func _run_contexts(contexts: Array, include_boundaries: bool) -> void:
 	var directory: String = "user://m2_events_%d" % Time.get_ticks_usec()
 	if DirAccess.make_dir_absolute(directory) != OK:
 		_fail("Cannot claim a fresh owned m2 events directory")
 		return
 	_owned = directory
-	for context: Dictionary in Matrix.CONTEXTS:
+	for context: Dictionary in contexts:
 		var prepared: Dictionary = Matrix.prepare(context, _roll)
 		if not _expect(
 			prepared["ok"], "Prepare true m2 event route: " + str(prepared.get("error"))
@@ -39,21 +43,20 @@ func _initialize() -> void:
 				% context["route"]
 			)
 		)
-	var prepared: Dictionary = Matrix.prepare(Matrix.CONTEXTS[0], _roll)
-	for boundary: Callable in [_combat, _map_magic, _priority]:
-		var opened: Dictionary = Session.new().open(
-			Matrix.CHAPTER, "m2", {"progress": prepared["progress"]}, _roll
-		)
-		if (
-			not _expect(opened["ok"], "Independent real m2 combat boundary must open")
-			or not boundary.call(opened)
-		):
-			_cleanup()
-			return
+	if include_boundaries:
+		var prepared: Dictionary = Matrix.prepare(Matrix.CONTEXTS[0], _roll)
+		for boundary: Callable in [_combat, _map_magic, _priority]:
+			var opened: Dictionary = Session.new().open(
+				Matrix.CHAPTER, "m2", {"progress": prepared["progress"]}, _roll
+			)
+			if (
+				not _expect(opened["ok"], "Independent real m2 combat boundary must open")
+				or not boundary.call(opened)
+			):
+				_cleanup()
+				return
 	_cleanup()
-	print(
-		"PASS real m2 events: six contexts, normal boss dialogue once, map-magic exclusion and priority"
-	)
+	print("PASS real m2 events: selected contexts and requested combat boundaries")
 	quit(0)
 
 

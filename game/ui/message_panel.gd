@@ -3,7 +3,7 @@ extends Control
 signal completed
 
 const PixelTheme = preload("res://ui/pixel_theme.gd")
-const FONT = preload("res://ui/fonts/NotoSansCJKsc-Regular.otf")
+const FONT = preload("res://ui/fonts/NotoSansCJKsc-Regular.woff2")
 var native_font_size: int = 13
 var full_text: String = ""
 var line_index: int = 0

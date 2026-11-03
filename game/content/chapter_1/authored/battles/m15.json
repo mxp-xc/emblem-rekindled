@@ -1,0 +1,136 @@
+{
+  "battleId": "m15",
+  "worldNode": 15,
+  "battleName": { "sourceTextIndex": 154 },
+  "objective": { "sourceTextIndex": 171 },
+  "commanderMode": "none",
+  "chapterEnd": { "id": "chapter_1", "sequence": "chapterEnding" },
+  "initialBattlePresentation": {
+    "hiddenUnitIds": [45, 46, 47, 48, 49, 50, 51, 52],
+    "hiddenFactions": [],
+    "unitPositionOverrides": { "59": [10, 18] }
+  },
+  "deploymentAdjustments": [{ "sourceId": 59, "position": [10, 17] }],
+  "deploymentRevealUnitIds": [45, 46, 47, 48, 49, 50, 51, 52],
+  "turnEvents": [
+    {
+      "id": "general_withdrawal",
+      "afterEnemyPhaseOfRound": 3,
+      "unitIds": [],
+      "withdrawUnitId": 91,
+      "sequence": "general_withdrawal"
+    },
+    {
+      "id": "west_reinforcements",
+      "afterEnemyPhaseOfRound": 4,
+      "unitIds": [20, 22, 23, 24, 15, 16],
+      "sequence": "west_reinforcements"
+    },
+    {
+      "id": "east_reinforcements",
+      "afterEnemyPhaseOfRound": 5,
+      "unitIds": [56, 57, 58, 86, 10, 11, 12, 13, 14],
+      "sequence": "east_reinforcements"
+    },
+    { "id": "second_general_arrives", "afterEnemyPhaseOfRound": 10, "unitIds": [89] }
+  ],
+  "aiChanges": [],
+  "routeChoices": [],
+  "speakers": {
+    "0": { "id": 0, "name": "雅木", "faction": 0, "portraitId": 0 },
+    "4": { "id": 4, "name": "克雷贝", "faction": 0, "portraitId": 4 },
+    "9": { "id": 9, "name": "赛丽卡", "faction": 0, "portraitId": 9 },
+    "11": { "id": 11, "name": "", "faction": 1 },
+    "15": { "id": 15, "name": "", "faction": 1 },
+    "59": { "id": 59, "name": "", "faction": 2 },
+    "83": { "id": 83, "name": "洛森", "faction": 2, "portraitId": 14 },
+    "91": { "id": 91, "name": "吉克", "faction": 2, "portraitId": 22 }
+  },
+  "periodicClones": {
+    "id": "waterfall_clones",
+    "pool": [105, 127],
+    "randomEachRound": {
+      "fromRound": 1,
+      "count": 3,
+      "templateUnitIds": [107, 108, 109, 110, 111, 112, 113, 114, 115],
+      "whenUnitHidden": 83
+    }
+  },
+  "sequences": {
+    "opening": [
+      { "kind": "battleTitle", "text": { "sourceTextIndex": 154 }, "sourceDurationUnits": 2000 },
+      { "kind": "focus", "cell": [11, 12], "instant": true, "sourceWaitTicks": 26 },
+      { "kind": "focus", "cell": [11, 1], "sourceMaxFocusPixels": 4 },
+      { "kind": "dialogue", "text": { "sourceTextIndex": 619, "speakerId": 9 } },
+      { "kind": "unitEntrance", "unitId": 59, "from": [10, 18], "to": [10, 17] },
+      { "kind": "dialogue", "text": { "sourceTextIndex": 621, "speakerId": 59 } },
+      { "kind": "dialogue", "text": { "sourceTextIndex": 622, "speakerId": 91 } },
+      { "kind": "dialogue", "text": { "sourceTextIndex": 623, "speakerId": 59 } },
+      { "kind": "dialogue", "text": { "sourceTextIndex": 624, "speakerId": 91 } },
+      { "kind": "revealUnits", "unitIds": [45, 46, 47, 48, 49, 50, 51, 52] },
+      {
+        "kind": "dialogue",
+        "text": { "sourceTextIndex": 620, "speakerId": 0 },
+        "sourceWaitTicksAfter": 15
+      },
+      { "kind": "objective", "text": { "sourceTextIndex": 171 } }
+    ],
+    "general_withdrawal": [
+      { "kind": "dialogue", "text": { "sourceTextIndex": 625, "speakerId": 91 } },
+      { "kind": "dialogue", "text": { "sourceTextIndex": 626, "speakerId": 83 } }
+    ],
+    "west_reinforcements": [
+      { "kind": "focus", "cell": [3, 16] },
+      { "kind": "revealUnits", "unitIds": [20, 22, 23, 24, 15, 16] },
+      { "kind": "dialogue", "text": { "sourceTextIndex": 627, "speakerId": 15 } },
+      { "kind": "dialogue", "text": { "sourceTextIndex": 628, "speakerId": 0 } }
+    ],
+    "east_reinforcements": [
+      { "kind": "focus", "cell": [24, 7] },
+      { "kind": "revealUnits", "unitIds": [56, 57, 58, 86] },
+      { "kind": "focus", "cell": [17, 6] },
+      { "kind": "revealUnits", "unitIds": [10, 11, 12, 13, 14] },
+      { "kind": "dialogue", "text": { "sourceTextIndex": 631, "speakerId": 11 } }
+    ],
+    "boss_first_combat": [
+      { "kind": "dialogue", "text": { "sourceTextIndex": 629, "speakerId": 83 } }
+    ],
+    "boss_before_retirement": [
+      { "kind": "dialogue", "text": { "sourceTextIndex": 630, "speakerId": 83 } }
+    ],
+    "victory": [
+      { "kind": "dialogue", "text": { "sourceTextIndex": 632, "speakerId": 4 } },
+      { "kind": "dialogue", "text": { "sourceTextIndex": 633, "speakerId": 9 } },
+      { "kind": "dialogue", "text": { "sourceTextIndex": 634, "speakerId": 0 } },
+      { "kind": "missionComplete", "text": { "sourceTextIndex": 34 }, "goldReward": 1000 }
+    ],
+    "chapterEnding": [
+      { "kind": "prologue", "text": { "sourceTextIndex": 459 } },
+      { "kind": "chapterParty" },
+      { "kind": "chapterSummary" },
+      { "kind": "chapterRating" },
+      { "kind": "instruction", "text": { "text": "初章（完）" } },
+      { "kind": "instruction", "text": { "sourceTextIndex": 119 } }
+    ]
+  },
+  "combatEvents": [
+    {
+      "id": "boss_first_combat",
+      "trigger": "firstCombat",
+      "unitId": 83,
+      "sequence": "boss_first_combat"
+    },
+    {
+      "id": "boss_death",
+      "trigger": "unitDeath",
+      "unitId": 83,
+      "beforeRetirement": "boss_before_retirement"
+    }
+  ],
+  "outcomeRules": {
+    "checks": [
+      { "kind": "defeat", "condition": "requiredUnitFallen", "unitIds": [0] },
+      { "kind": "victory", "condition": "allUnitsRetired", "unitIds": [83, 89] }
+    ]
+  }
+}

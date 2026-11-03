@@ -38,6 +38,7 @@ func run() -> void:
 	scene._unit_intent("inventory", {})
 	scene.item_actions.find_child("Use", true, false).pressed.emit()
 	scene.item_actions.find_child("Item_60", true, false).pressed.emit()
+	scene.item_actions.find_child("Item_60", true, false).pressed.emit()
 	for dimensions: Vector2i in [Vector2i(720, 1280), Vector2i(1600, 720), Vector2i(1280, 720)]:
 		root.size = dimensions
 		await process_frame

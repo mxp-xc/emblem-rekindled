@@ -242,7 +242,7 @@ func _critical(actor: Dictionary, weapon: int, target: Dictionary, commander: Di
 	)
 	if _has(actor, 82):
 		value += int(actor["maxHp"]) - int(actor["hp"])
-	if _has(actor, 84) or (not target.is_empty() and _has(target, 84)):
+	if not target.is_empty() and (_has(actor, 84) or _has(target, 84)):
 		value = 0
 	return mini(value, 99)
 
@@ -343,7 +343,12 @@ func _magic_group(template_id: int) -> int:
 
 
 func _effective(weapon: int, target: Dictionary) -> bool:
-	return not target.is_empty() and int(target["classGroup"]) in _items[weapon]["effectiveGroups"]
+	if target.is_empty():
+		return false
+	for group: Variant in _items[weapon]["effectiveGroups"]:
+		if int(group) == int(target["classGroup"]):
+			return true
+	return false
 
 
 func _has(unit: Dictionary, template_id: int) -> bool:

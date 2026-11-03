@@ -393,6 +393,7 @@ def import_presentation(chapter: Path, source: Path, *, dry_run: bool = False) -
         merge_groups(field)
 
     texture_ids = {}
+    next_texture_id = len(stage["textures"])
     for key, value in motion["textures"].items():
         definition = relocate(value, source / "battle/clips", stage_id)
         match = next(
@@ -404,8 +405,11 @@ def import_presentation(chapter: Path, source: Path, *, dry_run: bool = False) -
             None,
         )
         if match is None:
-            match = f"texture_{len(stage['textures'])}"
+            while f"texture_{next_texture_id}" in stage["textures"]:
+                next_texture_id += 1
+            match = f"texture_{next_texture_id}"
             stage["textures"][match] = definition
+            next_texture_id += 1
         texture_ids[key] = match
 
     def bind_textures(value):
@@ -450,6 +454,25 @@ def import_presentation(chapter: Path, source: Path, *, dry_run: bool = False) -
         origin = slot if kind == "slot" else spawn["sourceId"]
         recipe = f"{kind}_{origin}_job_{unit['classId']}_faction_{unit['faction']}"
         prototype = {key: unit[key] for key in UNIT_FIELDS}
+        if spawn.get("summoned", False):
+            first = 20 if unit["faction"] == 1 else 70
+            if (
+                unit["faction"] not in (1, 2)
+                or unit["classId"] not in (28, 29, 32, 33, 36, 37)
+                or unit["classGroup"] != unit["classId"] // 4
+                or not first <= unit["sourceId"] < first + 10
+                or unit["formal"]
+            ):
+                raise ValueError("Invalid native summon family")
+            # Instance identity is stored by the runtime binding. Sharing still
+            # requires every sampled name, portrait, map and battle field to match.
+            recipe = f"summon_job_{unit['classId']}_faction_{unit['faction']}"
+            prototype["sourceId"] = first
+            prototype.update(
+                baseTemplateId=10 + unit["classId"],
+                initialGrowthTemplateId=10 + unit["classGroup"],
+                growthTemplateId=10 + unit["classGroup"],
+            )
         map_animation = copy.deepcopy(animations[str(identity)])
         map_animation.pop("deploymentId", None)
         portrait = copy.deepcopy(interface["portraitByUnitId"][str(identity)])
@@ -541,6 +564,16 @@ def import_presentation(chapter: Path, source: Path, *, dry_run: bool = False) -
         if recipe in report["recipes"] and report["recipes"][recipe] != chosen:
             raise ValueError(f"Ambiguous presentation recipe within one map: {recipe}")
         report["recipes"][recipe] = chosen
+        if spawn.get("summoned", False):
+            identities = (
+                bank.setdefault("summons", {})
+                .setdefault(str(unit["faction"]), {})
+                .setdefault(str(unit["classId"]), {})
+            )
+            source_id = str(unit["sourceId"])
+            if source_id in identities and identities[source_id] != chosen:
+                raise ValueError("Conflicting native summon family")
+            identities[source_id] = chosen
 
     # Terrain/background coverage belongs to a scene, not the last map to be imported.
     scene = {key: value for key, value in art.items() if key != "appearances"}

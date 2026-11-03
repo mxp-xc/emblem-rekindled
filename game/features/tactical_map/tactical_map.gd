@@ -8,7 +8,7 @@ signal interacted
 signal view_changed
 
 const View = preload("res://features/tactical_map/map_view.gd")
-const FONT = preload("res://ui/fonts/NotoSansCJKsc-Regular.otf")
+const FONT = preload("res://ui/fonts/NotoSansCJKsc-Regular.woff2")
 const FIELD_COLORS: Dictionary = {
 	"move": Color("297dcc"),
 	"enemy": Color("e05264"),
@@ -45,6 +45,7 @@ var last_tap_cell := Vector2i(-1, -1)
 var last_tap_ms: int = -1000
 var play_area: Rect2
 var _range_textures: Dictionary = {}
+var _tile_overlays: Dictionary = {}
 
 
 func _ready() -> void:
@@ -119,7 +120,7 @@ func _resize() -> void:
 	var area: Rect2 = play_area if play_area.has_area() else Rect2(Vector2.ZERO, size)
 	if area != Rect2(view.viewport_origin, view.viewport_size):
 		cancel_gesture()
-	view.configure(grid, area.size, area.position)
+	view.configure(grid, area.size, area.position, size)
 	view_changed.emit()
 	queue_redraw()
 
@@ -131,6 +132,13 @@ func set_play_area(area: Rect2) -> void:
 
 func set_zoom(value: float) -> void:
 	view.zoom_at(value, view.viewport_origin + view.viewport_size / 2.0)
+	view_changed.emit()
+	queue_redraw()
+
+
+func fit_to_viewport() -> void:
+	cancel_gesture()
+	view.fit_to_viewport()
 	view_changed.emit()
 	queue_redraw()
 
@@ -168,6 +176,14 @@ func cancel_gesture() -> void:
 	was_multitouch = false
 	last_tap_cell = Vector2i(-1, -1)
 	hovered = Vector2i(-1, -1)
+
+
+func set_map_state(state: Dictionary) -> void:
+	content["map"] = state["map"].duplicate(true)
+	_tile_overlays.clear()
+	for overlay: Dictionary in state["overlays"]:
+		_tile_overlays[overlay["cell"]] = load(overlay["texture"])
+	queue_redraw()
 
 
 func set_units(units: Array) -> void:
@@ -360,6 +376,15 @@ func _draw() -> void:
 	var tile_pixels: float = View.TILE_PIXELS * view.zoom
 	var origin: Vector2 = view.screen_at(Vector2.ZERO) + presentation_offset * view.zoom
 	draw_texture_rect(map_texture, Rect2(origin, Vector2(view.grid_size) * tile_pixels), false)
+	for cell: Vector2i in _tile_overlays:
+		draw_texture_rect(
+			_tile_overlays[cell],
+			Rect2(
+				view.screen_at(Vector2(cell)) + presentation_offset * view.zoom,
+				Vector2.ONE * tile_pixels
+			),
+			false
+		)
 	for cell: Vector2i in movement:
 		_draw_field_cell(origin + Vector2(cell) * tile_pixels)
 	for cell: Vector2i in affected_cells:
@@ -387,7 +412,7 @@ func _draw() -> void:
 		)
 		var texture: Texture2D = (
 			completed_frames[id]
-			if unit.get("action", 0) == 2
+			if unit.get("action", 0) == 2 and not definition.get("completedUsesActiveCycle", false)
 			else animation_frames[id][int(sequence[int(frame_indices[id]) % sequence.size()])]
 		)
 		draw_texture_rect(texture, Rect2(position + offset, Vector2(64, 64) * view.zoom), false)

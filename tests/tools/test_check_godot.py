@@ -6,6 +6,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
 from contextlib import redirect_stderr, redirect_stdout, suppress
@@ -187,6 +188,30 @@ class GodotFixtureTest(unittest.TestCase):
         self.assertIn("Godot runtime timed out: --script fixture.gd", errors.getvalue())
         self.assert_owned_processes_stopped()
 
+    def test_cancellation_stops_the_running_process_group(self) -> None:
+        self.write_fixture(
+            "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])\n"
+            "(directory / 'child_id').write_text(str(child.pid))\n"
+            "time.sleep(60)\n"
+        )
+        cancelled = threading.Event()
+
+        def cancel_after_child_starts():
+            deadline = time.monotonic() + 3
+            while not (self.directory / "child_id").exists() and time.monotonic() < deadline:
+                time.sleep(0.01)
+            cancelled.set()
+
+        notifier = threading.Thread(target=cancel_after_child_starts)
+        notifier.start()
+        try:
+            with self.assertRaises(check_godot._Cancelled):
+                godot(cancelled=cancelled, timeout_seconds=5)
+        finally:
+            notifier.join()
+        self.assertTrue((self.directory / "child_id").exists())
+        self.assert_owned_processes_stopped()
+
     def test_ready_file_uses_startup_timeout_before_engine_is_ready(self) -> None:
         self.write_fixture("print('fixture starting', flush=True)\ntime.sleep(60)\n")
         errors = StringIO()
@@ -321,6 +346,12 @@ class GodotIsolationTest(unittest.TestCase):
         self.assertEqual(self.project.read_bytes(), self.original)
         self.assertFalse((self.game / ".godot/check-recovery").exists())
 
+    def test_invalid_worker_count_is_rejected_before_configuration_write(self) -> None:
+        for jobs in (0, 9):
+            with self.assertRaisesRegex(ValueError, "between 1 and 8"):
+                check_godot.check(jobs=jobs)
+        self.assertEqual(self.project.read_bytes(), self.original)
+
     def test_requested_tests_keep_source_order_without_import(self) -> None:
         with patch("emblem_dev.checks.godot.godot") as engine, redirect_stdout(StringIO()):
             self.assertEqual(check_godot.check(tests=("test_second.gd", "test_first.gd")), 0)
@@ -353,6 +384,85 @@ class GodotIsolationTest(unittest.TestCase):
         self.assertNotEqual(result["exitCode"], 0)
         self.assertEqual(result["intervals"][0]["name"], "test_fixture.gd")
         self.assertFalse(result["intervals"][0]["finished"])
+        self.assertEqual(self.project.read_bytes(), self.original)
+
+    def test_parallel_tests_use_distinct_disposable_projects(self) -> None:
+        barrier = threading.Barrier(2, timeout=2)
+        projects = []
+
+        def engine(*args, project, cancelled):
+            config = (project / "project.godot").read_text()
+            self.assertIn("config/use_custom_user_dir=false", config)
+            self.assertFalse((project / ".godot/check-recovery").exists())
+            self.assertFalse((project / ".godot/check.lock").exists())
+            projects.append((project, config))
+            barrier.wait()
+
+        with patch("emblem_dev.checks.godot.godot", side_effect=engine):
+            self.assertEqual(check_godot.check(tests=("test_a.gd", "test_b.gd"), jobs=2), 0)
+        self.assertEqual(len(projects), 2)
+        self.assertNotEqual(projects[0][0], projects[1][0])
+        self.assertNotEqual(projects[0][1], projects[1][1])
+        self.assertTrue(all(not project.exists() for project, _ in projects))
+        self.assertEqual(self.project.read_bytes(), self.original)
+
+    def test_parallel_worker_copy_has_portable_fallback(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="emblem-worker-copy-") as directory:
+            project = Path(directory) / "copy"
+            with patch("emblem_dev.checks.godot.sys.platform", "linux"):
+                check_godot._copy_test_project(project)
+            self.assertEqual((project / "project.godot").read_bytes(), self.original)
+
+    def test_parallel_rejects_symlinks_without_following_them(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="emblem-external-") as directory:
+            external = Path(directory) / "record.json"
+            external.write_text("original")
+            (self.game / "link").symlink_to(external)
+            with self.assertRaisesRegex(RuntimeError, "refuse project symlinks"):
+                check_godot.check(tests=("test_a.gd", "test_b.gd"), jobs=2)
+            self.assertEqual(external.read_text(), "original")
+        self.assertEqual(self.project.read_bytes(), self.original)
+
+    def test_parallel_failure_cancels_running_work_and_preserves_status(self) -> None:
+        started = []
+        other_started = threading.Event()
+
+        def engine(*args, project, cancelled):
+            started.append(args[1])
+            if args[1].endswith("test_a.gd"):
+                if not other_started.wait(2):
+                    self.fail("The other worker did not start")
+                raise SystemExit(7)
+            other_started.set()
+            if not cancelled.wait(2):
+                self.fail("Other worker was not cancelled")
+            raise check_godot._Cancelled()
+
+        timings = self.game / "parallel-timings.json"
+        with (
+            patch("emblem_dev.checks.godot.godot", side_effect=engine),
+            self.assertRaises(SystemExit) as failure,
+        ):
+            check_godot.check(
+                tests=("test_a.gd", "test_b.gd", "test_c.gd"), jobs=2, timings=timings
+            )
+        self.assertEqual(failure.exception.code, 7)
+        self.assertNotIn("tests/test_c.gd", started)
+        self.assertEqual(json.loads(timings.read_text())["exitCode"], 7)
+        self.assertEqual(self.project.read_bytes(), self.original)
+
+    def test_parallel_interrupt_cancels_workers_and_restores_configuration(self) -> None:
+        def engine(*args, project, cancelled):
+            if not cancelled.wait(2):
+                self.fail("Interrupted worker was not cancelled")
+            raise check_godot._Cancelled()
+
+        with (
+            patch("emblem_dev.checks.godot.godot", side_effect=engine),
+            patch("emblem_dev.checks.godot.wait", side_effect=KeyboardInterrupt),
+            self.assertRaises(KeyboardInterrupt),
+        ):
+            check_godot.check(tests=("test_a.gd", "test_b.gd"), jobs=2)
         self.assertEqual(self.project.read_bytes(), self.original)
 
 

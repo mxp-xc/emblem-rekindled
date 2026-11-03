@@ -108,7 +108,7 @@ def deployment_records(data: bytes, width: int, height: int) -> list[dict]:
 
 def read_deployment(source: Path, battle: int) -> dict:
     """Read one verified map's raw deployment; normal runtime never requires the JAR."""
-    if not 0 <= battle <= 7:
+    if not 0 <= battle <= 19:
         raise ValueError(f"Unverified chapter-1 battle: m{battle}")
     if hashlib.sha256(source.read_bytes()).hexdigest() != SOURCE_SHA:
         raise ValueError("Chapter-1 source JAR SHA-256 mismatch")
@@ -121,6 +121,133 @@ def read_deployment(source: Path, battle: int) -> dict:
             except KeyError:
                 return archive.read(name)
 
-        width, height = resource(f"m{battle}")[:2]
+        map_data = resource(f"m{battle}")
+        width, height = map_data[:2]
         records = deployment_records(resource(f"p{battle}"), width, height)
-    return {"battleId": f"m{battle}", "width": width, "height": height, "units": records}
+    result = {"battleId": f"m{battle}", "width": width, "height": height, "units": records}
+    if battle in (1, 12, 13, 14, 15, 16, 17, 18, 19):
+        result["locations"] = map_locations(map_data, battle)
+    return result
+
+
+def map_locations(data: bytes, battle: int) -> list[dict]:
+    """Read verified map-specific location tails without drawing any reward."""
+    if battle not in (1, 12, 13, 14, 15, 16, 17, 18, 19):
+        raise ValueError("Unverified chapter-1 locations")
+    if len(data) < 3:
+        raise ValueError("Truncated chapter-1 map")
+    width, height = data[:2]
+    position = 2 + width * height
+
+    def byte():
+        nonlocal position
+        if position >= len(data):
+            raise ValueError("Truncated chapter-1 location")
+        value = data[position]
+        position += 1
+        return value
+
+    result = []
+    for index in range(byte()):
+        kind, x, y = byte(), byte(), byte()
+        if not 0 <= x < width or not 0 <= y < height:
+            raise ValueError("Location is outside the map")
+        tile = data[2 + y * width + x]
+        expected_tiles = {
+            1: (58, 59, 79),
+            12: (79,),
+            13: (58, 59),
+            14: (39, 44),
+            15: (39, 58, 59, 79),
+            16: (39, 49, 58, 59, 79),
+            17: (79,),
+            18: (79,),
+            19: (79,),
+        }[battle]
+        if tile not in expected_tiles:
+            raise ValueError("Location disagrees with verified terrain")
+        location_kind = {
+            12: "chest",
+            13: "visit",
+            14: "waitPickup",
+            17: "chest",
+            18: "chest",
+            19: "chest",
+        }.get(battle)
+        if battle in (1, 15, 16):
+            location_kind = {
+                79: "chest",
+                58: "visit",
+                59: "visit",
+                39: "waitPickup",
+                49: "waitPickup",
+            }[tile]
+        if kind == 3 and (
+            battle in (1, 12, 13)
+            or battle == 15
+            and location_kind == "waitPickup"
+            or battle in (16, 17, 18, 19)
+            and location_kind == "chest"
+        ):
+            choices = [{"templateId": byte(), "weight": byte()} for _ in range(byte())]
+            if (
+                not choices
+                or any(not 1 <= row["templateId"] <= 87 or row["weight"] <= 0 for row in choices)
+                or (
+                    battle in (13, 15, 16, 17, 18, 19)
+                    and sum(row["weight"] for row in choices) > 100
+                )
+            ):
+                raise ValueError("Invalid weighted location choices")
+            reward = {"kind": "weightedItem", "weightedChoices": choices}
+        elif (
+            kind == 1
+            and battle in (1, 13, 14, 15, 16, 19)
+            and (
+                battle not in (15, 16)
+                or location_kind in ("chest", "visit")
+                or battle == 16
+                and location_kind == "waitPickup"
+            )
+        ):
+            template = byte()
+            if not 1 <= template <= 87:
+                raise ValueError("Invalid fixed location item")
+            reward = {"kind": "item", "templateId": template}
+        elif kind == 2 and battle in (15, 16) and location_kind == "visit":
+            amount = int.from_bytes(bytes(byte() for _ in range(4)), "big", signed=True)
+            if not 1 <= amount <= 9999999:
+                raise ValueError("Invalid fixed location gold")
+            reward = {"kind": "gold", "amount": amount}
+        elif kind == 4 and (
+            battle in (1, 13, 17, 18) or battle in (15, 16) and location_kind == "visit"
+        ):
+            values = [
+                int.from_bytes(bytes(byte() for _ in range(4)), "big", signed=True)
+                for _ in range(2)
+            ]
+            if not 1 <= values[0] <= values[1] <= 9999999:
+                raise ValueError("Invalid location gold range")
+            reward = {"kind": "goldRange", "minimum": values[0], "maximum": values[1]}
+        else:
+            raise ValueError("Unsupported verified location kind")
+        prefix = {"chest": "chest", "visit": "visit", "waitPickup": "wait"}[location_kind]
+        location = {
+            "id": f"{prefix}_{index}",
+            "sourceIndex": index,
+            "kind": location_kind,
+            "position": [x, y],
+            "tileId": tile,
+        }
+        if location_kind == "chest" and reward["kind"] == "weightedItem":
+            location["weightedChoices"] = reward["weightedChoices"]
+            if battle in (16, 17, 18, 19) and sum(row["weight"] for row in choices) < 100:
+                location["emptyWeight"] = 100 - sum(row["weight"] for row in choices)
+        else:
+            location["reward"] = reward
+        result.append(location)
+    if position != len(data):
+        raise ValueError("Unexpected trailing chapter-1 map bytes")
+    if len({tuple(row["position"]) for row in result}) != len(result):
+        raise ValueError("Duplicate map location")
+    return result

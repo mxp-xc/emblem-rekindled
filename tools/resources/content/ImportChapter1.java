@@ -15,8 +15,12 @@ public final class ImportChapter1 {
   private static MobilePlatform platform;
   private static int battleIndex;
   private static int routeIndex;
+  private static int encounterStep = -1;
   private static Path motionReusePlan;
   private static Path samplingIdentityFile;
+  private static int summonClass = -1;
+  private static boolean promotion;
+  private static boolean adaptive;
   private static final Map<Object, int[]> samplingIdentities = new IdentityHashMap<>();
 
   public static void main(String[] args) {
@@ -25,8 +29,19 @@ public final class ImportChapter1 {
       routeIndex = args.length > 4 ? Integer.parseInt(args[4]) : 0;
       motionReusePlan = args.length > 5 && !args[5].equals("-") ? Path.of(args[5]) : null;
       samplingIdentityFile = args.length > 6 ? Path.of(args[6]) : null;
+      summonClass = args.length > 7 ? Integer.parseInt(args[7]) : -1;
+      promotion = args.length > 8 && Boolean.parseBoolean(args[8]);
+      adaptive = args.length > 9 && Boolean.parseBoolean(args[9]);
+      encounterStep = args.length > 10 ? Integer.parseInt(args[10]) : -1;
+      if (promotion && (summonClass >= 0 || battleIndex == 0)) throw new IllegalArgumentException(
+        "Invalid promotion preparation context"
+      );
       if (
-        battleIndex < 0 || battleIndex > 7 || routeIndex < 0 || routeIndex > 7
+        battleIndex < 0 ||
+        battleIndex > 19 ||
+        routeIndex < 0 ||
+        routeIndex > 7 ||
+        (battleIndex < 17 && encounterStep != -1)
       ) throw new IllegalArgumentException("Unverified chapter-1 battle: m" + battleIndex);
       run(
         Path.of(args[0]).toAbsolutePath(),
@@ -133,6 +148,7 @@ public final class ImportChapter1 {
     Thread.sleep(150);
     Class<?> helper = Class.forName("h", true, platform.loader);
     field(helper, "p").set(null, new Random(0));
+    if (adaptive && battleIndex == 0) prepareAdaptiveCache();
     field(game.getClass(), "bh").setByte(game, (byte) 0);
     game
       .getClass()
@@ -180,7 +196,9 @@ public final class ImportChapter1 {
       for (String line : Files.readAllLines(samplingIdentityFile)) {
         if (line.isBlank()) continue;
         String[] fields = line.split("\t", -1);
-        if (fields.length != 5) throw new IOException("Invalid sampling identity declaration");
+        if (fields.length != (adaptive ? 6 : 5)) throw new IOException(
+          "Invalid sampling identity declaration"
+        );
         int[] declaration = Arrays.stream(fields).mapToInt(Integer::parseInt).toArray();
         int index = declaration[0],
           sourceId = declaration[1],
@@ -197,7 +215,7 @@ public final class ImportChapter1 {
         for (Object unit : units) {
           if (
             number(unit, "y") == sourceId &&
-            number(unit, "S") == declaration[3] &&
+            number(unit, "S") == declaration[adaptive ? 5 : 3] &&
             number(unit, "C") == declaration[4]
           ) candidates.add(unit);
         }
@@ -216,10 +234,54 @@ public final class ImportChapter1 {
         }
       }
     }
+    Files.writeString(
+      output.resolve("promotions.json"),
+      Chapter1Rules.json(Chapter1Rules.promotions(platform.loader)) + "\n"
+    );
+    if (adaptive && summonClass >= 0) {
+      List<Object> sources = new ArrayList<>();
+      for (Object unit : units) {
+        Map<String, Object> sourceUnit = Chapter1Rules.describeUnit(unit);
+        sourceUnit.put("nativePolicy", number(unit, "Y"));
+        sourceUnit.put("x", number(unit, "D"));
+        sourceUnit.put("y", number(unit, "E"));
+        sourceUnit.put("visible", (number(unit, "B") & 1) == 0);
+        int[] declaration = samplingIdentities.get(unit);
+        if (declaration != null) {
+          sourceUnit.put("sourceId", declaration[1]);
+          sourceUnit.put("deploymentIndex", declaration[0]);
+        }
+        sources.add(sourceUnit);
+      }
+      Files.writeString(
+        output.resolve("adaptive_sources.json"),
+        Chapter1Rules.json(sources) + "\n"
+      );
+    }
+    if (promotion) {
+      List<Object> sources = new ArrayList<>();
+      for (Object unit : units) {
+        Map<String, Object> sourceUnit = Chapter1Rules.describeUnit(unit);
+        sourceUnit.put("nativePolicy", number(unit, "Y"));
+        int[] declaration = samplingIdentities.get(unit);
+        if (declaration != null) {
+          sourceUnit.put("sourceId", declaration[1]);
+          sourceUnit.put("deploymentIndex", declaration[0]);
+        }
+        sources.add(sourceUnit);
+      }
+      Files.writeString(
+        output.resolve("promotion_sources.json"),
+        Chapter1Rules.json(sources) + "\n"
+      );
+      Chapter1Promotions.prepare(game, platform.loader, output);
+    }
+    if (summonClass >= 0) Chapter1Summons.prepare(game, platform.loader, summonClass, output);
     Set<Integer> groups = new TreeSet<>();
     // Later route prefixes can bring a different class to the same map.
     for (int group = 0; group <= 10; group++) groups.add(group);
     Object originalCache = field(game.getClass(), "cB").get(game);
+    Set<Integer> dynamicTerrains = new LinkedHashSet<>();
     map.append("],\"movementCosts\":{");
     // Unit blocking belongs to live gameplay, not the generated terrain data.
     field(game.getClass(), "as").set(game, new Vector<>());
@@ -248,11 +310,15 @@ public final class ImportChapter1 {
         }
         map.append(']');
       }
+      map.append('}');
+      if (battleIndex == 1 || battleIndex == 12 || battleIndex >= 15) {
+        exportOpenedChests(game, output, tiles, grid, terrain, cost, map, dynamicTerrains);
+      }
     } finally {
       field(game.getClass(), "as").set(game, units);
       field(game.getClass(), "cB").set(game, originalCache);
     }
-    map.append("}}\n");
+    map.append("}\n");
     Files.writeString(output.resolve("map.json"), map);
     ImageIO.write(mapImage.getCanvas(), "png", output.resolve("map.png").toFile());
     if (units.isEmpty()) throw new IOException("Native deployment is empty");
@@ -311,7 +377,22 @@ public final class ImportChapter1 {
       if (columns[0].equals("allies")) {
         for (Object unit : units)
           if (number(unit, "C") != 2) requests.add(number(unit, "y") + "\t" + columns[1]);
-      } else requests.add(line);
+      } else {
+        int id = Integer.parseInt(columns[0]);
+        // Summon preparation replaces original units in these pools.
+        if (summonClass < 0 || !((id >= 20 && id <= 29) || (id >= 70 && id <= 79))) {
+          requests.add(line);
+        }
+      }
+    }
+    if (summonClass >= 0) {
+      requests.removeIf(line -> !unitIndex.containsKey(Integer.parseInt(line.split("\\t")[0])));
+      for (Object unit : units) {
+        int identity = number(unit, "y");
+        if (identity >= 70 && identity <= 79) {
+          requests.add(identity + "\t0,29,30,40,41,42,43,44,45");
+        }
+      }
     }
     for (String line : requests) {
       String[] columns = line.split("\t");
@@ -339,7 +420,7 @@ public final class ImportChapter1 {
     }
     Path legalVariants = variantsFile.resolveSibling("legal_battle_variants.tsv");
     Files.writeString(legalVariants, variants);
-    Chapter1BattleAssets.export(game, platform.loader, output, legalVariants);
+    Chapter1BattleAssets.export(game, platform.loader, output, legalVariants, dynamicTerrains);
     Chapter1BattleClips.export(game, platform.loader, output, legalVariants, motionReusePlan);
     if (battleIndex == 0) Chapter1Story.exportCommon(game, platform.loader, output);
     else Chapter1Story.exportResources(game, platform.loader, output);
@@ -397,6 +478,7 @@ public final class ImportChapter1 {
         quote("p" + battleIndex + " via native resource resolver") +
         ",\"preparationSeed\":0,\"route\":" +
         routeIndex +
+        (battleIndex >= 17 ? ",\"worldStep\":" + encounterStep : "") +
         ",\"unitCount\":" +
         units.size() +
         ",\"visibleUnitCount\":" +
@@ -423,6 +505,114 @@ public final class ImportChapter1 {
     );
   }
 
+  /** Sample the original opened tile at every location without keeping any native mutation. */
+  private static void exportOpenedChests(
+    Object game,
+    Path output,
+    Object[] tiles,
+    byte[][] grid,
+    Method terrain,
+    Method cost,
+    StringBuilder map,
+    Set<Integer> dynamicTerrains
+  ) throws Exception {
+    byte[][] locations = (byte[][]) field(game.getClass(), "db").get(null);
+    if (
+      locations.length !=
+      (battleIndex == 1
+        ? 5
+        : battleIndex == 12
+          ? 4
+          : battleIndex == 15
+            ? 11
+            : battleIndex == 16
+              ? 15
+              : battleIndex == 17
+                ? 3
+                : battleIndex == 19
+                  ? 8
+                  : 4)
+    ) throw new IOException("Unexpected location count");
+    List<Map<String, Object>> samples = new ArrayList<>();
+    List<Integer> indices = new ArrayList<>();
+    for (int index = 0; index < locations.length; index++) {
+      byte[] location = locations[index];
+      int x = location[1] & 255,
+        y = location[2] & 255;
+      if (battleIndex == 1 && index != 3 && index != 4) continue;
+      if (battleIndex == 15 && index != 0 && index != 9) continue;
+      if (
+        battleIndex == 16 &&
+        index != 1 &&
+        index != 2 &&
+        index != 3 &&
+        index != 11 &&
+        index != 12 &&
+        index != 13
+      ) continue;
+      if (
+        (battleIndex >= 17
+          ? location[0] != 3 && location[0] != 4 && (battleIndex != 19 || location[0] != 1)
+          : battleIndex == 16
+            ? location[0] != 1 && location[0] != 3
+            : location[0] != (battleIndex == 15 ? 1 : 3)) ||
+        y >= grid.length ||
+        x >= grid[y].length ||
+        (grid[y][x] & 255) != 79
+      ) throw new IOException(
+        "Unexpected chest location: index=" +
+          index +
+          " kind=" +
+          location[0] +
+          " x=" +
+          x +
+          " y=" +
+          y +
+          " tile=" +
+          (y < grid.length && x < grid[y].length ? grid[y][x] & 255 : -1)
+      );
+      indices.add(index);
+      byte originalTile = grid[y][x];
+      Map<String, Object> sample = new LinkedHashMap<>();
+      try {
+        grid[y][x] = 88;
+        field(game.getClass(), "cB").set(game, null);
+        int openedTerrain = ((Number) terrain.invoke(game, x, y)).intValue();
+        Map<String, Object> costs = new LinkedHashMap<>();
+        for (int group = 0; group <= 10; group++) {
+          costs.put(
+            Integer.toString(group),
+            ((Number) cost.invoke(null, x, y, (byte) group, (byte) 0)).intValue()
+          );
+        }
+        sample.put("tileId", 88);
+        sample.put("terrain", openedTerrain);
+        sample.put("texture", "map_tiles/opened_chest.png");
+        sample.put("movementCosts", costs);
+        dynamicTerrains.add(openedTerrain);
+      } finally {
+        grid[y][x] = originalTile;
+        field(game.getClass(), "cB").set(game, null);
+      }
+      samples.add(sample);
+    }
+    boolean identical = samples.stream().allMatch(samples.get(0)::equals);
+    Map<String, Object> variants = new LinkedHashMap<>();
+    Map<String, Object> bindings = new LinkedHashMap<>();
+    for (int index = 0; index < samples.size(); index++) {
+      String key = identical ? "opened_chest" : "opened_chest_" + index;
+      variants.putIfAbsent(key, samples.get(index));
+      bindings.put("chest_" + indices.get(index), key);
+    }
+    var openedTile = image(24, 24);
+    draw(tiles[88], openedTile, 0, 0);
+    Path texture = output.resolve("map_tiles/opened_chest.png");
+    Files.createDirectories(texture.getParent());
+    ImageIO.write(openedTile.getCanvas(), "png", texture.toFile());
+    map.append(",\"tileVariants\":").append(Chapter1Rules.json(variants));
+    map.append(",\"locationTileVariants\":").append(Chapter1Rules.json(bindings));
+  }
+
   /** Run the native settlement/initializer for the selected route prefix, without combat. */
   private static void prepareBattle(Object canvas, Object game) throws Exception {
     Class<?> type = game.getClass();
@@ -434,15 +624,24 @@ public final class ImportChapter1 {
         break;
       }
     }
+    if (battleIndex >= 17) {
+      if (encounterStep == -1) encounterStep = routes[routeIndex].length - 1;
+      if (
+        encounterStep < 6 || encounterStep > routes[routeIndex].length
+      ) throw new IllegalArgumentException("Invalid encounter world step: " + encounterStep);
+      targetStep = encounterStep;
+    }
     if (targetStep < 0) throw new IllegalArgumentException("Route does not reach m" + battleIndex);
     for (int step = 1; step <= targetStep; step++) {
       settle(canvas, game);
-      int node = routes[routeIndex][step];
+      int node = battleIndex >= 17 && step == targetStep ? battleIndex : routes[routeIndex][step];
+      if (adaptive && step == targetStep) prepareAdaptiveCache();
       field(type, "bh").setByte(game, (byte) node);
       field(type, "dr").setByte(game, (byte) routeIndex);
       field(type, "dD").setByte(game, (byte) step);
-      field(type, "du").setByte(game, (byte) node);
-      field(type, "dt").setByte(game, (byte) node);
+      int worldNode = battleIndex >= 17 && step == targetStep ? routes[routeIndex][step - 1] : node;
+      field(type, "du").setByte(game, (byte) worldNode);
+      field(type, "dt").setByte(game, (byte) worldNode);
       try (
         InputStream input = (InputStream) Class.forName("h", true, platform.loader)
           .getMethod("c", String.class)
@@ -455,6 +654,17 @@ public final class ImportChapter1 {
       type.getMethod("a", int.class, boolean.class, boolean.class).invoke(game, node, false, true);
       type.getMethod("E").invoke(game);
     }
+  }
+
+  private static void prepareAdaptiveCache() throws Exception {
+    Field cache = field(Class.forName("b", true, platform.loader), "ag");
+    byte[] values = (byte[]) cache.get(null);
+    if (values == null) {
+      values = new byte[11];
+      cache.set(null, values);
+    }
+    values[8] = 9;
+    values[9] = 9;
   }
 
   private static void settle(Object canvas, Object game) throws Exception {

@@ -126,7 +126,9 @@ export function createChapterWebHarness({ browser, buildId, artifactOrigin }) {
       if (advance && state.ui.commander) await key("Escape");
       else if (
         advance &&
-        (state.ui.dialogue || state.ui.prologue || state.ui.feedback === "tutorial")
+        (state.ui.dialogue ||
+          state.ui.prologue ||
+          ["tutorial", "summary"].includes(state.ui.feedback))
       )
         await key("Return");
     }

@@ -31,14 +31,14 @@ uv run er workspace init /path/to/existing-checkout
 此命令使用来源 checkout 已安装的工具，检查目标配置后为目标同步锁定依赖，不执行目标 Python 文件。
 需要人工先处理的非法链接会直接报错，不能靠该命令自动修复。
 
-| 命令（均加 `uv run` 前缀） | 参数与结果 |
-| --- | --- |
-| `er setup` | 可选 `--hooks`，默认关闭；安装当前 checkout 依赖 |
-| `er workspace` / `er workspace status` | 无参数；只读输出 checkout、工具来源、Python、依赖目录/链接、可执行文件和 CodeGraph 状态 |
-| `er workspace init TARGET` | 必填已有 checkout 路径；可选 `--hooks`，默认关闭 |
-| `er workspace hooks` | 无参数；显式配置仓库 hook 路径；commit/push 不自动运行检查 |
-| `er workspace reuse-js --source SOURCE` | 必填来源 checkout；显式创建兼容 `node_modules` 链接，输出 `LINK` |
-| `er workspace copy-local --source SOURCE` | 必填不同的来源 checkout；只复制白名单 `AGENTS.local.md`，输出 `COPY` |
+| 命令（均加 `uv run` 前缀）                | 参数与结果                                                                              |
+| ----------------------------------------- | --------------------------------------------------------------------------------------- |
+| `er setup`                                | 可选 `--hooks`，默认关闭；安装当前 checkout 依赖                                        |
+| `er workspace` / `er workspace status`    | 无参数；只读输出 checkout、工具来源、Python、依赖目录/链接、可执行文件和 CodeGraph 状态 |
+| `er workspace init TARGET`                | 必填已有 checkout 路径；可选 `--hooks`，默认关闭                                        |
+| `er workspace hooks`                      | 无参数；显式配置仓库 hook 路径；commit/push 不自动运行检查                              |
+| `er workspace reuse-js --source SOURCE`   | 必填来源 checkout；显式创建兼容 `node_modules` 链接，输出 `LINK`                        |
+| `er workspace copy-local --source SOURCE` | 必填不同的来源 checkout；只复制白名单 `AGENTS.local.md`，输出 `COPY`                    |
 
 reuse-js 要求来源是已安装的真实 `node_modules` 目录，`package.json`、`bun.lock`、`.prettierrc.json`
 逐字节一致，目标路径被 Git 忽略且尚不存在。不复用 Python 环境。
@@ -75,16 +75,16 @@ uv run er qa android --help
 文件锁只保护同工程检查器，不能阻止其他直接启动的引擎。
 完整隔离和恢复契约见[验证规则](../../docs/agents/verification.md#迭代)。
 
-| 命令 | 参数、覆盖与输出 |
-| --- | --- |
-| `er check quick` | 无参数；lint 与工具测试各一次 |
-| `er check full` | 可选 `--output PATH`；依次 lint、工具测试、游戏检查各一次，首次失败停止 |
-| `er check lint` | 无参数；GDScript、Python、Java/JS/JSON 等维护文件规则与格式检查，不改文件 |
-| `er check tools` | 无参数；工具行为测试 |
-| `er check helpers` | 无参数；Godot 测试 helper 使用边界 |
-| `er check parse` | 可选 `--timings PATH`；导入资源、批量解析脚本 |
-| `er check game` | 可重复 `--test FILE`；可选 `--tests-only`（默认关闭）、`--timings PATH` |
-| `er check restore-config` | 无参数；恢复中断检查留下的工程配置 |
+| 命令                      | 参数、覆盖与输出                                                          |
+| ------------------------- | ------------------------------------------------------------------------- |
+| `er check quick`          | 无参数；lint 与工具测试各一次                                             |
+| `er check full`           | 可选 `--output PATH`；依次 lint、工具测试、游戏检查各一次，首次失败停止   |
+| `er check lint`           | 无参数；GDScript、Python、Java/JS/JSON 等维护文件规则与格式检查，不改文件 |
+| `er check tools`          | 无参数；工具行为测试                                                      |
+| `er check helpers`        | 无参数；Godot 测试 helper 使用边界                                        |
+| `er check parse`          | 可选 `--timings PATH`；导入资源、批量解析脚本                             |
+| `er check game`           | 可重复 `--test FILE`；可选 `--tests-only`（默认关闭）、`--timings PATH`、`--jobs 1..8` |
+| `er check restore-config` | 无参数；恢复中断检查留下的工程配置                                        |
 
 游戏行为测试显式选文件，工具测试按本次改动选择测试文件，例如：
 
@@ -100,6 +100,10 @@ uv run python -m unittest discover -s tests/tools -p test_cli.py
 game 默认执行资源导入、解析、行为测试和主场景 smoke；`--test` 只执行指定行为测试文件。
 `--tests-only` 跳过导入和解析，执行全部行为测试及主场景 smoke；不能与 `--test` 同用。
 parse 的批量解析共享一个引擎，行为测试逐个隔离；Godot 报错即使返回0也判失败，每次引擎调用有60秒超时。
+完整行为测试默认使用三个独立工程副本并行，单个引擎仍逐文件运行；首次失败会停止调度并清理已启动的引擎。
+定向 `--test` 默认串行，显式指定 `--jobs 2` 等可并行；`--jobs 1` 强制串行。
+并行要求游戏工程内没有符号链接，以免副本写入原路径；有链接时使用串行检查。
+副本准备也计入总耗时，短测试集合通常串行更快。
 
 `--output` 要求全新的批次目录，保存 `integrated-check.log`、`timings.json`；
 执行到 game 阶段才生成 `godot-timings.json`，lint/tools 早失败时没有该文件。
@@ -118,20 +122,42 @@ uv run er check restore-config
 
 格式化和静态检查只向现有格式化器传入本任务涉及的文件；整库 format/lint 仅在用户明确要求时运行。
 
+m13及公共章末改动可按需要选择`test_m13_locations.gd`、`test_chapter_statistics.gd`、
+`test_chapter_completion_ui.gd`和`test_visit_feedback_ui.gd`等定向文件；实际测试清单和结果由实施票记录。
+跨关 Session 基础入口测试在 `test_chapter_session.gd`；两条章末路线与各自的四槽冷读分别在
+`test_chapter_session_route0.gd` 和 `test_chapter_session_route7.gd`，需要完整覆盖时三项都运行。
+指挥官早期关卡和后期队伍分别由 `test_commander_rules.gd` 和
+`test_commander_late_roster.gd` 覆盖。
+m14 的两条路线分别使用 `test_m14_session.gd` 和 `test_m14_session_route2.gd`；
+m15 使用 `test_m15_session.gd` 和 `test_m15_session_route3.gd`；m16 的两条路线使用
+`test_m16_content.gd` 和 `test_m16_content_route5.gd`。
+m2 内容和事件、m3 内容和事件、m4 内容、m5 和 m6 内容及事件的多路线矩阵按文件名中的 `routes` 分组；m2 战斗边界在
+`test_m2_events_combat_boundaries.gd`。m3 主界面流程的分支分别使用 `test_m3_flow.gd`、
+`test_m3_flow_route2.gd` 和 `test_m3_flow_route3.gd`。完整定向回归需包含对应分组文件。
+m5 主界面流程分别使用 `test_m5_flow.gd`、`test_m5_flow_route2.gd` 和 `test_m5_flow_route4.gd`。
+m7 内容和事件按 `test_m7_content*`、`test_m7_events*` 的路线分组运行；
+原版随机边界在基础内容测试，首领战斗边界在 `test_m7_events_route3.gd`。
+m8 内容、事件和界面流程分别按 `test_m8_content*`、`test_m8_events*`、`test_m8_flow*` 分组；
+内容随机边界在基础内容测试，首领战斗边界在 `test_m8_events_route3.gd`。
+m9 内容、事件和界面流程分别按 `test_m9_content*`、`test_m9_events*`、`test_m9_flow*` 分组；
+装备随机边界在基础内容测试。
+完成世界恢复与四槽记录应走真实Session/Store及JSON冷读；UI fixture通过不等于正式内容整合或平台验收。
+用户记录的备份与恢复、引擎配置独占规则继续按[验证规则](../../docs/agents/verification.md)执行。
+
 ## 构建、预览与实际版本验证
 
 需已有 Godot 4.7.2 与对应导出模板。模板归档从[官方 4.7.2 发布页](https://github.com/godotengine/godot-builds/releases/tag/4.7.2-stable)
 取得；命令检查固定版本与 SHA-256 身份，不自动下载。
 Android 另需在 Godot 编辑器 Export → Android 配置已有 Java SDK、Android SDK。
 
-| 命令 | 参数与输出 |
-| --- | --- |
-| `er build templates TPZ` | 必填已有 `Godot_v4.7.2-stable_export_templates.tpz`；只提取 Android、单线程 Web 与 ICU 到 `build/templates/4.7.2.stable/` |
-| `er build web` | 无参数；发布 `build/web/index.html`、`build/web/<buildId>/` 与 `build-info.json` |
-| `er build android` | 无参数；发布 `build/android/emblem-rekindled.apk` 与 `build-info.json` |
-| `er serve` | 可选 `--port INTEGER`，默认8765；只监听 `127.0.0.1`，前提是已有 Web 导出 |
-| `er verify web` | 可选 `--origin URL`，默认 `http://127.0.0.1:8765`；核对入口、响应头和实际 PCK |
-| `er verify android` | 可选 `--serial SERIAL`、`--apk PATH`；默认从本 checkout 的 `build/android/emblem-rekindled.apk` 取期望身份；指定 apk 时从该包取身份，核对已安装包 |
+| 命令                     | 参数与输出                                                                                                                                        |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `er build templates TPZ` | 必填已有 `Godot_v4.7.2-stable_export_templates.tpz`；只提取 Android、单线程 Web 与 ICU 到 `build/templates/4.7.2.stable/`                         |
+| `er build web`           | 无参数；发布 `build/web/index.html`、`build/web/<buildId>/` 与 `build-info.json`                                                                  |
+| `er build android`       | 无参数；发布 `build/android/emblem-rekindled.apk` 与 `build-info.json`                                                                            |
+| `er serve`               | 可选 `--port INTEGER`，默认8765；只监听 `127.0.0.1`，前提是已有 Web 导出                                                                          |
+| `er verify web`          | 可选 `--origin URL`，默认 `http://127.0.0.1:8765`；核对入口、响应头和实际 PCK                                                                     |
+| `er verify android`      | 可选 `--serial SERIAL`、`--apk PATH`；默认从本 checkout 的 `build/android/emblem-rekindled.apk` 取期望身份；指定 apk 时从该包取身份，核对已安装包 |
 
 ```sh
 uv run er build templates /path/to/Godot_v4.7.2-stable_export_templates.tpz
@@ -167,18 +193,28 @@ verify web 通过只证明 HTTP 返回的包；浏览器加载后还须核对 ca
 
 `er import chapter-1` 的选项：
 
-| 选项 | 含义与默认值 |
-| --- | --- |
-| `--plan` | 默认关闭；只输出 JSON 需求、缺项及 missingProfiles，不调用原 JAR、不发布 |
-| `--chapter PATH` | 默认本 checkout 的 `game/content/chapter_1`；可指向完整章副本演练 |
-| `--battle ID` | 非 plan 必填；已核实范围 m0～m7 |
-| `--emulator PATH` | 非 plan 必填；已有 FreeJ2ME-Plus JAR |
-| `--route INTEGER` | 可选，0～7；优先准备路线，其他缺项上下文仍按需补充 |
-| `--jdk PATH` | 可选 Java/Javac 所在 bin 目录；默认 PATH |
-| `--native-input DIRECTORY` | 可重复；复用已准备的原生输出，逐个核对来源、路线、部署和片段依赖 |
-| `--native-output DIRECTORY` | 只导出独立原生采样，不发布游戏内容；与 native-input 互斥 |
-| `--refresh-motion` | 默认关闭；重新采样当前原生上下文，与 native-input 互斥，不覆盖冲突旧片段 |
-| `--report PATH` | 发布模式将完整结果写 JSON，父目录自动创建；终端输出精简 JSON 摘要 |
+| 选项                        | 含义与默认值                                                             |
+| --------------------------- | ------------------------------------------------------------------------ |
+| `--plan`                    | 默认关闭；只输出 JSON 需求、缺项及 missingProfiles，不调用原 JAR、不发布 |
+| `--chapter PATH`            | 默认本 checkout 的 `game/content/chapter_1`；可指向完整章副本演练        |
+| `--battle ID`               | 非 plan 必填；发布范围 m0～m19                                           |
+| `--emulator PATH`           | 非 plan 必填；已有 FreeJ2ME-Plus JAR                                     |
+| `--route INTEGER`           | 可选，0～7；优先准备路线，其他缺项上下文仍按需补充                       |
+| `--jdk PATH`                | 可选 Java/Javac 所在 bin 目录；默认 PATH                                 |
+| `--native-input DIRECTORY`  | 可重复；复用已准备的原生输出，逐个核对来源、路线、部署和片段依赖         |
+| `--native-output DIRECTORY` | 只导出独立原生采样，不发布游戏内容；与 native-input 互斥                 |
+| `--encounter-step N`        | 遭遇战采样时已完成的主线节点数，范围为 6 到所选路线的节点数             |
+| `--adaptive`                | 默认关闭；仅用于 native-output，按受控等级采样原版自动选阶表现           |
+| `--evidence-output DIRECTORY` | 发布模式中保存自动原生样本；目录须为新目录且不得与章目录重叠           |
+| `--refresh-motion`          | 默认关闭；重新采样当前原生上下文，与 native-input 互斥，不覆盖冲突旧片段 |
+| `--report PATH`             | 发布模式将完整结果写 JSON，父目录自动创建；终端输出精简 JSON 摘要        |
+
+`m17`、`m18`、`m19` 可通过发布模式更新；使用 `--native-output` 单独采样时须显式选择路线。
+`--encounter-step` 指定受控队伍已经完成的节点数；省略时使用该路线倒数第二个节点的结算队伍。
+采样使用受控结算，不代表自然遭遇或关卡已发布。
+`m19` 支持结合 `--adaptive` 采样高等级敌人；`m17`、`m18` 的该组合仍未开放。
+使用 `--plan --battle m17`、`--plan --battle m18` 或 `--plan --battle m19` 可查看按队伍去重的全部路线及进度组合；
+`equivalentContexts` 列出每个队伍对应的路线和进度。
 
 ```sh
 uv run er import chapter-1 --plan
@@ -188,15 +224,28 @@ uv run er import chapter-1 --emulator /path/to/freej2me_plus.jar --battle m6 --r
 发布模式默认复用已有动作契约，只采样缺项；先在隔离完整章副本合并并检查所有登记关卡的动作闭包，
 通过后发布生成内容与章入口，不覆盖人工配置。相同输入重入保留未变化 JSON 字节、PNG 导入参数及 UID。
 准备输入缺依赖时重新准备该上下文，不能将增量输出当完整输入。
+共享敌方 recipe 在别关新增原版装备后，旧舞台补采也包含该 recipe 已登记的武器，
+以补齐全章动作组合；原关卡部署和装备选择不变。
+
+召唤之杖的六种职业、双方阵营与原生身份池由章库显式登记。发布时自动准备缺失的召唤表现，
+并将其纳入所有已登记关卡的动作闭包；报告中的 `summonClassId` 标明该采样上下文选择的职业。
+召唤采样仍使用原版构造与渲染，只固定准备条件，不代表自然游玩。原生输入可能引用先前上下文
+已提供的片段；复用输入仍须满足完整依赖，缺项时由发布流程重新采样。
 
 ### 独立原生采样与部署
 
 ```sh
 uv run er import chapter-1 --emulator /path/to/freej2me_plus.jar --battle m6 --route 0 --native-output temp/<batch>/native
+uv run er import chapter-1 --emulator /path/to/freej2me_plus.jar --battle m6 --route 0 --native-output temp/<batch>/adaptive --adaptive
 uv run er import chapter-1 --emulator /path/to/freej2me_plus.jar --battle m6 --native-input temp/<batch>/native --report temp/<batch>/import.json
 ```
 
 native-output 返回 `nativeOutput` JSON；不发布、不写 report，未指定 route 时使用目标关卡首个招募上下文路线。
+`--adaptive` 在原版加载目标关前将两个等级缓存设为内部等级9，采样自动选阶；这是受控素材准备，
+不代表自然游玩。它只与 `--native-output` 使用，生成的样本可作为后续发布的 `--native-input`。
+`--evidence-output` 在发布模式保存自动准备或重新准备的原生样本，检查必需文件、复制后逐文件核对；
+路径必须不存在，且不得位于章目录内或包含章目录。已提供的 native-input 由调用者保管，不重复复制；
+复制或核对失败时停止并保留已写出的证据，以便排查。
 plan 分支优先返回，其余采样/发布选项不执行，也不检查互斥；不要用 plan 成功代替实际导入参数或资源验证。
 
 `er import deployment SOURCE OUTPUT --battle INTEGER` 从定义文件导出部署；两个位置参数和 battle 均必填。
@@ -248,11 +297,11 @@ uv run er qa first-battle --speed 32 --serial <serial> --keep-emulator
 
 ### 只读状态与临时速率
 
-| 命令 | 参数与结果 |
-| --- | --- |
-| `er qa state read` | 可选 `--serial SERIAL`、`--adb COMMAND`（adb）、`--ready`（默认关闭）、`--timeout SECONDS`（30）；stdout 输出 JSON，不保存游戏 |
-| `er qa state speed VALUE` | 必填速率，只允许1、2、4、8、16、32；可选 serial、adb 同上；通过真实游戏设置界面选择，返回 JSON |
-| `er qa restore-records BACKUP` | 必填完整 backup.json；可选 `--serial SERIAL`；校验备份后 force-stop 并恢复，核对后写 restored.json |
+| 命令                           | 参数与结果                                                                                                                     |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| `er qa state read`             | 可选 `--serial SERIAL`、`--adb COMMAND`（adb）、`--ready`（默认关闭）、`--timeout SECONDS`（30）；stdout 输出 JSON，不保存游戏 |
+| `er qa state speed VALUE`      | 必填速率，只允许1、2、4、8、16、32；可选 serial、adb 同上；通过真实游戏设置界面选择，返回 JSON                                 |
+| `er qa restore-records BACKUP` | 必填完整 backup.json；可选 `--serial SERIAL`；校验备份后 force-stop 并恢复，核对后写 restored.json                             |
 
 ```sh
 uv run er qa state read --ready --serial <serial>

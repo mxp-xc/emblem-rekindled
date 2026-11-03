@@ -1,0 +1,86 @@
+{
+  "battleId": "m16",
+  "worldNode": 16,
+  "battleName": { "sourceTextIndex": 155 },
+  "objective": { "sourceTextIndex": 172 },
+  "commanderMode": "none",
+  "chapterEnd": { "id": "chapter_1", "sequence": "chapterEnding" },
+  "initialBattlePresentation": {
+    "hiddenUnitIds": [],
+    "hiddenFactions": [],
+    "unitPositionOverrides": {}
+  },
+  "turnEvents": [],
+  "aiChanges": [],
+  "routeChoices": [],
+  "speakers": {
+    "0": { "id": 0, "name": "雅木", "faction": 0, "portraitId": 0 },
+    "9": { "id": 9, "name": "赛丽卡", "faction": 0, "portraitId": 9 },
+    "80": { "id": 80, "name": "得鲁克", "faction": 2, "portraitId": 11 },
+    "89": { "id": 89, "name": "贾米尔", "faction": 2, "portraitId": 20 },
+    "92": { "id": 92, "name": "怒焰领主", "faction": 2, "portraitId": 23 }
+  },
+  "periodicClones": {
+    "id": "tower_clones",
+    "pool": [105, 127],
+    "conditionalEvery": {
+      "period": 2,
+      "reservedUnitIds": [112],
+      "groups": [
+        { "whenUnitVisible": 34, "templateUnitIds": [109] },
+        { "whenUnitVisible": 40, "templateUnitIds": [108] },
+        { "whenUnitVisible": 89, "templateUnitIds": [107] },
+        { "whenUnitVisible": 92, "templateUnitIds": [110, 111] }
+      ]
+    }
+  },
+  "sequences": {
+    "opening": [
+      { "kind": "battleTitle", "text": { "sourceTextIndex": 155 }, "sourceDurationUnits": 2000 },
+      { "kind": "focus", "cell": [14, 27], "instant": true, "sourceMaxFocusPixels": 4 },
+      { "kind": "focus", "cell": [14, 4], "sourceMaxFocusPixels": 4 },
+      { "kind": "dialogue", "text": { "sourceTextIndex": 636, "speakerId": 0 } },
+      { "kind": "dialogue", "text": { "sourceTextIndex": 637, "speakerId": 80 } },
+      { "kind": "dialogue", "text": { "sourceTextIndex": 638, "speakerId": 89 } },
+      { "kind": "objective", "text": { "sourceTextIndex": 172 } }
+    ],
+    "boss_before_retirement": [
+      { "kind": "dialogue", "text": { "sourceTextIndex": 639, "speakerId": 80 } }
+    ],
+    "element_first_combat": [
+      { "kind": "dialogue", "text": { "sourceTextIndex": 640, "speakerId": 92 } }
+    ],
+    "victory": [
+      { "kind": "missionComplete", "text": { "sourceTextIndex": 34 }, "goldReward": 1000 }
+    ],
+    "chapterEnding": [
+      { "kind": "prologue", "text": { "sourceTextIndex": 459 } },
+      { "kind": "chapterParty" },
+      { "kind": "chapterSummary" },
+      { "kind": "chapterRating" },
+      { "kind": "instruction", "text": { "text": "初章（完）" } },
+      { "kind": "instruction", "text": { "sourceTextIndex": 119 } }
+    ]
+  },
+  "combatEvents": [
+    {
+      "id": "boss_death",
+      "trigger": "unitDeath",
+      "unitId": 80,
+      "beforeRetirement": "boss_before_retirement",
+      "revealUnitIds": [92, 93, 94]
+    },
+    {
+      "id": "element_first_combat",
+      "trigger": "firstCombat",
+      "unitId": 92,
+      "sequence": "element_first_combat"
+    }
+  ],
+  "outcomeRules": {
+    "checks": [
+      { "kind": "defeat", "condition": "requiredUnitFallen", "unitIds": [0] },
+      { "kind": "victory", "condition": "allUnitsRetired", "unitIds": [80, 92] }
+    ]
+  }
+}

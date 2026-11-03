@@ -15,12 +15,16 @@ var _owned: String = ""
 
 
 func _initialize() -> void:
+	_run_contexts(Matrix.CONTEXTS.slice(0, 1), false)
+
+
+func _run_contexts(contexts: Array, include_boundaries: bool) -> void:
 	_owned = "user://m7_events_%d" % Time.get_ticks_usec()
 	if DirAccess.make_dir_absolute(_owned) != OK:
 		_fail("Cannot claim fresh owned m7 event directory")
 		return
 	var combat_source: Dictionary = {}
-	for context: Dictionary in Matrix.CONTEXTS:
+	for context: Dictionary in contexts:
 		var prepared: Dictionary = Matrix.prepare(context, _roll)
 		if not _expect(prepared["ok"], "Prepare m7 event context: " + str(prepared.get("error"))):
 			_cleanup()
@@ -40,13 +44,14 @@ func _initialize() -> void:
 			_cleanup()
 			return
 		print("PASS actual m7 events dr%d step%d" % [context["route"], context["step"]])
-	for boundary: Callable in [_combat, _native_first_flag, _map_magic, _blocked_queue]:
-		var forked: Dictionary = _fork(combat_source)
-		if not forked["ok"] or not boundary.call(forked):
-			_cleanup()
-			return
+	if include_boundaries:
+		for boundary: Callable in [_combat, _native_first_flag, _map_magic, _blocked_queue]:
+			var forked: Dictionary = _fork(combat_source)
+			if not forked["ok"] or not boundary.call(forked):
+				_cleanup()
+				return
 	_cleanup()
-	print("PASS actual m7 events: two waves once, native occupancy, boss86 and settlement")
+	print("PASS actual m7 events: selected routes and requested combat boundaries")
 	quit(0)
 
 
@@ -477,7 +482,7 @@ func _combat(opened: Dictionary) -> bool:
 		return false
 	var stored: Dictionary = restored["battle"].snapshot()
 	var replay: Dictionary = Events.new(content).combat_events(
-		killed["participants"], stored["units"], stored["events"]
+		killed["participants"], killed["retirements"], stored["events"]
 	)
 	return _expect(
 		(

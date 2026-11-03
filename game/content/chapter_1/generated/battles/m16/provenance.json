@@ -1,0 +1,13 @@
+{
+  "sourceSha256": "67d1c77e823816e203244a15428ba9fb635d40edba04efa3180b3334025989fe",
+  "emulatorSha256": "9c59b74ae8e4fad205e5ff186940c24c53480918a3b180bb551559db9be3e7ff",
+  "map": "1.pak:m16",
+  "deployment": "p16 via native resource resolver",
+  "recordCount": 54,
+  "outputs": ["battle.json", "deployments.json", "map.json"],
+  "description": "Original map and ordered deployment; presentation owned by chapter library",
+  "textureSources": {
+    "map.png": "generated/shared/battles/m16/map.png",
+    "map_tiles/opened_chest.png": "generated/shared/battles/m12/map_tiles/opened_chest.png"
+  }
+}

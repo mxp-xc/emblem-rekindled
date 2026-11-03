@@ -74,7 +74,10 @@ func run() -> void:
 		var label: String = str(step.get("text", step.get("kind", "")))
 		if steps.is_empty() or steps[-1] != label:
 			steps.append(label)
-		feedback.advance()
+		if step.get("kind") == "summary":
+			feedback.go_back()
+		else:
+			feedback.advance()
 		if not feedback.playing:
 			break
 	await process_frame
@@ -82,7 +85,7 @@ func run() -> void:
 		scene.busy
 		or feedback.visible
 		or battle.snapshot() != committed
-		or steps != [battle.unit(0)["name"], "experience", "力之杖消失"]
+		or steps != [battle.unit(0)["name"], "summary", "力之杖消失"]
 	):
 		fail(
 			(

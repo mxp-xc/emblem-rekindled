@@ -24,6 +24,7 @@ func run() -> void:
 	battle.wait_unit(0)
 	var progress: Dictionary = battle.complete_victory(0)["progress"]
 	store.write_slot(0, progress)
+	store.write_progress(progress)
 	await scene._show_completed_progress(progress)
 	var world: Control = scene.story_player
 	world.advance()
@@ -32,10 +33,8 @@ func run() -> void:
 		fail("The original coin entry must be an immediately available local testing benefit")
 		return
 	button.pressed.emit()
-	if scene.world_progress["gold"] != 7000 or store.read()["progress"]["gold"] != 7000:
-		fail(
-			"One benefit click must grant and persist 1000 coins directly, without recharge/confirmation"
-		)
+	if scene.world_progress["gold"] != 7000 or store.read()["progress"]["gold"] != 6000:
+		fail("One benefit click grants 1000 coins in memory without changing the saved record")
 		return
 	if (
 		scene.world_progress["party"] != progress["party"]
@@ -55,10 +54,10 @@ func run() -> void:
 		fail("The testing benefit must remain repeatable after its feedback closes")
 		return
 	await close_notice(world)
-	# Controlled upper-bound fixture; the actual button and persistence still perform the grant.
+	# Controlled upper-bound fixture; the actual button still performs the grant.
 	scene.world_progress["gold"] = 9999500
 	world.choices.get_node("World_gold").pressed.emit()
-	if scene.world_progress["gold"] != 9999999 or store.read()["progress"]["gold"] != 9999999:
+	if scene.world_progress["gold"] != 9999999 or store.read()["progress"]["gold"] != 6000:
 		fail("A benefit near the source funds limit must cap without overflow")
 		return
 	await close_notice(world)
@@ -76,11 +75,11 @@ func run() -> void:
 	scene.battle_store = store_script.new(scene.content, blocked_path)
 	scene.world_progress["gold"] = 6000
 	world.choices.get_node("World_gold").pressed.emit()
-	if scene.world_progress["gold"] != 6000 or not world.dialogue.full_text.contains("未完成"):
-		fail("A failed persistence step must not claim or commit an unsaved benefit")
+	if scene.world_progress["gold"] != 7000:
+		fail("The benefit must update memory even when the storage path is unavailable")
 		return
-	if store.read()["progress"]["gold"] != 9999999 or not FileAccess.file_exists(sentinel):
-		fail("A failed benefit must preserve other stored progress and the existing target")
+	if store.read()["progress"]["gold"] != 6000 or not FileAccess.file_exists(sentinel):
+		fail("The benefit must preserve stored progress and the existing target")
 		return
 	await close_notice(world)
 	for owned: String in [path, directory.path_join("continue_slot_1.json"), sentinel]:
@@ -89,9 +88,7 @@ func run() -> void:
 	DirAccess.remove_absolute(directory)
 	scene.queue_free()
 	await process_frame
-	print(
-		"PASS world benefit: direct/repeat grant, persistence, protected records/items, cap, failure"
-	)
+	print("PASS world benefit: in-memory grant, protected records/items and cap")
 	quit(0)
 
 

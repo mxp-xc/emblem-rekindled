@@ -1,0 +1,140 @@
+{
+  "battleId": "m9",
+  "worldNode": 9,
+  "battleName": {
+    "sourceTextIndex": 148
+  },
+  "objective": {
+    "sourceTextIndex": 165
+  },
+  "initialBattlePresentation": {
+    "hiddenUnitIds": [],
+    "hiddenFactions": [],
+    "unitPositionOverrides": {}
+  },
+  "turnEvents": [],
+  "aiChanges": [],
+  "routeChoices": [],
+  "speakers": {
+    "0": {
+      "id": 0,
+      "name": "雅木",
+      "faction": 0,
+      "portraitId": 0
+    },
+    "9": {
+      "id": 9,
+      "name": "赛丽卡",
+      "faction": 0,
+      "portraitId": 9
+    },
+    "7": {
+      "id": 7,
+      "name": "鲁卡",
+      "faction": 0,
+      "portraitId": 7
+    }
+  },
+  "periodicClones": {
+    "id": "monster_clones",
+    "pool": [105, 127],
+    "randomEachRound": {
+      "fromRound": 2,
+      "count": 2,
+      "templateUnitIds": [107, 108, 109, 110, 111, 112, 113, 114]
+    }
+  },
+  "sequences": {
+    "opening": [
+      {
+        "kind": "battleTitle",
+        "text": {
+          "sourceTextIndex": 148
+        },
+        "sourceDurationUnits": 2000
+      },
+      {
+        "kind": "focus",
+        "cell": [9, 1],
+        "instant": true,
+        "sourceWaitTicks": 12
+      },
+      {
+        "kind": "focus",
+        "cell": [1, 9],
+        "sourceMaxFocusPixels": 4
+      },
+      {
+        "kind": "focus",
+        "cell": [9, 18],
+        "sourceMaxFocusPixels": 4
+      },
+      {
+        "kind": "focus",
+        "cell": [19, 9],
+        "sourceMaxFocusPixels": 4
+      },
+      {
+        "kind": "objective",
+        "text": {
+          "sourceTextIndex": 165
+        }
+      },
+      {
+        "kind": "commanderSetup",
+        "candidateSource": "formalParty",
+        "defaultMode": "automatic",
+        "defaultStance": "attack"
+      }
+    ],
+    "victory": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 569,
+          "speakerId": 7
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 570,
+          "speakerId": 0
+        },
+        "whenWorldStep": 5,
+        "sourceWaitTicksAfter": 15
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 571,
+          "speakerId": 0
+        },
+        "unlessWorldStep": 5,
+        "sourceWaitTicksAfter": 15
+      },
+      {
+        "kind": "missionComplete",
+        "text": {
+          "sourceTextIndex": 34
+        },
+        "goldReward": 1000
+      }
+    ]
+  },
+  "combatEvents": [],
+  "outcomeRules": {
+    "checks": [
+      {
+        "kind": "defeat",
+        "condition": "requiredUnitFallen",
+        "unitIds": [0]
+      },
+      {
+        "kind": "victory",
+        "condition": "allUnitsRetired",
+        "unitIds": [31, 32]
+      }
+    ]
+  }
+}

@@ -55,17 +55,17 @@ func run() -> void:
 		fail("Settings wheel must select a different enabled command without panning the map")
 		return
 	await wheel(MOUSE_BUTTON_WHEEL_DOWN)
-	if root.gui_get_focus_owner().text != "辅助功能":
-		fail("Settings wheel must leave nested map controls and reach assistance")
+	if root.gui_get_focus_owner().text != "查看全图":
+		fail("Settings wheel must reach overview after adaptive fitting")
 		return
-	scene.menu_layer.show_page("assistance")
+	scene.menu_layer.show_page("speed")
 	scene.menu_layer.go_back()
 	if root.gui_get_focus_owner() == first:
 		fail("Returning to settings must preserve its prior selected command")
 		return
 	var slider: Control = scene.menu_layer.find_child("MapZoom", true, false)
 	slider.grab_focus()
-	scene.menu_layer.show_page("assistance")
+	scene.menu_layer.show_page("speed")
 	scene.menu_layer.go_back()
 	if root.gui_get_focus_owner() != slider:
 		fail("Returning to settings must also restore slider focus")
@@ -115,6 +115,7 @@ func run() -> void:
 	scene._show_unit_menu(Vector2i(8, 11))
 	scene._unit_intent("inventory", {})
 	scene.item_actions.find_child("Discard", true, false).pressed.emit()
+	scene.item_actions.find_child("Item_9", true, false).pressed.emit()
 	scene.item_actions.find_child("Item_9", true, false).pressed.emit()
 	before = scene.battle.snapshot()
 	await wheel(MOUSE_BUTTON_WHEEL_DOWN)

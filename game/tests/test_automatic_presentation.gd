@@ -35,6 +35,8 @@ func run() -> void:
 	var stages: Array[String] = []
 	var deadline: int = Time.get_ticks_msec() + 15000
 	while scene.busy and Time.get_ticks_msec() < deadline:
+		if scene.action_feedback.current_step.get("kind") == "summary":
+			scene.action_feedback.go_back()
 		var map: Control = scene.map
 		var stage: String = ""
 		if map.range_kind == "enemy" and not map.movement.is_empty():

@@ -17,7 +17,7 @@ def run(*command: str, timeout: int = 180) -> str:
     return result.stdout
 
 
-def verify_pack(pack: Path, expected: str) -> None:
+def verify_pack(pack: Path, expected: str, *, require_compressed_catalog: bool = False) -> None:
     run(
         "godot",
         "--headless",
@@ -27,6 +27,7 @@ def verify_pack(pack: Path, expected: str) -> None:
         str(GODOT / "verify_web_build.gd"),
         "--",
         expected,
+        *(["--compressed-catalog"] if require_compressed_catalog else []),
     )
 
 

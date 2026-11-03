@@ -110,6 +110,8 @@ func _initialize() -> void:
 		)
 		if not _expect(not rejected["ok"] and _draws == 0, "Reject invalid clone " + change):
 			return
+	if not _boss_family(entry, definition, records, story):
+		return
 	_cleanup()
 	print("PASS clone bindings: root families, generations, opaque items and JSON actor rejection")
 	quit(0)
@@ -186,6 +188,87 @@ func _restore_and_project(content: Dictionary, state: Dictionary) -> bool:
 			):
 				return false
 	return true
+
+
+func _boss_family(
+	entry: Dictionary, definition: Dictionary, records: Array, story: Dictionary
+) -> bool:
+	records[1]["id"] = 80
+	story["periodicClones"]["branches"][0]["templateUnitIds"] = [80, 108]
+	for row: Array in [
+		[definition["deployments"], records],
+		[definition["story"], story],
+		[entry["battles"]["m0"], definition],
+		[_owned.path_join("chapter.json"), entry]
+	]:
+		var file := FileAccess.open(row[0], FileAccess.WRITE)
+		if file == null:
+			return _expect(false, "Cannot write owned boss clone fixture")
+		file.store_string(JSON.stringify(row[1]))
+	var opened: Dictionary = Session.new().open(
+		_owned.path_join("chapter.json"), "m0", {"new": true}, _roll
+	)
+	if not _expect(opened["ok"], "Open trusted boss clone fixture: " + str(opened)):
+		return false
+	var state: Dictionary = opened["battle"].snapshot()
+	state["round"] = 4
+	state["events"]["fixture_clones:round_3"] = true
+	state["cloneState"] = {
+		"nextGeneration": 2,
+		"bindings": [{"unitId": 105, "generation": 1, "templateDeploymentIndex": 1}]
+	}
+	var clone: Dictionary = opened["battle"].unit(80)
+	clone["id"] = 105
+	clone["visible"] = false
+	clone["flags"] = 1
+	clone["maxHp"] = 70
+	clone["hp"] = 40
+	clone["attributes"]["strength"] = 40
+	for key: String in ["deploymentIndex", "deploymentSlot", "temporary"]:
+		clone.erase(key)
+	for index: int in range(clone["inventory"].size()):
+		var item: Dictionary = clone["inventory"][index]
+		var previous: String = item["id"]
+		item["id"] = "boss clone item %d" % index
+		if clone["equippedInstanceId"] == previous:
+			clone["equippedInstanceId"] = item["id"]
+	state["units"].append(clone)
+	var restored: Dictionary = Session.new().open(
+		_owned.path_join("chapter.json"),
+		"m0",
+		{"snapshot": JSON.parse_string(JSON.stringify(state))},
+		_roll
+	)
+	if not _expect(
+		restored["ok"] and restored["battle"].unit(105)["maxHp"] == 70,
+		"A declared boss clone family can cold-read copied adaptive values: " + str(restored)
+	):
+		return false
+	var ordinary: Dictionary = opened["battle"].unit(108)
+	for key: String in ["deploymentIndex", "deploymentSlot", "temporary"]:
+		ordinary.erase(key)
+	ordinary["id"] = 105
+	ordinary["visible"] = false
+	ordinary["flags"] = 1
+	ordinary["maxHp"] = 70
+	ordinary["hp"] = 40
+	ordinary["attributes"]["strength"] = 40
+	ordinary["bossInheritedStats"] = true
+	for index: int in range(ordinary["inventory"].size()):
+		var item: Dictionary = ordinary["inventory"][index]
+		var previous: String = item["id"]
+		item["id"] = "ordinary clone item %d" % index
+		if ordinary["equippedInstanceId"] == previous:
+			ordinary["equippedInstanceId"] = item["id"]
+	state["units"][-1] = ordinary
+	state["cloneState"]["bindings"][0]["templateDeploymentIndex"] = 2
+	var rejected: Dictionary = Session.new().open(
+		_owned.path_join("chapter.json"),
+		"m0",
+		{"snapshot": JSON.parse_string(JSON.stringify(state))},
+		_roll
+	)
+	return _expect(not rejected["ok"], "An ordinary clone cannot forge boss-family save bounds")
 
 
 func _json(path: String) -> Variant:

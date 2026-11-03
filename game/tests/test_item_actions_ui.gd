@@ -30,6 +30,7 @@ func run() -> void:
 		fail("The already-equipped weapon must remain an equipment candidate")
 		return
 	weapon.pressed.emit()
+	weapon.pressed.emit()
 	if view.page != "confirm":
 		fail("Selecting equipment must show a confirmation before mutation")
 		return
@@ -42,6 +43,7 @@ func run() -> void:
 		fail("Back from the item list must return to operation selection")
 		return
 	view.find_child("Use", true, false).pressed.emit()
+	view.find_child("Item_60", true, false).pressed.emit()
 	view.find_child("Item_60", true, false).pressed.emit()
 	var before: Dictionary = scene.battle.snapshot()
 	await _escape()
@@ -80,6 +82,7 @@ func run() -> void:
 	scene._unit_intent("inventory", {})
 	view.find_child("Discard", true, false).pressed.emit()
 	view.find_child("Item_9", true, false).pressed.emit()
+	view.find_child("Item_9", true, false).pressed.emit()
 	Input.parse_input_event(confirm)
 	await process_frame
 	if (
@@ -98,6 +101,7 @@ func run() -> void:
 	scene._show_unit_menu(Vector2i(8, 11))
 	scene._unit_intent("inventory", {})
 	view.find_child("Discard", true, false).pressed.emit()
+	view.find_child("Item_60", true, false).pressed.emit()
 	view.find_child("Item_60", true, false).pressed.emit()
 	Input.parse_input_event(confirm)
 	await process_frame

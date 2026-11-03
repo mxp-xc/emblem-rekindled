@@ -1,9 +1,11 @@
 extends RefCounted
 
 const Combat = preload("res://gameplay/combat_rules.gd")
+const NativeScene = preload("res://features/battle/native_scene_clock.gd")
 var _catalog: Dictionary
 var _art: Dictionary
 var _directory: String
+var _terrain: Array
 var _combat: RefCounted
 var _cache: Dictionary = {}
 var _broken_groups: Dictionary = {}
@@ -19,16 +21,18 @@ func rebind(content: Dictionary) -> void:
 	_catalog = content["battleClips"]
 	_art = content["battleArt"]
 	_directory = content["entry"]["resourceDirectory"]
+	_terrain = content["map"]["terrain"]
 
 
 static func validate_art(art: Dictionary, directory: String, terrain: Array) -> bool:
+	var verified_textures: Dictionary = {}
 	for key: String in ["appearances", "terrainBackgrounds", "backgrounds"]:
 		if not art.get(key) is Dictionary or art[key].is_empty():
 			return false
 	for appearance: Variant in art["appearances"].values():
 		if not appearance is Dictionary or appearance.get("nativeSide") not in ["left", "right"]:
 			return false
-		if not _frames_valid(appearance.get("frames"), directory, 1):
+		if not _frames_valid(appearance.get("frames"), directory, 1, verified_textures):
 			return false
 	for row: Array in terrain:
 		for cell: Variant in row:
@@ -38,22 +42,25 @@ static func validate_art(art: Dictionary, directory: String, terrain: Array) -> 
 	for background: Variant in art["backgrounds"].values():
 		if (
 			not background is Dictionary
-			or not _frames_valid(background.get("frames"), directory, 3)
+			or not _frames_valid(background.get("frames"), directory, 3, verified_textures)
 		):
 			return false
 	return true
 
 
-static func _frames_valid(frames: Variant, directory: String, minimum: int) -> bool:
+static func _frames_valid(
+	frames: Variant, directory: String, minimum: int, verified_textures: Dictionary
+) -> bool:
 	if not frames is Array or frames.size() < minimum:
 		return false
 	for frame: Variant in frames:
-		if (
-			not frame is Dictionary
-			or not frame.get("texture") is String
-			or not ResourceLoader.exists(directory.path_join(frame["texture"]))
-		):
+		if not frame is Dictionary or not frame.get("texture") is String:
 			return false
+		var path: String = directory.path_join(frame["texture"])
+		if not verified_textures.has(path):
+			if not ResourceLoader.exists(path):
+				return false
+			verified_textures[path] = true
 		if not _integer(frame.get("offsetX")) or not _integer(frame.get("offsetY")):
 			return false
 	return true
@@ -69,7 +76,7 @@ static func validate_catalog(value: Variant, directory: String, art: Dictionary)
 	for key: String in [
 		"appearances", "actionGroups", "defenseGroups", "clips", "deaths", "textures"
 	]:
-		if not value.get(key) is Dictionary or value[key].is_empty():
+		if not value.get(key) is Dictionary or (key != "clips" and value[key].is_empty()):
 			return false
 	for texture: Variant in value["textures"].values():
 		if (
@@ -130,6 +137,15 @@ static func validate_catalog(value: Variant, directory: String, art: Dictionary)
 		var action: Dictionary = value["appearances"][attacker]
 		if not action["canAttack"]:
 			continue
+		var projectile: Dictionary = art["appearances"][attacker].get("projectile", {})
+		var generated: bool = true
+		for outcome: String in ["miss", "hit", "critical"]:
+			generated = (
+				generated
+				and _can_generate(value["actionGroups"][action["actionGroup"]], outcome, projectile)
+			)
+		if generated:
+			continue
 		for defender: String in value["appearances"]:
 			if (
 				art["appearances"][attacker]["nativeSide"]
@@ -139,10 +155,20 @@ static func validate_catalog(value: Variant, directory: String, art: Dictionary)
 			var prefix: String = (
 				action["actionGroup"] + "/" + value["appearances"][defender]["defenseGroup"]
 			)
-			required[prefix] = true
+			if not required.has(prefix):
+				required[prefix] = {"miss": true, "hit": true, "critical": true}
+			for outcome: String in ["miss", "hit", "critical"]:
+				required[prefix][outcome] = (
+					required[prefix][outcome]
+					and _can_generate(
+						value["actionGroups"][action["actionGroup"]], outcome, projectile
+					)
+				)
 	for prefix: String in required:
 		for slot: int in range(2):
 			for outcome: String in ["hit", "miss", "critical"]:
+				if required[prefix][outcome]:
+					continue
 				var path: Variant = value["clips"].get("%s/%d/%s" % [prefix, slot, outcome])
 				if not path is String or not FileAccess.file_exists(directory.path_join(path)):
 					return false
@@ -163,6 +189,9 @@ func preload_pair(preview: Dictionary) -> Dictionary:
 			groups.append(_ordinary_group(group))
 		for action_group: String in groups:
 			for outcome: String in ["hit", "miss", "critical"]:
+				var projectile: Dictionary = _art["appearances"][attacker].get("projectile", {})
+				if _can_generate(_catalog["actionGroups"][action_group], outcome, projectile):
+					continue
 				var key: String = (
 					"%s/%s/%d/%s"
 					% [
@@ -201,15 +230,23 @@ func prepare(result: Dictionary) -> Dictionary:
 			"%s/%s/%d/%s"
 			% [action, _catalog["appearances"][defender]["defenseGroup"], slot, outcome]
 		)
-		var loaded: Dictionary = _read_clip(key)
-		if not loaded["ok"]:
-			return loaded
+		var projectile: Dictionary = _art["appearances"][attacker].get("projectile", {})
+		var generated: bool = _can_generate(_catalog["actionGroups"][action], outcome, projectile)
+		var clip: Dictionary = {}
+		if not generated:
+			var loaded: Dictionary = _read_clip(key)
+			if not loaded["ok"]:
+				return loaded
+			clip = loaded["clip"]
 		timelines.append(
 			{
-				"clip": loaded["clip"],
+				"clip": clip,
+				"generated": generated,
+				"sourceSlot": slot,
 				"strike": strike,
 				"actionGroup": action,
-				"defenseGroup": _catalog["appearances"][defender]["defenseGroup"]
+				"defenseGroup": _catalog["appearances"][defender]["defenseGroup"],
+				"projectile": projectile
 			}
 		)
 	return {
@@ -217,10 +254,23 @@ func prepare(result: Dictionary) -> Dictionary:
 		"participants": result["participants"],
 		"appearances": appearances,
 		"timelines": timelines,
+		"actionGroups": _catalog["actionGroups"],
+		"defenseGroups": _catalog["defenseGroups"],
+		"battleEffects": _art.get("effects", {}),
+		"battleArt": _art,
+		"mapTerrain": _terrain,
+		"stageGeometry": {"viewport": _catalog["viewport"], "stage": _catalog["stage"]},
 		"deaths": _catalog["deaths"],
 		"tickMillis": _catalog["tickMillis"],
 		"logicTickUnits": _catalog["logicTickUnits"]
 	}
+
+
+static func _can_generate(action: Dictionary, outcome: String, projectile: Dictionary) -> bool:
+	return (
+		NativeScene.supports(action, outcome)
+		and (not action["thrown"] or not projectile.is_empty())
+	)
 
 
 func _appearance(actor: Dictionary) -> String:

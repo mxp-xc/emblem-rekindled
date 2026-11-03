@@ -88,6 +88,8 @@ func _check_case(oracle: Dictionary, sample: Dictionary) -> bool:
 
 func _content(oracle: Dictionary, units: Array, unit_order: Array) -> Dictionary:
 	var rules: Dictionary = oracle["rules"].duplicate(true)
+	# Movement is not exercised by these captured attack probes.
+	rules["baseMovementCosts"] = [1]
 	# These command-routing fields are modern metadata; all numeric combat tables above
 	# remain the retained original values, independent from current generated content.
 	for item: Dictionary in rules["itemTemplates"]:

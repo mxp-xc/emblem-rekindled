@@ -499,8 +499,9 @@ func _last_enemy() -> bool:
 		"The final visible enemy's real retirement triggers m6 victory"
 	):
 		return false
+	var previous_record: String = FileAccess.get_file_as_string(_scene.battle_store.path)
 	_scene._present_player_action(result)
-	return await _settled_world(Matrix.CONTEXTS[2], initial_gold)
+	return await _settled_world(Matrix.CONTEXTS[2], initial_gold, previous_record)
 
 
 func _prepare_kill(target: int, last: bool) -> bool:
@@ -553,11 +554,12 @@ func _early_fixture() -> bool:
 	var result: Dictionary = _scene.battle.win_with_assistance()
 	if not _expect(result["ok"], "Controlled step2 assistance reaches real Main settlement"):
 		return false
+	var previous_record: String = FileAccess.get_file_as_string(_scene.battle_store.path)
 	_scene._present_player_action(result)
-	return await _settled_world(Matrix.CONTEXTS[4], initial_gold)
+	return await _settled_world(Matrix.CONTEXTS[4], initial_gold, previous_record)
 
 
-func _settled_world(context: Dictionary, initial_gold: int) -> bool:
+func _settled_world(context: Dictionary, initial_gold: int, previous_record: String) -> bool:
 	var seen: Dictionary = {}
 	var deadline: int = Time.get_ticks_msec() + 10000
 	while not _scene.story_player.world_ready and Time.get_ticks_msec() < deadline:
@@ -565,7 +567,6 @@ func _settled_world(context: Dictionary, initial_gold: int) -> bool:
 			seen[_scene.story_player.current_text_index] = true
 		_drive()
 		await process_frame
-	var saved: Dictionary = _scene.battle_store.read()
 	var early: bool = context["step"] == 2
 	if not _expect(
 		(
@@ -577,13 +578,14 @@ func _settled_world(context: Dictionary, initial_gold: int) -> bool:
 			and _scene.world_progress["completedBattle"] == "m6"
 			and _scene.world_progress["worldStep"] == context["step"] + 1
 			and _scene.world_progress["gold"] == initial_gold + 1000
-			and saved["ok"]
-			and saved["progress"] == _scene.world_progress
+			and FileAccess.get_file_as_string(_scene.battle_store.path) == previous_record
 		),
-		"Main plays548 and the proper488/549 branch, awards1000 and saves the fixed-route world"
+		"Main settles the fixed route and preserves the previous continue record"
 	):
 		return false
 	var progress: Dictionary = _scene.world_progress.duplicate(true)
+	if not _expect(_scene.battle_store.write_progress(progress)["ok"], "Explicitly save the world"):
+		return false
 	_scene._show_title()
 	_scene.load_game()
 	deadline = Time.get_ticks_msec() + 5000
@@ -613,7 +615,7 @@ func _set_speed(rate: int) -> void:
 func _drive() -> void:
 	if _scene.story_player.dialogue.visible:
 		_scene.story_player.advance()
-	if _scene.action_feedback.current_step.get("kind") == "tutorial":
+	if _scene.action_feedback.current_step.get("kind") in ["tutorial", "summary"]:
 		_scene.action_feedback.go_back()
 
 

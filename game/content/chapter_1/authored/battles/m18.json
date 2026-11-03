@@ -1,0 +1,32 @@
+{
+  "battleId": "m18",
+  "encounter": true,
+  "worldNode": 0,
+  "battleName": { "sourceTextIndex": 120 },
+  "objective": { "sourceTextIndex": 173 },
+  "commanderMode": "none",
+  "initialBattlePresentation": {
+    "hiddenUnitIds": [],
+    "hiddenFactions": [],
+    "unitPositionOverrides": {}
+  },
+  "turnEvents": [],
+  "aiChanges": [],
+  "routeChoices": [],
+  "speakers": {
+    "0": { "id": 0, "name": "雅木", "faction": 0, "portraitId": 0 },
+    "9": { "id": 9, "name": "赛丽卡", "faction": 0, "portraitId": 9 }
+  },
+  "sequences": {
+    "opening": [{ "kind": "objective", "text": { "sourceTextIndex": 173 } }],
+    "victory": [
+      { "kind": "missionComplete", "text": { "sourceTextIndex": 34 }, "goldReward": 1000 }
+    ]
+  },
+  "outcomeRules": {
+    "checks": [
+      { "kind": "defeat", "condition": "noVisibleFaction", "faction": 0 },
+      { "kind": "victory", "condition": "noVisibleFaction", "faction": 2 }
+    ]
+  }
+}

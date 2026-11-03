@@ -1,0 +1,221 @@
+{
+  "battleId": "m12",
+  "worldNode": 12,
+  "battleName": {
+    "sourceTextIndex": 151
+  },
+  "objective": {
+    "sourceTextIndex": 168
+  },
+  "initialBattlePresentation": {
+    "hiddenUnitIds": [],
+    "hiddenFactions": [],
+    "unitPositionOverrides": {}
+  },
+  "turnEvents": [],
+  "aiChanges": [],
+  "routeChoices": [],
+  "speakers": {
+    "0": {
+      "id": 0,
+      "name": "雅木",
+      "faction": 0,
+      "portraitId": 0
+    },
+    "1": {
+      "id": 1,
+      "name": "希尔克",
+      "faction": 0,
+      "portraitId": 1
+    },
+    "89": {
+      "id": 89,
+      "name": "贾米尔",
+      "faction": 2,
+      "portraitId": 20
+    },
+    "9": {
+      "id": 9,
+      "name": "赛丽卡",
+      "faction": 0,
+      "portraitId": 9
+    }
+  },
+  "sequences": {
+    "opening": [
+      {
+        "kind": "battleTitle",
+        "text": {
+          "sourceTextIndex": 151
+        },
+        "sourceDurationUnits": 2000
+      },
+      {
+        "kind": "focus",
+        "cell": [12, 24],
+        "instant": true,
+        "sourceMaxFocusPixels": 4,
+        "sourceWaitTicks": 26
+      },
+      {
+        "kind": "focus",
+        "cell": [1, 15],
+        "sourceMaxFocusPixels": 4
+      },
+      {
+        "kind": "focus",
+        "cell": [22, 15],
+        "sourceMaxFocusPixels": 4
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 588,
+          "speakerId": 89
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 589,
+          "speakerId": 1
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 590,
+          "speakerId": 0
+        },
+        "sourceWaitTicksAfter": 15
+      },
+      {
+        "kind": "objective",
+        "text": {
+          "sourceTextIndex": 168
+        }
+      },
+      {
+        "kind": "commanderSetup",
+        "candidateSource": "formalParty",
+        "defaultMode": "automatic",
+        "defaultStance": "attack"
+      }
+    ],
+    "chest_ambush": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 591,
+          "speakerId": 89
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 592,
+          "speakerId": 0
+        }
+      }
+    ],
+    "boss_first_combat": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 593,
+          "speakerId": 89
+        }
+      }
+    ],
+    "boss_before_retirement": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 594,
+          "speakerId": 89
+        }
+      }
+    ],
+    "victory": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 595,
+          "speakerId": 1
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 596,
+          "speakerId": 0
+        },
+        "whenWorldStep": 5,
+        "sourceWaitTicksAfter": 15
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 597,
+          "speakerId": 0
+        },
+        "unlessWorldStep": 5,
+        "sourceWaitTicksAfter": 15
+      },
+      {
+        "kind": "missionComplete",
+        "text": {
+          "sourceTextIndex": 34
+        },
+        "goldReward": 1000
+      }
+    ]
+  },
+  "combatEvents": [
+    {
+      "id": "boss_first_combat",
+      "trigger": "firstCombat",
+      "unitId": 89,
+      "sequence": "boss_first_combat"
+    },
+    {
+      "id": "boss_death",
+      "trigger": "unitDeath",
+      "unitId": 89,
+      "beforeRetirement": "boss_before_retirement"
+    }
+  ],
+  "outcomeRules": {
+    "checks": [
+      {
+        "kind": "defeat",
+        "condition": "requiredUnitFallen",
+        "unitIds": [0]
+      },
+      {
+        "kind": "victory",
+        "condition": "noVisibleEnemies",
+        "faction": 2
+      }
+    ]
+  },
+  "locationEvents": [
+    {
+      "locationId": "chest_0",
+      "unitIds": [30, 66, 57, 58]
+    },
+    {
+      "locationId": "chest_1",
+      "unitIds": [32, 65, 63, 64],
+      "sequence": "chest_ambush"
+    },
+    {
+      "locationId": "chest_2",
+      "unitIds": [61, 62, 68, 33]
+    },
+    {
+      "locationId": "chest_3",
+      "unitIds": [67, 31, 60, 59]
+    }
+  ]
+}

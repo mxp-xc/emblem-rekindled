@@ -39,7 +39,10 @@ func run() -> void:
 		fail("Back during an automatic phase must not open an actionable menu")
 		return
 	var enemy_stages: Array[String] = []
-	while scene.busy:
+	var deadline: int = Time.get_ticks_msec() + 30000
+	while scene.busy and Time.get_ticks_msec() < deadline:
+		if scene.action_feedback.current_step.get("kind") in ["tutorial", "summary"]:
+			scene.action_feedback.go_back()
 		if scene.map.range_kind == "enemy" and not scene.map.movement.is_empty():
 			var stage: String = "range"
 			if not scene.map.animation_positions.is_empty():
@@ -49,6 +52,21 @@ func run() -> void:
 			if stage not in enemy_stages:
 				enemy_stages.append(stage)
 		await process_frame
+	if scene.busy:
+		fail(
+			(
+				"Automatic phase timed out: "
+				+ str(
+					{
+						"phase": battle.phase,
+						"round": battle.round_number,
+						"story": scene.story_player.visible,
+						"feedback": scene.action_feedback.current_step
+					}
+				)
+			)
+		)
+		return
 	if enemy_stages != ["range", "route", "moving"]:
 		fail(
 			(

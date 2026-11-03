@@ -86,6 +86,8 @@ func run() -> void:
 	await _key(KEY_ENTER)
 	await _key(KEY_ESCAPE)
 	while scene.busy:
+		if scene.action_feedback.current_step.get("kind") == "summary":
+			scene.action_feedback.go_back()
 		await process_frame
 	if scene.battle_view.visible or battle.unit(0)["action"] != 2:
 		fail("Independent combat must finish and return to the map with the action consumed")

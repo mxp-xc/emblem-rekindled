@@ -95,6 +95,12 @@ func _victory(chosen: int) -> void:
 	if battle.outcome.get("reason") != "escaped":
 		fail("The Root ending must come from the original southern-escape command")
 		return
+	if archive.read().get("ok", false):
+		fail("Entering the completed world must not automatically overwrite the continue record")
+		return
+	if not archive.write_progress(scene.world_progress)["ok"]:
+		fail("The completed world must be explicitly writable for a cold continuation")
+		return
 	var saved: Dictionary = archive.read()
 	if (
 		not saved["ok"]
@@ -103,7 +109,7 @@ func _victory(chosen: int) -> void:
 		or saved["progress"]["gold"] != 6000
 		or saved["progress"]["party"].size() != 2
 	):
-		fail("Every source route must reach the real ending and persist its exact progress once")
+		fail("Every source route must reach the real ending and explicitly save its exact progress")
 		return
 	for index: int in [485, 486, 487, 488, 34]:
 		if index not in seen:

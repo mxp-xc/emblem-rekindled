@@ -2,6 +2,7 @@
 
 import copy
 import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -12,9 +13,39 @@ from emblem_dev.content.assets import owned_output_paths, publish_generated, sha
 from emblem_dev.content.library import STAGE_FIELDS, import_presentation
 from emblem_dev.paths import ROOT
 
+ENCOUNTER_BATTLES = frozenset(("m17", "m18", "m19"))
+
 
 def resource_path(chapter: Path, path: Path) -> str:
     return "res://" + path.resolve().relative_to(chapter.resolve().parents[1]).as_posix()
+
+
+def generated_noncritical(action: dict, appearance: dict) -> bool:
+    """Whether runtime motion, effects and scene rules cover a noncritical action."""
+    kind, presentation = action.get("effectKind"), action.get("R")
+    supported = kind in (3, 4, 5, 6, 7, 8, 11, 12) or (
+        kind in (0, 1)
+        and (
+            presentation in (0, 2, 4, 5, 6, 8)
+            or (presentation == 7 and not action.get("thrown", False))
+        )
+    )
+    return supported and (not action.get("thrown", False) or bool(appearance.get("projectile")))
+
+
+def generated_critical(action: dict, appearance: dict) -> bool:
+    """Whether the critical scene can be generated at runtime."""
+    thrown = bool(action.get("thrown"))
+    return (not thrown or bool(appearance.get("projectile"))) and (
+        action.get("effectKind") in (3, 4, 5, 6, 7, 8, 11, 12)
+        or (
+            action.get("effectKind") in (0, 1)
+            and (
+                (thrown and action.get("R") in (0, 2, 4))
+                or (not thrown and action.get("R") in (0, 2, 4, 5, 6, 7, 8))
+            )
+        )
+    )
 
 
 def write_motion_reuse_plan(chapter: Path, target: Path) -> None:
@@ -57,7 +88,13 @@ def motion_requirements(chapter: Path) -> dict:
         stage_id = definition["stage"]
         stage = bank["stages"][stage_id]
         appearances = []
-        for profile_id in set(definition["profiles"].values()):
+        summon_profiles = {
+            profile
+            for families in bank.get("summons", {}).values()
+            for identities in families.values()
+            for profile in identities.values()
+        }
+        for profile_id in set(definition["profiles"].values()) | summon_profiles:
             profile = bank["profiles"][profile_id]
             for weapon, art in profile["appearances"].items():
                 motion = profile["motion"][stage_id][weapon]
@@ -66,12 +103,21 @@ def motion_requirements(chapter: Path) -> dict:
         for profile, weapon, side, action in appearances:
             if not action["canAttack"]:
                 continue
+            native_action = stage["actionGroups"][action["actionGroup"]]
+            native_art = bank["profiles"][profile]["appearances"][weapon]
+            normal = generated_noncritical(native_action, native_art)
+            critical = generated_critical(native_action, native_art)
+            outcomes = (() if normal else ("hit", "miss")) + (() if critical else ("critical",))
+            if not outcomes:
+                continue
             for other_profile, other_weapon, other_side, defense in appearances:
                 if side == other_side:
                     continue
                 for slot in range(2):
-                    for outcome in ("hit", "miss", "critical"):
+                    for outcome in outcomes:
                         key = f"{action['actionGroup']}/{defense['defenseGroup']}/{slot}/{outcome}"
+                        if key in required:
+                            continue
                         required.add(key)
                         clip = stage["clips"].get(key)
                         if clip and (game / clip[6:]).is_file():
@@ -97,24 +143,31 @@ def recruit_contexts(chapter: Path, battle_id: str) -> list[dict]:
     bank = json.loads((chapter.parents[1] / entry["library"][6:]).read_text())
     contexts = {}
     node = int(battle_id[1:])
+    encounter = battle_id in ENCOUNTER_BATTLES
     for route, path in enumerate(bank["storyCommon"]["world"]["routes"]):
-        if node not in path:
-            continue
-        step = path.index(node)
-        party = list(entry["initialParty"])
-        for previous in path[:step]:
-            member = entry["recruitByNode"].get(str(previous))
-            if member is not None and member not in party:
-                party.append(member)
-        key = tuple(party)
-        if key not in contexts:
-            contexts[key] = {
-                "route": route,
-                "worldStep": step,
-                "party": party,
-                "equivalentRoutes": [],
-            }
-        contexts[key]["equivalentRoutes"].append(route)
+        steps = (
+            range(6, len(path) + 1) if encounter else ([path.index(node)] if node in path else [])
+        )
+        for step in steps:
+            party = list(entry["initialParty"])
+            for previous in path[:step]:
+                member = entry["recruitByNode"].get(str(previous))
+                if member is not None and member not in party:
+                    party.append(member)
+            key = tuple(party)
+            if key not in contexts:
+                contexts[key] = {
+                    "route": route,
+                    "worldStep": step,
+                    "party": party,
+                    "equivalentRoutes": [],
+                }
+                if encounter:
+                    contexts[key]["equivalentContexts"] = []
+            if route not in contexts[key]["equivalentRoutes"]:
+                contexts[key]["equivalentRoutes"].append(route)
+            if encounter:
+                contexts[key]["equivalentContexts"].append({"route": route, "worldStep": step})
     return list(contexts.values())
 
 
@@ -124,21 +177,45 @@ def recruit_binding_plan(chapter: Path) -> dict:
     entry = json.loads((chapter / "chapter.json").read_text())
     game = chapter.parents[1]
     bank = json.loads((game / entry["library"][6:]).read_text())
+    rules = json.loads((game / entry["rules"][6:]).read_text()) if "rules" in entry else {}
+    promotion_pairs = {row["fromClassId"]: row["toClassId"] for row in rules.get("promotions", [])}
     plans, missing = {}, []
     for battle_id, path in entry["battles"].items():
         definition = json.loads((game / path[6:]).read_text())
+        records = json.loads((game / definition["deployments"][6:]).read_text())
         bindings = dict(definition["profiles"])
         contexts = recruit_contexts(chapter, battle_id)
         members = {member for context in contexts for member in context["party"]}
+        formal_sources = set(entry["initialParty"]) | set(entry["recruitByNode"].values())
+        members.update(
+            row["sourceId"]
+            for row in records
+            if row.get("faction") == 0
+            and "deploymentSlot" not in row
+            and row.get("sourceId") in formal_sources
+        )
         for member in sorted(members):
             by_recipe = {}
             for identity, profile in bank["profiles"].items():
                 unit = profile["unit"]
                 if unit["formal"] and unit["faction"] == 0 and unit["sourceId"] == member:
+                    if battle_id == "m0" and unit["classId"] in promotion_pairs.values():
+                        continue
                     recipe = f"source_{member}_job_{unit['classId']}_faction_0"
                     by_recipe.setdefault(recipe, []).append(identity)
             if not by_recipe:
                 missing.append({"battleId": battle_id, "member": member})
+            if battle_id != "m0":
+                for profile in bank["profiles"].values():
+                    unit = profile["unit"]
+                    if (
+                        unit["formal"]
+                        and unit["sourceId"] == member
+                        and unit["classId"] in promotion_pairs
+                    ):
+                        target = f"source_{member}_job_{promotion_pairs[unit['classId']]}_faction_0"
+                        if target not in by_recipe:
+                            missing.append({"battleId": battle_id, "recipe": target})
             for recipe, candidates in by_recipe.items():
                 if recipe in bindings:
                     continue
@@ -148,27 +225,34 @@ def recruit_binding_plan(chapter: Path) -> dict:
                         f"{battle_id}:{recipe}"
                     )
                 bindings[recipe] = candidates[0]
-        records = json.loads((game / definition["deployments"][6:]).read_text())
         for row in records:
+            if battle_id in ENCOUNTER_BATTLES:
+                continue
             if "deploymentSlot" not in row or not any(
                 row["deploymentSlot"] >= len(context["party"]) for context in contexts
             ):
                 continue
-            recipe = f"slot_{row['deploymentSlot']}_job_{row['classId']}_faction_{row['faction']}"
-            if recipe in bindings:
-                continue
-            candidates = [
-                name for name in bank["profiles"] if name == recipe or name.startswith(recipe + "_")
-            ]
-            if not candidates:
-                missing.append({"battleId": battle_id, "recipe": recipe})
-            elif len(candidates) != 1:
-                raise ValueError(
-                    "Temporary profile is ambiguous; sample this map context explicitly: "
-                    f"{battle_id}:{recipe}"
-                )
-            else:
-                bindings[recipe] = candidates[0]
+            classes = [row["classId"]]
+            if battle_id != "m0" and row["classId"] in promotion_pairs:
+                classes.append(promotion_pairs[row["classId"]])
+            for class_id in classes:
+                recipe = f"slot_{row['deploymentSlot']}_job_{class_id}_faction_{row['faction']}"
+                if recipe in bindings:
+                    continue
+                candidates = [
+                    name
+                    for name in bank["profiles"]
+                    if name == recipe or name.startswith(recipe + "_")
+                ]
+                if not candidates:
+                    missing.append({"battleId": battle_id, "recipe": recipe})
+                elif len(candidates) != 1:
+                    raise ValueError(
+                        "Temporary profile is ambiguous; sample this map context explicitly: "
+                        f"{battle_id}:{recipe}"
+                    )
+                else:
+                    bindings[recipe] = candidates[0]
         plans[battle_id] = bindings
     return {"bindings": plans, "missingProfiles": missing}
 
@@ -262,6 +346,8 @@ def format_changed_json(chapter: Path, before: dict) -> int:
                 "bun",
                 "x",
                 "prettier",
+                "--ignore-path",
+                os.devnull,
                 "--config",
                 str(ROOT / ".prettierrc.json"),
                 "--write",
@@ -282,6 +368,7 @@ def format_changed_json(chapter: Path, before: dict) -> int:
 
 def prepare_map(chapter: Path, source: Path, deployment: dict) -> dict:
     """Merge one native context into an isolated chapter; callers publish after closure."""
+    import_promotion_rules(chapter, source)
     presentation = import_presentation(chapter, source)
     result = publish_map(chapter, source, deployment, presentation)
     actions = compile_actions(chapter)
@@ -293,6 +380,22 @@ def prepare_map(chapter: Path, source: Path, deployment: dict) -> dict:
     )
     entry_path.write_text(json.dumps(entry, ensure_ascii=False, indent=2) + "\n")
     return {"presentation": presentation, "map": result, "actions": actions}
+
+
+def import_promotion_rules(chapter: Path, source: Path) -> None:
+    """Enrich the owned chapter rules with the original, finite promotion table."""
+    path = source / "promotions.json"
+    if not path.is_file():
+        return
+    entry = json.loads((chapter / "chapter.json").read_text())
+    target = chapter.resolve().parents[1] / entry["rules"][6:]
+    rules = json.loads(target.read_text())
+    incoming = json.loads(path.read_text())
+    if "promotions" in rules and rules["promotions"] != incoming:
+        raise ValueError("Conflicting original promotion rules")
+    if rules.get("promotions") != incoming:
+        rules["promotions"] = incoming
+        target.write_text(json.dumps(rules, ensure_ascii=False, indent=2) + "\n")
 
 
 def normalize_deployment(chapter: Path, deployment: dict) -> dict:
@@ -350,6 +453,22 @@ def normalize_deployment(chapter: Path, deployment: dict) -> dict:
         for row in records:
             if row["faction"] == faction:
                 row["flags"] &= ~1
+    reveal = authored.get("deploymentRevealUnitIds", [])
+    if (
+        not isinstance(reveal, list)
+        or any(type(value) is not int for value in reveal)
+        or len(set(reveal)) != len(reveal)
+    ):
+        raise ValueError("Invalid deployment reveal identities")
+    for identity in reveal:
+        matches = [
+            row
+            for row in records
+            if "deploymentSlot" not in row and row.get("id", row["sourceId"]) == identity
+        ]
+        if len(matches) != 1:
+            raise ValueError("Deployment reveal must identify one unit")
+        matches[0]["flags"] &= ~1
     identities = [row.get("id", row["sourceId"]) for row in records if "deploymentSlot" not in row]
     if len(set(identities)) != len(identities):
         raise ValueError("Duplicate fixed deployment identities; declare an explicit adjustment")
@@ -375,6 +494,43 @@ def publish_map(chapter: Path, source: Path, deployment: dict, presentation: dic
         deployment["height"],
     ):
         raise ValueError(f"Native map dimensions disagree with deployment: {battle_id}")
+    tile_outputs = []
+    if deployment.get("locations"):
+        variants = native_map.get("tileVariants", {})
+        location_variants = native_map.pop("locationTileVariants", {})
+        chests = {
+            row["id"] for row in deployment["locations"] if row.get("kind", "chest") == "chest"
+        }
+        if set(location_variants) != chests:
+            raise ValueError("Native opened variants disagree with chest locations")
+        native_map["locations"] = [
+            {**row, "openedVariant": location_variants[row["id"]]}
+            if row["id"] in chests
+            else copy.deepcopy(row)
+            for row in deployment["locations"]
+        ]
+        for row in native_map["locations"]:
+            if row.get("kind") in ("visit", "waitPickup"):
+                x, y = row["position"]
+                terrain = (6,) if row["kind"] == "visit" else (3, 4)
+                if (
+                    native_map["terrain"][y][x] not in terrain
+                    or native_map["tiles"][y][x] != row["tileId"]
+                ):
+                    raise ValueError("Native visit location disagrees with original terrain")
+        for name in location_variants.values():
+            if name not in variants:
+                raise ValueError(f"Missing native opened tile variant: {name}")
+        for variant in variants.values():
+            name = variant["texture"]
+            path = source / name
+            if not path.resolve().is_relative_to(source) or not name.endswith(".png"):
+                raise ValueError("Invalid native tile texture path")
+            if not path.is_file():
+                raise ValueError(f"Missing native tile texture: {name}")
+            tile_outputs.append(name)
+            variant["texture"] = resource_path(chapter, target / name)
+        tile_outputs = sorted(set(tile_outputs))
     records = normalize_deployment(chapter, deployment)["units"]
     bindings = {}
     previous_path = target / "battle.json"
@@ -414,6 +570,13 @@ def publish_map(chapter: Path, source: Path, deployment: dict, presentation: dic
         sidecar = Path(str(source / "map.png") + ".import")
         if sidecar.is_file():
             (output / "map.png.import").write_bytes(sidecar.read_bytes())
+        for name in tile_outputs:
+            destination = output / name
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes((source / name).read_bytes())
+            sidecar = Path(str(source / name) + ".import")
+            if sidecar.is_file():
+                Path(str(destination) + ".import").write_bytes(sidecar.read_bytes())
         sampled = json.loads((source / "provenance.json").read_text())
         provenance = {
             key: sampled[key]
@@ -421,7 +584,13 @@ def publish_map(chapter: Path, source: Path, deployment: dict, presentation: dic
             if key in sampled
         }
         provenance["recordCount"] = len(records)
-        provenance["outputs"] = ["map.json", "map.png", "deployments.json", "battle.json"]
+        provenance["outputs"] = [
+            "map.json",
+            "map.png",
+            "deployments.json",
+            "battle.json",
+            *tile_outputs,
+        ]
         provenance["description"] = (
             "Original map and ordered deployment; presentation owned by chapter library"
         )

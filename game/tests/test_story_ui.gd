@@ -93,6 +93,40 @@ func run() -> void:
 		await create_timer(0.21).timeout
 		if not scene.story_player.visible:
 			break
+	for speaker_name: String in ["", "利盖鲁军"]:
+		scene.story_player.data["story"]["speakers"]["50"] = {
+			"id": 50, "name": speaker_name, "faction": 2
+		}
+		scene.story_player.play(
+			[
+				{
+					"kind": "dialogue",
+					"text": {"sourceTextIndex": 580, "speakerId": 50, "text": "敌袭！！敌袭！！"}
+				}
+			]
+		)
+		var speech_deadline: int = Time.get_ticks_msec() + 10000
+		while (
+			(scene.story_player.current_text_index != 580 or not dialogue.visible)
+			and Time.get_ticks_msec() < speech_deadline
+		):
+			await process_frame
+		if scene.story_player.current_text_index != 580 or not dialogue.visible:
+			fail("Enemy speech must finish its speaker focus before displaying the message")
+			return
+		if (
+			dialogue.portrait.visible
+			or dialogue.speaker_label.visible != (not speaker_name.is_empty())
+			or dialogue.speaker_label.text != speaker_name
+			or dialogue.get("_tone") != "enemy"
+		):
+			fail("Enemy speech preserves its tone and displays only an explicitly supplied name")
+			return
+		await _key(KEY_ENTER)
+		if scene.story_player.visible:
+			fail("An unnamed enemy line must confirm through the same story input flow")
+			return
+	scene.story_player.data["story"]["speakers"].erase("50")
 	Engine.time_scale = 8
 	scene.story_player.play(scene.content["story"]["sequences"]["defeat"])
 	await process_frame

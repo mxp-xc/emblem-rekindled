@@ -6,11 +6,13 @@ const WAREHOUSE_CAPACITY: int = 40
 # Shared item rules; battle and world progress own their mutable units and warehouses.
 var _combat: RefCounted
 var _roll: Callable
+var _progression: RefCounted
 
 
-func _init(combat: RefCounted, random_source: Callable) -> void:
+func _init(combat: RefCounted, random_source: Callable, progression: RefCounted = null) -> void:
 	_combat = combat
 	_roll = random_source
+	_progression = progression
 
 
 func equip(actor: Dictionary, instance_id: String) -> Dictionary:
@@ -31,7 +33,7 @@ func candidates(actor: Dictionary, operation: String) -> Array[Dictionary]:
 		var eligible: bool = false
 		match operation:
 			"use":
-				eligible = _can_use(held)
+				eligible = can_use(actor, held)
 			"equip":
 				eligible = can_equip(actor, held)
 			"discard":
@@ -123,7 +125,13 @@ func consume_template(actor: Dictionary, template_id: int) -> bool:
 	return false
 
 
-func transfer_drop(dead: Dictionary, recipient: Dictionary, warehouse: Array) -> Dictionary:
+func transfer_drop(
+	dead: Dictionary,
+	recipient: Dictionary,
+	warehouse: Array,
+	retain_source: bool,
+	held_ids: Dictionary
+) -> Dictionary:
 	var marked: int = int(dead["dropTemplateId"])
 	if marked <= 0:
 		return {}
@@ -131,17 +139,28 @@ func transfer_drop(dead: Dictionary, recipient: Dictionary, warehouse: Array) ->
 		if held["templateId"] != marked:
 			continue
 		var destination: String = "inventory"
-		if recipient["inventory"].size() < BAG_CAPACITY:
-			recipient["inventory"].append(held)
-		elif warehouse.size() < WAREHOUSE_CAPACITY:
-			warehouse.append(held)
+		if recipient["inventory"].size() >= BAG_CAPACITY:
+			if warehouse.size() >= WAREHOUSE_CAPACITY:
+				return {}
 			destination = "warehouse"
+		var awarded: Dictionary = held
+		if retain_source:
+			awarded = held.duplicate(true)
+			var index: int = 1
+			while held_ids.has("%s:drop_%d" % [held["id"], index]):
+				index += 1
+			awarded["id"] = "%s:drop_%d" % [held["id"], index]
+		if destination == "inventory":
+			recipient["inventory"].append(awarded)
 		else:
-			return {}
-		dead["inventory"].erase(held)
-		if dead["equippedInstanceId"] == held["id"]:
-			dead["equippedInstanceId"] = ""
-		return {"unit": recipient["id"], "item": held.duplicate(true), "destination": destination}
+			warehouse.append(awarded)
+		if not retain_source:
+			dead["inventory"].erase(held)
+			if dead["equippedInstanceId"] == held["id"]:
+				dead["equippedInstanceId"] = ""
+		return {
+			"unit": recipient["id"], "item": awarded.duplicate(true), "destination": destination
+		}
 	return {}
 
 
@@ -163,6 +182,28 @@ func can_heal_with(actor: Dictionary, held: Dictionary) -> bool:
 		and int(held["templateId"]) in [53, 54, 55, 56]
 		and (int(actor["equipMask"]) & 32) != 0
 	)
+
+
+func can_summon_with(actor: Dictionary, held: Dictionary) -> bool:
+	return (
+		not held.is_empty()
+		and held["durability"] > 0
+		and int(held["templateId"]) == 59
+		and (int(actor["equipMask"]) & 32) != 0
+	)
+
+
+func summon(actor: Dictionary, instance_id: String) -> Dictionary:
+	var held: Dictionary = held_item(actor, instance_id)
+	if not can_summon_with(actor, held):
+		return _failure("INVALID_SUMMON_STAFF")
+	return {
+		"ok": true,
+		"kind": "summon",
+		"actor": actor["id"],
+		"item": instance_id,
+		"expiredItem": _consume_held(actor, held)
+	}
 
 
 func can_heal(actor: Dictionary, target: Dictionary, instance_id: String) -> bool:
@@ -212,7 +253,7 @@ func use_item(actor: Dictionary, instance_id: String) -> Dictionary:
 	var held: Dictionary = held_item(actor, instance_id)
 	if held.is_empty() or held["durability"] <= 0:
 		return _failure("ITEM_NOT_OWNED")
-	if not _can_use(held):
+	if not can_use(actor, held) or int(held["templateId"]) not in [9, 18, 26, 37, 60, 61, 62]:
 		return _failure("ITEM_NOT_USABLE")
 	var before: int = int(actor["hp"])
 	var amount: int = _self_heal_amount(actor, held)
@@ -234,8 +275,17 @@ func use_item(actor: Dictionary, instance_id: String) -> Dictionary:
 	}
 
 
-func _can_use(held: Dictionary) -> bool:
-	return held["durability"] > 0 and int(held["templateId"]) in [9, 18, 26, 37, 60, 61, 62]
+func can_use(actor: Dictionary, held: Dictionary) -> bool:
+	if held.get("durability", 0) <= 0:
+		return false
+	var template: int = int(held["templateId"])
+	if template == 76:
+		return _progression != null and _progression.eligible(actor)
+	return template in [9, 18, 26, 37, 60, 61, 62, 63, 68, 69, 70, 71, 72, 73, 74, 75]
+
+
+func consume_held(actor: Dictionary, instance_id: String) -> Dictionary:
+	return _consume_held(actor, held_item(actor, instance_id))
 
 
 func _can_discard(held: Dictionary) -> bool:

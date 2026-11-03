@@ -1,0 +1,339 @@
+{
+  "battleId": "m13",
+  "worldNode": 13,
+  "battleName": {
+    "sourceTextIndex": 152
+  },
+  "objective": {
+    "sourceTextIndex": 169
+  },
+  "commanderMode": "none",
+  "chapterEnd": {
+    "id": "chapter_1",
+    "sequence": "chapterEnding",
+    "itemReward": {
+      "unitId": 0,
+      "templateId": 9
+    }
+  },
+  "initialBattlePresentation": {
+    "hiddenUnitIds": [],
+    "hiddenFactions": [],
+    "unitPositionOverrides": {}
+  },
+  "turnEvents": [
+    {
+      "id": "eastern_reinforcements",
+      "afterEnemyPhaseOfRound": 2,
+      "unitIds": [46, 47, 48, 86],
+      "arrivalMode": "nativeQueue",
+      "sequence": "eastern_reinforcements"
+    },
+    {
+      "id": "northern_reinforcements",
+      "afterEnemyPhaseOfRound": 3,
+      "unitIds": [44, 45, 81],
+      "arrivalMode": "nativeQueue",
+      "sequence": "northern_reinforcements"
+    },
+    {
+      "id": "southern_reinforcements",
+      "afterEnemyPhaseOfRound": 6,
+      "unitIds": [57, 59, 91, 52, 53, 83],
+      "arrivalMode": "nativeQueue",
+      "sequence": "southern_reinforcements"
+    }
+  ],
+  "aiChanges": [
+    {
+      "beforeAutomaticPhase": {
+        "round": 9,
+        "faction": 1
+      },
+      "unitIds": [10, 18, 16, 17, 11, 13, 12, 15],
+      "flagsSet": 16,
+      "policyClear": 4
+    },
+    {
+      "beforeAutomaticPhase": {
+        "round": 9,
+        "faction": 2
+      },
+      "unitIds": [63, 60, 61, 62, 42, 33, 43, 34, 32, 31, 30, 36, 41, 37, 39, 40, 35, 38],
+      "flagsSet": 16,
+      "policyClear": 4
+    }
+  ],
+  "routeChoices": [],
+  "speakers": {
+    "0": {
+      "id": 0,
+      "name": "雅木",
+      "faction": 0,
+      "portraitId": 0
+    },
+    "9": {
+      "id": 9,
+      "name": "赛丽卡",
+      "faction": 0,
+      "portraitId": 9
+    },
+    "14": {
+      "id": 14,
+      "name": "索菲亚军",
+      "faction": 1,
+      "portraitId": null
+    },
+    "80": {
+      "id": 80,
+      "name": "得鲁克",
+      "faction": 2,
+      "portraitId": 11
+    },
+    "81": {
+      "id": 81,
+      "name": "塞格",
+      "faction": 2,
+      "portraitId": 12
+    },
+    "83": {
+      "id": 83,
+      "name": "洛森",
+      "faction": 2,
+      "portraitId": 14
+    },
+    "86": {
+      "id": 86,
+      "name": "希撒斯",
+      "faction": 2,
+      "portraitId": 17
+    }
+  },
+  "sequences": {
+    "opening": [
+      {
+        "kind": "battleTitle",
+        "text": {
+          "sourceTextIndex": 152
+        },
+        "sourceDurationUnits": 2000
+      },
+      {
+        "kind": "focus",
+        "cell": [15, 1],
+        "instant": true,
+        "sourceMaxFocusPixels": 4,
+        "sourceWaitTicks": 26
+      },
+      {
+        "kind": "focus",
+        "cell": [7, 5],
+        "sourceMaxFocusPixels": 4
+      },
+      {
+        "kind": "focus",
+        "cell": [1, 11],
+        "sourceMaxFocusPixels": 4
+      },
+      {
+        "kind": "focus",
+        "cell": [8, 15],
+        "sourceMaxFocusPixels": 4
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 598,
+          "speakerId": 80
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 599,
+          "speakerId": 14
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 600,
+          "speakerId": 80
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 601,
+          "speakerId": 14
+        },
+        "sourceWaitTicksAfter": 15
+      },
+      {
+        "kind": "objective",
+        "text": {
+          "sourceTextIndex": 169
+        }
+      }
+    ],
+    "eastern_reinforcements": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 602,
+          "speakerId": 86
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 603,
+          "speakerId": 0
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 604,
+          "speakerId": 9
+        }
+      }
+    ],
+    "northern_reinforcements": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 605,
+          "speakerId": 81
+        }
+      }
+    ],
+    "southern_reinforcements": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 606,
+          "speakerId": 83
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 607,
+          "speakerId": 0
+        }
+      }
+    ],
+    "boss_before_retirement": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 608,
+          "speakerId": 80
+        }
+      }
+    ],
+    "victory": [
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 609,
+          "speakerId": 14
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 610,
+          "speakerId": 0
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 611,
+          "speakerId": 14
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 612,
+          "speakerId": 0
+        }
+      },
+      {
+        "kind": "dialogue",
+        "text": {
+          "sourceTextIndex": 613,
+          "speakerId": 14
+        },
+        "sourceWaitTicksAfter": 15
+      },
+      {
+        "kind": "missionComplete",
+        "text": {
+          "sourceTextIndex": 34
+        },
+        "goldReward": 1000
+      }
+    ],
+    "chapterEnding": [
+      {
+        "kind": "prologue",
+        "text": {
+          "sourceTextIndex": 459
+        }
+      },
+      {
+        "kind": "chapterParty"
+      },
+      {
+        "kind": "chapterSummary"
+      },
+      {
+        "kind": "chapterRating"
+      },
+      {
+        "kind": "instruction",
+        "text": {
+          "text": "初章（完）"
+        }
+      },
+      {
+        "kind": "instruction",
+        "text": {
+          "sourceTextIndex": 119
+        }
+      }
+    ]
+  },
+  "combatEvents": [
+    {
+      "id": "boss_death",
+      "trigger": "unitDeath",
+      "unitId": 80,
+      "beforeRetirement": "boss_before_retirement"
+    }
+  ],
+  "outcomeRules": {
+    "checks": [
+      {
+        "kind": "defeat",
+        "condition": "requiredUnitFallen",
+        "unitIds": [0]
+      },
+      {
+        "kind": "defeat",
+        "condition": "allUnitsRetired",
+        "unitIds": [10, 18, 16, 17, 14, 11, 13, 12, 15],
+        "reason": "all_npc_retired"
+      },
+      {
+        "kind": "victory",
+        "condition": "unitRetired",
+        "unitId": 80
+      }
+    ]
+  }
+}

@@ -416,7 +416,14 @@ func _fixture(weapon: int, effects: bool = true) -> Dictionary:
 		"unitOrder": [8, 35, 57, 33, 9],
 		"units": units,
 		"spawns": [],
-		"map": {"width": 5, "height": 5, "terrain": terrain, "movementCosts": {"0": costs}},
+		"map":
+		{
+			"width": 5,
+			"height": 5,
+			"tiles": terrain.duplicate(true),
+			"terrain": terrain,
+			"movementCosts": {"0": costs}
+		},
 		"rules":
 		{
 			"itemTemplates": templates,

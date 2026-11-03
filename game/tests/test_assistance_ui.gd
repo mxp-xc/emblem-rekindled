@@ -12,21 +12,12 @@ func run() -> void:
 	await process_frame
 	scene._set_menu_visible(true)
 	var menu: Control = scene.menu_layer
-	var assistance: Button = _button(menu, "辅助功能")
-	if assistance == null:
-		fail("Settings must expose an assistance submenu")
+	if _button(menu, "辅助功能") != null:
+		fail("Title settings must not expose battlefield assistance")
 		return
-	assistance.pressed.emit()
-	if menu.page != "assistance" or not _button(menu, "直接通关").disabled:
-		fail("Title assistance must not allow completing a nonexistent current battle")
-		return
-	scene._handle_back()
-	if menu.page != "settings":
-		fail("Title assistance must return to settings first")
-		return
+
 	scene.resume_battle(scene.battle)
 	scene._set_menu_visible(true)
-	_button(menu, "游戏设置").pressed.emit()
 	_button(menu, "辅助功能").pressed.emit()
 	if menu.page != "assistance" or _button(menu, "直接通关").disabled:
 		fail("A stable battlefield must enable assisted completion")
@@ -41,7 +32,7 @@ func run() -> void:
 		fail("Cancel must return to assistance without changing state")
 		return
 	_button(menu, "直接通关").pressed.emit()
-	for expected: String in ["assistance", "settings", "main"]:
+	for expected: String in ["assistance", "main"]:
 		var back := InputEventKey.new()
 		back.keycode = KEY_ESCAPE
 		back.pressed = true
@@ -56,7 +47,6 @@ func run() -> void:
 		return
 	scene.busy = true
 	scene._set_menu_visible(true)
-	menu.show_page("settings")
 	_button(menu, "辅助功能").pressed.emit()
 	if not _button(menu, "直接通关").disabled:
 		fail("Busy gameplay must disable assistance")
@@ -65,11 +55,11 @@ func run() -> void:
 	var path: String = "user://test_assistance_%d.json" % Time.get_ticks_usec()
 	scene.battle_store.path = path
 	scene._set_menu_visible(true)
-	menu.show_page("settings")
 	_button(menu, "辅助功能").pressed.emit()
 	_button(menu, "直接通关").pressed.emit()
-	_button(menu, "确认通关").pressed.emit()
-	_button(menu, "确认通关").pressed.emit()
+	var confirm_victory: Button = _button(menu, "确认通关")
+	confirm_victory.pressed.emit()
+	confirm_victory.pressed.emit()
 	if not scene.busy or menu.visible or scene.battle.outcome.get("reason") != "assistance":
 		fail("Explicit confirmation must start the normal victory flow once")
 		return
@@ -89,23 +79,24 @@ func run() -> void:
 	var restored: Dictionary = scene.battle_store.read()
 	if (
 		not scene.story_player.world_ready
-		or not restored["ok"]
-		or restored["progress"]["route"] != 4
-		or restored["progress"]["gold"] != 6000
+		or restored["ok"]
+		or not restored.get("missing", false)
+		or scene.world_progress["route"] != 4
+		or scene.world_progress["gold"] != 6000
 		or scene.world_progress["party"].size() != 2
 	):
-		fail("Assistance must reach the chosen route, resident world and saved completion")
+		fail("Assistance must reach the chosen route and resident world without automatic saving")
 		return
 	DirAccess.remove_absolute(path)
 	scene.queue_free()
 	await process_frame
-	print("PASS assistance UI: hierarchy, cancel, guards, single confirmation and saved world")
+	print("PASS assistance UI: hierarchy, cancel, guards, single confirmation and resident world")
 	quit(0)
 
 
 func _button(menu: Control, text: String) -> Button:
 	for child: Node in menu.find_children("*", "Button", true, false):
-		if child.text == text:
+		if child.text == text and child.is_visible_in_tree():
 			return child
 	return null
 

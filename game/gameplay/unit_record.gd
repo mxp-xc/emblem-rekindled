@@ -1,6 +1,7 @@
 extends RefCounted
 
 const Inventory = preload("res://gameplay/unit_inventory.gd")
+const Progression = preload("res://gameplay/unit_progression.gd")
 
 # One canonical unit-record validator serves battle saves and completed campaign progress.
 var _blueprints: Dictionary = {}
@@ -9,10 +10,12 @@ var _growth_rates: Dictionary = {}
 var _stat_caps: Dictionary
 var _combat: RefCounted
 var _bounds: Rect2i
+var _progression: RefCounted
 
 
 func _init(content: Dictionary, combat: RefCounted) -> void:
 	_combat = combat
+	_progression = Progression.new(content["rules"])
 	_stat_caps = content["rules"]["statCaps"]
 	_bounds = Rect2i(0, 0, int(content["map"]["width"]), int(content["map"]["height"]))
 	for unit: Dictionary in content["units"]:
@@ -93,11 +96,20 @@ func decode(value: Dictionary, held_ids: Dictionary) -> Dictionary:
 		or not current.get("visible") is bool
 	):
 		return _failure("INVALID_SAVE_IDENTITY")
+	var unused_element_growth: bool = (
+		current["faction"] == 2
+		and current["classGroup"] == 10
+		and current.get("level") == 20
+		and current["growthTemplateId"] == 20
+		and _blueprints[id].get("growthTemplateId") == 20
+		and _blueprints[id].get("classId") == current["classId"]
+		and _blueprints[id].get("level") == 20
+	)
 	if (
 		not _jobs.has(current["classId"])
 		or current["classGroup"] != _jobs[current["classId"]]["classGroup"]
 		or current["equipMask"] != _jobs[current["classId"]]["equipMask"]
-		or not _growth_rates.has(current["growthTemplateId"])
+		or (not _growth_rates.has(current["growthTemplateId"]) and not unused_element_growth)
 	):
 		return _failure("INVALID_SAVE_CLASS")
 	for key: String in [
@@ -106,14 +118,27 @@ func decode(value: Dictionary, held_ids: Dictionary) -> Dictionary:
 		if not _integer_in(current.get(key), 0, 32767):
 			return _failure("INVALID_SAVE_UNIT_FIELD")
 		current[key] = int(current[key])
+	if _blueprints[id].has("promotionBaseClassId"):
+		var base: int = int(_blueprints[id]["promotionBaseClassId"])
+		var promotion: Dictionary = _progression.definition(base)
+		if (
+			current["classId"] != base
+			and (
+				promotion.is_empty()
+				or current["classId"] != promotion["toClassId"]
+				or current["level"] < promotion["minimumLevel"]
+			)
+		):
+			return _failure("INVALID_SAVE_CLASS")
+	var bounds: Dictionary = _progression.bounds(_blueprints[id], int(current["classId"]))
 	if (
 		current["level"] < 1
-		or current["level"] > 20
+		or current["level"] > (22 if _blueprints[id].get("summoned", false) else 20)
 		or current["maxHp"] < 1
-		or current["maxHp"] > int(_stat_caps["maxHp"])
+		or current["maxHp"] > int(bounds["maxHp"])
 		or current["hp"] > current["maxHp"]
 		or (current["hp"] == 0 and current["visible"])
-		or current["move"] > int(_stat_caps["move"])
+		or current["move"] > int(bounds["move"])
 		or current["experience"] > 99
 		or current["action"] not in [0, 2]
 		or not _bounds.has_point(Vector2i(current["x"], current["y"]))
@@ -122,7 +147,7 @@ func decode(value: Dictionary, held_ids: Dictionary) -> Dictionary:
 	if not current.get("attributes") is Dictionary:
 		return _failure("INVALID_SAVE_ATTRIBUTES")
 	for stat: String in ["strength", "skill", "speed", "defense", "magic", "luck"]:
-		if not _integer_in(current["attributes"].get(stat), 0, int(_stat_caps[stat])):
+		if not _integer_in(current["attributes"].get(stat), 0, int(bounds[stat])):
 			return _failure("INVALID_SAVE_ATTRIBUTES")
 		current["attributes"][stat] = int(current["attributes"][stat])
 	if (

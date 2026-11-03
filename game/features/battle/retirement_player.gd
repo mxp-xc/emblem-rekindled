@@ -10,6 +10,8 @@ var _map: Control
 var _effects: Dictionary
 var _textures: Dictionary = {}
 var _active: Array[Dictionary] = []
+var _revival: Dictionary = {}
+var _revival_actors: Array = []
 var _tick_seconds: float
 
 
@@ -19,6 +21,8 @@ func setup(content: Dictionary, tactical_map: Control) -> void:
 	playing = false
 	model = null
 	_active.clear()
+	_revival.clear()
+	_revival_actors.clear()
 	_textures.clear()
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -88,6 +92,14 @@ func preflight() -> Dictionary:
 
 
 func play(unit: Dictionary) -> Dictionary:
+	return await _play(unit, {})
+
+
+func play_revival(unit: Dictionary, revival: Dictionary) -> Dictionary:
+	return await _play(unit, revival)
+
+
+func _play(unit: Dictionary, revival: Dictionary) -> Dictionary:
 	if playing:
 		return {"ok": false, "error": "地图退场尚未通过等待阶段"}
 	var loaded: Dictionary = preflight()
@@ -95,15 +107,20 @@ func play(unit: Dictionary) -> Dictionary:
 		return loaded
 	if not _integer(unit.get("id")) or not _integer(unit.get("x")) or not _integer(unit.get("y")):
 		return {"ok": false, "error": "地图退场单位或位置无效"}
-	# Always detach from the input and from Battle's snapshot before hiding.
+	# Always detach from the input and Battle's snapshot. A revival preserves
+	# visibility while its HP display waits for the shared smoke gate.
+	_revival = unit.duplicate(true) if not revival.is_empty() else {}
 	var actors: Array = _map.content.get("units", []).duplicate(true)
 	var found: bool = false
 	for actor: Dictionary in actors:
 		if actor["id"] == unit["id"]:
-			actor["visible"] = false
+			actor["visible"] = not revival.is_empty()
+			if not revival.is_empty():
+				actor["hp"] = int(revival["hpBefore"])
 			found = true
 	if not found:
 		return {"ok": false, "error": "地图退场单位不在显示副本中"}
+	_revival_actors = actors
 	_map.set_units(actors)
 	model = Timeline.new(unit, _effects)
 	_active.append({"timeline": model, "elapsed": 0.0})
@@ -130,6 +147,13 @@ func _process(delta: float) -> void:
 		set_process(false)
 		hide()
 	if playing and model.gate_open:
+		if not _revival.is_empty():
+			for actor: Dictionary in _revival_actors:
+				if int(actor["id"]) == int(_revival["id"]):
+					actor.merge(_revival, true)
+			_map.set_units(_revival_actors)
+			_revival.clear()
+			_revival_actors = []
 		playing = false
 		completed.emit()
 

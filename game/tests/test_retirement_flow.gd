@@ -189,6 +189,10 @@ func _main_flow(
 		return false
 	scene._adopt_content(content, battle)
 	scene.resume_battle(battle)
+	var record_existed: bool = FileAccess.file_exists(scene.battle_store.path)
+	var previous_record: String = (
+		FileAccess.get_file_as_string(scene.battle_store.path) if record_existed else ""
+	)
 	var attacker: int = sample["boss"] if enemy_starts else sample["hero"]
 	var defender: int = sample["hero"] if enemy_starts else sample["boss"]
 	var preview: Dictionary = battle.attack_preview(attacker, defender)
@@ -267,7 +271,7 @@ func _main_flow(
 				"Broken items, loot and XP are shown only after death presentation"
 			):
 				return false
-			if scene.action_feedback.current_step.get("kind") == "tutorial":
+			if scene.action_feedback.current_step.get("kind") in ["tutorial", "summary"]:
 				scene.action_feedback.go_back()
 		if story.choices.visible and not story.world_active:
 			story.choices.get_child(0).pressed.emit()
@@ -282,6 +286,22 @@ func _main_flow(
 			and (not two_stages or saw_after)
 		),
 		"Actual Main death, rewards and normal victory must finish at the resident world"
+	):
+		return false
+	if not _expect(
+		(
+			FileAccess.file_exists(scene.battle_store.path) == record_existed
+			and (
+				not record_existed
+				or FileAccess.get_file_as_string(scene.battle_store.path) == previous_record
+			)
+		),
+		"Completing the death flow does not write the progress record automatically"
+	):
+		return false
+	if not _expect(
+		scene.battle_store.write_progress(scene.world_progress)["ok"],
+		"Explicitly save world progress"
 	):
 		return false
 	var saved: Dictionary = scene.battle_store.read()

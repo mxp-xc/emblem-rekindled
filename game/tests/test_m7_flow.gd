@@ -46,9 +46,10 @@ func run() -> void:
 		var result: Dictionary = _scene.battle.win_with_assistance()
 		if not _expect(result["ok"], "Assistance enters the existing m7 victory sequence"):
 			return
+		var previous_record: String = FileAccess.get_file_as_string(_scene.battle_store.path)
 		_scene._present_player_action(result)
 		if not await _settled_world(
-			ending["context"], initial_gold, ending["choice"], ending["route"]
+			ending["context"], initial_gold, ending["choice"], ending["route"], previous_record
 		):
 			return
 	_scene.queue_free()
@@ -220,7 +221,18 @@ func _arrivals() -> bool:
 			):
 				return false
 			await process_frame
-		if not _expect(not _scene.story_player.visible, "m7 arrival presentation finishes"):
+		if not _expect(
+			not _scene.story_player.visible,
+			(
+				"m7 arrival presentation finishes: round=%d text=%d queue=%d dialogue=%s"
+				% [
+					_scene.battle.round_number,
+					_scene.story_player.current_text_index,
+					_scene.story_player._arrival_queue_updates_remaining,
+					_scene.story_player.dialogue.visible
+				]
+			)
+		):
 			return false
 	_set_speed(32)
 	_scene.resume_battle(_scene.battle)
@@ -414,11 +426,14 @@ func _last_enemy() -> bool:
 		"Last visible enemy's real attack triggers m7 victory"
 	):
 		return false
+	var previous_record: String = FileAccess.get_file_as_string(_scene.battle_store.path)
 	_scene._present_player_action(result)
-	return await _settled_world(Matrix.CONTEXTS[4], initial_gold, 8, 6)
+	return await _settled_world(Matrix.CONTEXTS[4], initial_gold, 8, 6, previous_record)
 
 
-func _settled_world(context: Dictionary, initial_gold: int, choice: int, route: int) -> bool:
+func _settled_world(
+	context: Dictionary, initial_gold: int, choice: int, route: int, previous_record: String
+) -> bool:
 	var seen: Dictionary = {}
 	var choice_seen: bool = false
 	var deadline: int = Time.get_ticks_msec() + 10000
@@ -436,7 +451,6 @@ func _settled_world(context: Dictionary, initial_gold: int, choice: int, route: 
 		else:
 			_drive()
 		await process_frame
-	var saved: Dictionary = _scene.battle_store.read()
 	if not _expect(
 		(
 			_scene.story_player.world_ready
@@ -446,13 +460,14 @@ func _settled_world(context: Dictionary, initial_gold: int, choice: int, route: 
 			and _scene.world_progress["worldStep"] == context["step"] + 1
 			and _scene.world_progress["gold"] == initial_gold + 1000
 			and _scene.world_progress["completedBattle"] == "m7"
-			and saved["ok"]
-			and saved["progress"] == _scene.world_progress
+			and FileAccess.get_file_as_string(_scene.battle_store.path) == previous_record
 		),
 		"m7 step1 chooses6/8→route7/6; later steps keep route and settle1000 once"
 	):
 		return false
 	var progress: Dictionary = _scene.world_progress.duplicate(true)
+	if not _expect(_scene.battle_store.write_progress(progress)["ok"], "Explicitly save the world"):
+		return false
 	_scene._show_title()
 	_scene.load_game()
 	deadline = Time.get_ticks_msec() + 5000
@@ -479,7 +494,7 @@ func _set_speed(rate: int) -> void:
 func _drive() -> void:
 	if _scene.story_player.dialogue.visible:
 		_scene.story_player.advance()
-	if _scene.action_feedback.current_step.get("kind") == "tutorial":
+	if _scene.action_feedback.current_step.get("kind") in ["tutorial", "summary"]:
 		_scene.action_feedback.go_back()
 
 

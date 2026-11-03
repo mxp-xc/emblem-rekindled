@@ -210,10 +210,6 @@ func resolve(prepared: Dictionary, commander: Dictionary) -> Dictionary:
 	var broken: Array[Dictionary] = _inventory.broken_items(prepared["participants"], indexed)
 	_inventory.cleanup_combat(actor)
 	_inventory.cleanup_combat(affected[-1])
-	for target: Dictionary in affected:
-		if target["hp"] <= 0:
-			target["visible"] = false
-			target["flags"] |= 1
 	actor["action"] = 2
 	var result: Dictionary = prepared.duplicate(true)
 	result.merge(

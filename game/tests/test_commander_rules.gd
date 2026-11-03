@@ -36,20 +36,22 @@ func _initialize() -> void:
 			return
 	if not _retired_commander_record(opened):
 		return
+	print("PASS commander rules: opening, arrivals, roster order, guards and JSON")
+	quit(0)
+
+
+func _late_entry() -> bool:
 	# This existing helper supplies a validated late route from real profiles and
 	# a legal synthetic world point; it does not claim natural play through unavailable maps.
 	var prepared: Dictionary = Matrix.prepare(Matrix.CONTEXTS[2], _roll)
 	if not _expect(prepared["ok"], "Prepare the declared late m2 roster"):
-		return
-	opened = Session.new().open(CHAPTER, "m2", {"progress": prepared["progress"]}, _roll)
-	if not _expect(opened["ok"], "Open the actual late-context m2 roster"):
-		return
-	if not _entry(opened, [7], [9, 0, 2, 4, 5, 1, 6, 7], "party_arrival"):
-		return
-	print(
-		"PASS commander rules: opening declaration, hidden arrivals, native roster order, guards and JSON"
+		return false
+	var opened: Dictionary = Session.new().open(
+		CHAPTER, "m2", {"progress": prepared["progress"]}, _roll
 	)
-	quit(0)
+	if not _expect(opened["ok"], "Open the actual late-context m2 roster"):
+		return false
+	return _entry(opened, [7], [9, 0, 2, 4, 5, 1, 6, 7], "party_arrival")
 
 
 func _entry(opened: Dictionary, initial: Array, active: Array, arrival: String) -> bool:

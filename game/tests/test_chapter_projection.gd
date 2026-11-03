@@ -233,6 +233,43 @@ func run() -> void:
 		):
 			_fail("Keeping route metadata must not retain an earlier map's next node or portrait")
 			return
+	var encounter_story: Dictionary = route_story.duplicate(true)
+	encounter_story["encounter"] = true
+	for step: int in [6, 10]:
+		var encounter: Dictionary = ContentProjection.resolve_story(
+			encounter_story, inherited["units"], inherited["slots"], {"route": 0, "worldStep": step}
+		)
+		if (
+			not encounter["ok"]
+			or encounter["story"]["worldNode"] != route_story["world"]["routes"][0][step - 1]
+			or not encounter["story"]["routeChoices"].is_empty()
+		):
+			_fail(
+				"Encounters must retain the completed route frontier, including after chapter end"
+			)
+			return
+	for step: int in [5, 11]:
+		if (
+			ContentProjection
+			. resolve_story(
+				encounter_story,
+				inherited["units"],
+				inherited["slots"],
+				{"route": 0, "worldStep": step}
+			)["ok"]
+		):
+			_fail("Encounters outside the original progress range must be rejected")
+			return
+	var broken_encounter: Dictionary = encounter_story.duplicate(true)
+	broken_encounter["world"] = "invalid"
+	if (
+		ContentProjection
+		. resolve_story(
+			broken_encounter, inherited["units"], inherited["slots"], {"route": 0, "worldStep": 6}
+		)["ok"]
+	):
+		_fail("Invalid encounter world definitions must fail without crashing")
+		return
 	print("PASS chapter projection: shared catalog, profiles, resource paths and story selectors")
 	quit(0)
 

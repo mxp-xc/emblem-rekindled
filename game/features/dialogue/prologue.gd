@@ -3,7 +3,7 @@ extends Control
 signal completed
 
 const PixelTheme = preload("res://ui/pixel_theme.gd")
-const FONT = preload("res://ui/fonts/NotoSansCJKsc-Regular.otf")
+const FONT = preload("res://ui/fonts/NotoSansCJKsc-Regular.woff2")
 var _images: Dictionary = {}
 var _lines: PackedStringArray
 var _scroll_y: int
@@ -13,6 +13,7 @@ var _ending: bool = false
 var _finished: bool = false
 var _scene_x: int = 0
 var _scene_scroll: int = 0
+var _intro_image: Texture2D
 
 
 func setup(content: Dictionary) -> void:
@@ -22,10 +23,23 @@ func setup(content: Dictionary) -> void:
 	var directory: String = content["entry"]["resourceDirectory"]
 	for key: String in ["intro0", "scene0", "scene1", "scene2"]:
 		_images[key] = load(directory.path_join(content["story"]["images"][key]["texture"]))
-	_lines = PixelTheme.wrap_text(content["story"]["sequences"]["boot"][0]["text"]["text"], 240, 13)
-	_scroll_y = floori(size.y / (PixelTheme.portrait_area(size).size.x / 240)) - 19
+	present(content["story"]["sequences"]["boot"][0]["text"]["text"], _images["intro0"])
 	resized.connect(queue_redraw)
 	show()
+
+
+func present(text: String, image: Texture2D = null) -> void:
+	_intro_image = image
+	_lines = PixelTheme.wrap_text(text, 240, 13)
+	_scroll_y = floori(size.y / (PixelTheme.portrait_area(size).size.x / 240)) - 19
+	_first_line = 0
+	_fade = 0
+	_ending = false
+	_finished = false
+	_scene_x = 0
+	_scene_scroll = 0
+	show()
+	queue_redraw()
 
 
 func skip() -> void:
@@ -64,14 +78,19 @@ func _draw() -> void:
 	var area: Rect2 = PixelTheme.portrait_area(size)
 	var factor: float = area.size.x / 240.0
 	var height: float = size.y / factor
-	draw_rect(Rect2(area.position, Vector2(240, 70) * factor), Color("a91a27"))
-	draw_rect(Rect2(area.position, Vector2(240, 35) * factor), Color("ce3143"))
-	for x: int in range(-_scene_scroll, 240, 81):
-		_art("scene0", Vector2(x, 0), area.position, factor)
-	for x: int in range(_scene_scroll - 81, 240, 81):
-		_art("scene2", Vector2(x, 51), area.position, factor)
-	_art("scene1", Vector2(_scene_x - 138, 0), area.position, factor)
-	_art("intro0", Vector2(63, 0), area.position, factor)
+	if _intro_image != null:
+		draw_rect(Rect2(area.position, Vector2(240, 70) * factor), Color("a91a27"))
+		draw_rect(Rect2(area.position, Vector2(240, 35) * factor), Color("ce3143"))
+		for x: int in range(-_scene_scroll, 240, 81):
+			_art("scene0", Vector2(x, 0), area.position, factor)
+		for x: int in range(_scene_scroll - 81, 240, 81):
+			_art("scene2", Vector2(x, 51), area.position, factor)
+		_art("scene1", Vector2(_scene_x - 138, 0), area.position, factor)
+		draw_texture_rect(
+			_intro_image,
+			Rect2(area.position + Vector2(63, 0) * factor, _intro_image.get_size() * factor),
+			false
+		)
 	# The original fades the top picture in first, then fades the full screen out.
 	var darkness: float = 1.0 - clampf(float(_fade) / 6, 0, 1)
 	draw_rect(

@@ -255,7 +255,7 @@ func _save_restore() -> bool:
 func _drive() -> void:
 	if _scene.story_player.dialogue.visible:
 		_scene.story_player.advance()
-	if _scene.action_feedback.current_step.get("kind") == "tutorial":
+	if _scene.action_feedback.current_step.get("kind") in ["tutorial", "summary"]:
 		_scene.action_feedback.go_back()
 
 

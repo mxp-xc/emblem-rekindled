@@ -94,10 +94,13 @@ func run() -> void:
 		fail("The source full-HP cast must settle its action, XP and capped HP once")
 		return
 	for tick: int in range(60):
-		scene.action_feedback.advance()
+		if scene.action_feedback.current_step.get("kind") == "summary":
+			scene.action_feedback.go_back()
+		else:
+			scene.action_feedback.advance()
 	await process_frame
 	if scene.busy or battle.snapshot() != committed or scene.action_feedback.visible:
-		fail("Circle and XP must finish automatically and unlock without replaying settlement")
+		fail("Circle and confirmed growth summary must unlock without replaying settlement")
 		return
 	var isolated: Dictionary = battle.snapshot()
 	for actor: Dictionary in isolated["units"]:

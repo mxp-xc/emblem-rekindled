@@ -26,6 +26,8 @@ select = ["E", "F", "I", "UP", "B"]
 
 [dependency-groups]
 dev = [
+    "brotli>=1.2.1",
+    "fonttools>=4.68.0",
     "gdtoolkit>=4.5.0",
     "ruff>=0.17.3",
 ]

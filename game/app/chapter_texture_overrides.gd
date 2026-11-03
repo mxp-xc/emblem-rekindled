@@ -35,6 +35,11 @@ static func read_plan(chapter: Dictionary, library: Dictionary, read_json: Calla
 		):
 			return _failure("图片替换表无法核对关卡: " + str(battle_id))
 		_collect({"mapTexture": definition.get("mapTexture")}, referenced)
+		if definition.has("map"):
+			var map: Variant = read_json.call(definition["map"])
+			if not map is Dictionary:
+				return _failure("图片替换表无法核对地图: " + str(battle_id))
+			_collect(map.get("tileVariants", {}), referenced)
 		var story: Variant = read_json.call(definition.get("story", ""))
 		if not story is Dictionary:
 			return _failure("图片替换表无法核对剧情: " + str(battle_id))

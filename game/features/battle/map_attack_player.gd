@@ -3,7 +3,7 @@ extends Control
 signal completed
 
 const Timeline = preload("res://features/battle/map_attack_timeline.gd")
-const FONT = preload("res://ui/fonts/NotoSansCJKsc-Regular.otf")
+const FONT = preload("res://ui/fonts/NotoSansCJKsc-Regular.woff2")
 var playing: bool = false
 var model: RefCounted
 var _content: Dictionary
@@ -61,6 +61,9 @@ func play(result: Dictionary, final_actors: Array) -> Dictionary:
 	_final_actors = final_actors.duplicate(true)
 	_actors = final_actors.duplicate(true)
 	for index: int in range(_actors.size()):
+		for retirement: Dictionary in result.get("retirements", []):
+			if _actors[index]["id"] == retirement["unitId"]:
+				_actors[index] = retirement["before"].duplicate(true)
 		for before: Dictionary in result["participants"]:
 			if _actors[index]["id"] == before["id"]:
 				_actors[index] = before.duplicate(true)

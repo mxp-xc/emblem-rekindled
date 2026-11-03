@@ -223,6 +223,31 @@ func run() -> void:
 		push_error("Nonpositive movement costs must be rejected before pathfinding")
 		quit(1)
 		return
+	# Explicit empty names intentionally suppress the name plate without removing the speaker.
+	var anonymous_story: Dictionary = result["_storyFragment"].duplicate(true)
+	anonymous_story["speakers"]["10"] = {"id": 10, "name": "", "faction": 2}
+	_write_json(definition_path, definition)
+	_write_json(story_path, anonymous_story)
+	if not loader_script.new().load_chapter(temporary)["ok"]:
+		push_error("Content must accept an explicitly unnamed speaker without a portrait")
+		quit(1)
+		return
+	for defect: String in ["missing_name", "null_name", "numeric_name", "invalid_portrait"]:
+		var invalid_speaker: Dictionary = anonymous_story.duplicate(true)
+		match defect:
+			"missing_name":
+				invalid_speaker["speakers"]["10"].erase("name")
+			"null_name":
+				invalid_speaker["speakers"]["10"]["name"] = null
+			"numeric_name":
+				invalid_speaker["speakers"]["10"]["name"] = 50
+			"invalid_portrait":
+				invalid_speaker["speakers"]["10"]["portraitId"] = 999
+		_write_json(story_path, invalid_speaker)
+		if loader_script.new().load_chapter(temporary)["ok"]:
+			push_error("Unnamed speakers retain the name and portrait contracts: " + defect)
+			quit(1)
+			return
 	var broken_story: Dictionary = result["_storyFragment"].duplicate(true)
 	broken_story["sequences"].erase("opening")
 	_write_json(story_path, broken_story)

@@ -1,6 +1,6 @@
 extends RefCounted
 
-const FONT = preload("res://ui/fonts/NotoSansCJKsc-Regular.otf")
+const FONT = preload("res://ui/fonts/NotoSansCJKsc-Regular.woff2")
 
 
 static func portrait_area(viewport_size: Vector2) -> Rect2:

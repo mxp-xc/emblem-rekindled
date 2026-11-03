@@ -19,6 +19,7 @@ func run() -> void:
 		var view: Control = scene.item_actions
 		view.find_child("Discard", true, false).pressed.emit()
 		view.find_child("Item_60", true, false).pressed.emit()
+		view.find_child("Item_60", true, false).pressed.emit()
 		await process_frame
 		await process_frame
 		var before: Dictionary = scene.battle.snapshot()

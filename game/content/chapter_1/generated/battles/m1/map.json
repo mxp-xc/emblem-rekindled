@@ -315,5 +315,110 @@
       [3, 100, 3, 100, 3, 3, 2, 1, 1, 1, 1, 1, 3, 3, 3, 100, 3, 100, 3, 3, 100, 3],
       [3, 100, 3, 100, 3, 3, 3, 1, 1, 1, 1, 2, 3, 3, 3, 100, 3, 100, 3, 3, 3, 3]
     ]
-  }
+  },
+  "tileVariants": {
+    "opened_chest": {
+      "tileId": 88,
+      "terrain": 1,
+      "texture": "res://content/chapter_1/generated/shared/battles/m12/map_tiles/opened_chest.png",
+      "movementCosts": {
+        "0": 1,
+        "1": 1,
+        "2": 1,
+        "3": 1,
+        "4": 1,
+        "5": 1,
+        "6": 1,
+        "7": 1,
+        "8": 1,
+        "9": 1,
+        "10": 1
+      }
+    }
+  },
+  "locations": [
+    {
+      "id": "visit_0",
+      "sourceIndex": 0,
+      "kind": "visit",
+      "position": [11, 7],
+      "tileId": 58,
+      "reward": {
+        "kind": "item",
+        "templateId": 34
+      }
+    },
+    {
+      "id": "visit_1",
+      "sourceIndex": 1,
+      "kind": "visit",
+      "position": [13, 5],
+      "tileId": 59,
+      "reward": {
+        "kind": "goldRange",
+        "minimum": 500,
+        "maximum": 1000
+      }
+    },
+    {
+      "id": "visit_2",
+      "sourceIndex": 2,
+      "kind": "visit",
+      "position": [13, 6],
+      "tileId": 59,
+      "reward": {
+        "kind": "goldRange",
+        "minimum": 1,
+        "maximum": 1000
+      }
+    },
+    {
+      "id": "chest_3",
+      "sourceIndex": 3,
+      "kind": "chest",
+      "position": [16, 5],
+      "tileId": 79,
+      "weightedChoices": [
+        {
+          "templateId": 63,
+          "weight": 20
+        },
+        {
+          "templateId": 61,
+          "weight": 20
+        },
+        {
+          "templateId": 34,
+          "weight": 20
+        },
+        {
+          "templateId": 60,
+          "weight": 40
+        }
+      ],
+      "openedVariant": "opened_chest"
+    },
+    {
+      "id": "chest_4",
+      "sourceIndex": 4,
+      "kind": "chest",
+      "position": [21, 16],
+      "tileId": 79,
+      "weightedChoices": [
+        {
+          "templateId": 76,
+          "weight": 5
+        },
+        {
+          "templateId": 60,
+          "weight": 80
+        },
+        {
+          "templateId": 2,
+          "weight": 15
+        }
+      ],
+      "openedVariant": "opened_chest"
+    }
+  ]
 }

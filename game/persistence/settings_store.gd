@@ -9,7 +9,18 @@ func _init(settings_path: String = "user://settings.json") -> void:
 
 func read() -> Dictionary:
 	if not FileAccess.file_exists(path):
-		return {"ok": true, "missing": true, "settings": {"volume": 0.45, "music_enabled": false}}
+		return {
+			"ok": true,
+			"missing": true,
+			"settings":
+			{
+				"volume": 0.45,
+				"music_enabled": false,
+				"share_experience": false,
+				"full_growth": false,
+				"bonus_battle_used": false
+			}
+		}
 	var file := FileAccess.open(path, FileAccess.READ)
 	if file == null:
 		return _failure("无法打开设置: " + error_string(FileAccess.get_open_error()))
@@ -26,7 +37,13 @@ func read() -> Dictionary:
 		"ok": true,
 		"missing": false,
 		"settings":
-		{"volume": float(json.data["volume"]), "music_enabled": json.data["music_enabled"]}
+		{
+			"volume": float(json.data["volume"]),
+			"music_enabled": json.data["music_enabled"],
+			"share_experience": json.data.get("share_experience", false),
+			"full_growth": json.data.get("full_growth", false),
+			"bonus_battle_used": json.data.get("bonus_battle_used", false)
+		}
 	}
 
 
@@ -39,7 +56,14 @@ func write(settings: Dictionary) -> Dictionary:
 		return _failure("无法写入临时设置: " + error_string(FileAccess.get_open_error()))
 	file.store_string(
 		JSON.stringify(
-			{"version": 1, "volume": settings["volume"], "music_enabled": settings["music_enabled"]}
+			{
+				"version": 1,
+				"volume": settings["volume"],
+				"music_enabled": settings["music_enabled"],
+				"share_experience": settings.get("share_experience", false),
+				"full_growth": settings.get("full_growth", false),
+				"bonus_battle_used": settings.get("bonus_battle_used", false)
+			}
 		)
 	)
 	file.flush()
@@ -63,6 +87,9 @@ func _valid(settings: Dictionary) -> bool:
 		and volume >= 0.0
 		and volume <= 1.0
 		and settings.get("music_enabled") is bool
+		and settings.get("share_experience", false) is bool
+		and settings.get("full_growth", false) is bool
+		and settings.get("bonus_battle_used", false) is bool
 	)
 
 

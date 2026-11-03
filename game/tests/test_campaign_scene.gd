@@ -96,9 +96,15 @@ func run() -> void:
 			)
 		)
 		return
+	if FileAccess.get_file_as_string(scene.battle_store.path) != original_record:
+		fail("Entering m1 must preserve the previous continue record until an explicit save")
+		return
+	if not scene._save_battle():
+		fail("A playable m1 must allow an explicit battle save")
+		return
 	var saved: Dictionary = scene.battle_store.read()
 	if not saved["ok"] or saved["content"]["entry"]["battleId"] != "m1":
-		fail("The new battle must be saved under m1 before commands become available")
+		fail("The explicit battle save must contain m1")
 		return
 	var state: Dictionary = scene.battle.snapshot()
 	root.size = Vector2i(1280, 720)
@@ -119,16 +125,17 @@ func run() -> void:
 	Engine.time_scale = 32
 	await scene._world_node(0)
 	Engine.time_scale = 1
-	var visited: Dictionary = scene.battle_store.read()
 	if (
-		not visited["ok"]
-		or visited["progress"].get("worldLocation") != 0
-		or visited["progress"]["worldNode"] != 1
-		or visited["progress"]["worldStep"] != 2
+		scene.world_progress.get("worldLocation") != 0
+		or scene.world_progress["worldNode"] != 1
+		or scene.world_progress["worldStep"] != 2
 		or scene.content["entry"]["battleId"] != "m1"
 		or not scene.story_player.world_ready
 	):
-		fail("Visiting an old node must persist location while retaining the completed m1 frontier")
+		fail("Visiting an old node must retain the completed m1 frontier in the current world")
+		return
+	if not scene.battle_store.write_progress(scene.world_progress)["ok"]:
+		fail("The visited world must be writable explicitly")
 		return
 	scene._show_title()
 	scene.load_game()

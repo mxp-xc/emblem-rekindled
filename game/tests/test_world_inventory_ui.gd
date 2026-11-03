@@ -82,8 +82,11 @@ func run() -> void:
 		return
 	await key(KEY_ENTER)
 	await key(KEY_ENTER)
-	if scene.world_progress["warehouse"].size() != 1 or not scene.battle_store.read()["ok"]:
-		fail("Confirming a world deposit must commit a valid current continue record")
+	if (
+		scene.world_progress["warehouse"].size() != 1
+		or FileAccess.get_file_as_string(path) != initial_bytes
+	):
+		fail("A world deposit must update the session without automatically saving")
 		return
 	if FileAccess.get_file_as_string(directory.path_join("continue_slot_1.json")) != named_bytes:
 		fail("World item changes must never automatically overwrite a named world slot")
@@ -109,6 +112,34 @@ func run() -> void:
 		return
 	var shop_before: Dictionary = scene.world_progress.duplicate(true)
 	await key(KEY_ENTER)
+	var hovered: Button = view.find_child("Item_1", true, false)
+	var motion := InputEventMouseMotion.new()
+	motion.position = hovered.get_global_rect().get_center()
+	Input.parse_input_event(motion)
+	await process_frame
+	if view.get("_item_index") != 0 or view.stage != "items":
+		fail("Shop pointer movement must preserve the selected item and its description")
+		return
+	await click(view.find_child("Item_1", true, false))
+	if view.get("_item_index") != 1 or view.stage != "items" or scene.world_progress != shop_before:
+		fail("Clicking a shop row must select it without opening or committing a transaction")
+		return
+	await process_frame
+	await process_frame
+	await click(view.find_child("Item_1", true, false))
+	if view.stage != "confirm" or scene.world_progress != shop_before:
+		fail("Clicking the same selected shop item again must open its transaction confirmation")
+		return
+	await key(KEY_ESCAPE)
+	await key(KEY_TAB)
+	if view.get("_item_index") != 2:
+		fail("Tab must select the next shop item")
+		return
+	await click(view.find_child("Item_1", true, false))
+	if view.stage != "items":
+		fail("A shop Tab selection must invalidate the old activation candidate")
+		return
+	view.find_child("Item_0", true, false).pressed.emit()
 	await key(KEY_ENTER)
 	if view.stage != "confirm" or scene.world_progress != shop_before:
 		fail("A purchase preview must retain funds until the explicit confirmation")
@@ -116,38 +147,13 @@ func run() -> void:
 	await key(KEY_ESCAPE)
 	await key(KEY_ENTER)
 	await key(KEY_ENTER)
-	if (
-		scene.world_progress["gold"] != 5000
-		or scene.battle_store.read()["progress"]["gold"] != 5000
-	):
-		fail("The shop confirmation must charge and persist the original purchase price once")
+	if scene.world_progress["gold"] != 5000 or FileAccess.get_file_as_string(path) != initial_bytes:
+		fail("The shop confirmation must charge once without automatically saving")
 		return
-	var committed: Dictionary = scene.world_progress.duplicate(true)
-	var blocked: String = directory.path_join("blocked.json")
-	DirAccess.make_dir_absolute(blocked)
-	var sentinel_path: String = blocked.path_join("owned.txt")
-	var sentinel := FileAccess.open(sentinel_path, FileAccess.WRITE)
-	sentinel.store_string("preserve")
-	sentinel.close()
-	scene.battle_store.path = blocked
 	await key(KEY_ENTER)
 	await key(KEY_ENTER)
-	if (
-		view.stage != "notice"
-		or scene.world_progress != committed
-		or not FileAccess.file_exists(sentinel_path)
-	):
-		fail("A failed purchase write must preserve current items/funds and the previous target")
-		return
-	scene.battle_store.path = path
-	await key(KEY_ESCAPE)
-	await key(KEY_ENTER)
-	await key(KEY_ENTER)
-	if (
-		scene.world_progress["gold"] != 4000
-		or scene.battle_store.read()["progress"]["gold"] != 4000
-	):
-		fail("Retrying after a failed write must purchase once without duplicate charge or items")
+	if scene.world_progress["gold"] != 4000 or FileAccess.get_file_as_string(path) != initial_bytes:
+		fail("A second purchase must charge once without automatically saving")
 		return
 	await key(KEY_ESCAPE)
 	await key(KEY_ESCAPE)
@@ -202,20 +208,24 @@ func run() -> void:
 				)
 			)
 			return
-	var restored: Dictionary = scene.battle_store.read()
+	scene._open_save_slots("save")
+	scene._accept_save_slot(1)
+	var restored: Dictionary = scene.battle_store.read_slot(1)
 	if (
 		not restored["ok"]
 		or restored["progress"]["gold"] != 4000
 		or restored["progress"]["warehouse"].size() != 1
 	):
-		fail("Reopening the current continue record must restore committed items and funds")
+		fail("A manual save must restore the current items and funds")
 		return
 	if FileAccess.get_file_as_string(directory.path_join("continue_slot_1.json")) != named_bytes:
 		fail("Purchases and exchanges leave the explicit named archive byte-for-byte intact")
 		return
-	DirAccess.remove_absolute(sentinel_path)
-	DirAccess.remove_absolute(blocked)
-	for file: String in [path, directory.path_join("continue_slot_1.json")]:
+	for file: String in [
+		path,
+		directory.path_join("continue_slot_1.json"),
+		directory.path_join("continue_slot_2.json")
+	]:
 		DirAccess.remove_absolute(file)
 	DirAccess.remove_absolute(directory)
 	scene.queue_free()
@@ -246,3 +256,14 @@ func wheel(button: MouseButton) -> void:
 	event.position = Vector2(360, 500)
 	Input.parse_input_event(event)
 	await process_frame
+
+
+func click(button: Button) -> void:
+	var point: Vector2 = button.get_global_rect().get_center()
+	for pressed: bool in [true, false]:
+		var event := InputEventMouseButton.new()
+		event.button_index = MOUSE_BUTTON_LEFT
+		event.position = point
+		event.pressed = pressed
+		Input.parse_input_event(event)
+		await process_frame

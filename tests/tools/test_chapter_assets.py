@@ -151,6 +151,20 @@ class ChapterAssetsTest(unittest.TestCase):
         self.assertEqual((battle / "map.png").read_bytes(), b"map")
         self.assertEqual(self.images(battle)[1].read_bytes(), b"sprite")
 
+    def test_normalized_chapter_still_cleans_unreferenced_shared_texture_and_sidecar(self):
+        battle = self.battle("m0", {"sprite.png": b"sprite"})
+        share_textures(self.chapter)
+        shared = self.images(battle)[0]
+        self.write_json(battle / "units.json", [])
+        before = self.snapshot()
+        plan = share_textures(self.chapter, dry_run=True)
+        self.assertEqual(self.snapshot(), before)
+        self.assertEqual(plan["privateTexturesShared"], 0)
+        self.assertEqual(share_textures(self.chapter), plan)
+        self.assertFalse(shared.exists())
+        self.assertFalse(Path(str(shared) + ".import").exists())
+        self.assertEqual(json.loads((self.shared / "provenance.json").read_text())["outputs"], [])
+
     def test_outside_ownership_and_unowned_images_fail_before_writing(self):
         battle = self.battle("m0", {"map.png": b"map"})
         (self.generated / "unowned.png").write_bytes(b"unknown")

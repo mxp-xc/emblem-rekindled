@@ -3,11 +3,16 @@
 import fcntl
 import json
 import os
+import queue
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
+import threading
 import time
 import uuid
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
@@ -20,6 +25,10 @@ ENGINE_ERROR = re.compile(r"(?:SCRIPT ERROR|ERROR):")
 
 
 _isolation_depth = 0
+
+
+class _Cancelled(Exception):
+    pass
 
 
 @contextmanager
@@ -113,9 +122,11 @@ def godot(
     timeout_seconds: float = 60,
     ready_file: Path | None = None,
     startup_seconds: float = 30,
+    project: Path | None = None,
+    cancelled: threading.Event | None = None,
 ) -> None:
     # This is an error protocol, so consume the engine's unfiltered output.
-    command = ["godot", "--headless", "--path", str(GAME), *args]
+    command = ["godot", "--headless", "--path", str(project or GAME), *args]
     with (
         isolated_project(),
         owned_process(
@@ -129,6 +140,10 @@ def godot(
             deadline = time.monotonic() + (startup_seconds if ready_file else timeout_seconds)
             started = ready_file is None
             while True:
+                if cancelled is not None and cancelled.is_set():
+                    stop(process)
+                    process.communicate()
+                    raise _Cancelled()
                 if not started and ready_file.is_file():
                     started = True
                     deadline = time.monotonic() + timeout_seconds
@@ -186,9 +201,12 @@ def check(
     tests: tuple[str, ...] = (),
     tests_only: bool = False,
     timings: Path | None = None,
+    jobs: int | None = None,
 ) -> int:
     if sum((parse_only, bool(tests), tests_only)) > 1:
         raise ValueError("parse_only, tests and tests_only are mutually exclusive")
+    if jobs is not None and not 1 <= jobs <= 8:
+        raise ValueError("jobs must be between 1 and 8")
     for test in tests:
         if Path(test).name != test or not test.startswith("test_") or not test.endswith(".gd"):
             raise ValueError("--test expects a test file name, not a path")
@@ -197,7 +215,7 @@ def check(
     exit_code = 1
     try:
         with isolated_project():
-            run_checks(parse_only, tests, tests_only, intervals)
+            run_checks(parse_only, tests, tests_only, intervals, jobs)
         exit_code = 0
     except SystemExit as error:
         exit_code = error.code if isinstance(error.code, int) else 1
@@ -223,7 +241,9 @@ def check(
     return exit_code
 
 
-def run_checks(parse_only: bool, tests: tuple[str, ...], tests_only: bool, intervals: list) -> None:
+def run_checks(
+    parse_only: bool, tests: tuple[str, ...], tests_only: bool, intervals: list, jobs: int | None
+) -> None:
     def check(name: str, *command: str) -> None:
         started = time.perf_counter()
         finished = False
@@ -240,6 +260,9 @@ def run_checks(parse_only: bool, tests: tuple[str, ...], tests_only: bool, inter
             )
 
     if tests:
+        if jobs is not None and jobs > 1 and len(tests) > 1:
+            _parallel_tests(list(tests), jobs, intervals)
+            return
         for test in tests:
             print(f"[TEST] {test}", flush=True)
             check(test, "--script", f"tests/{test}")
@@ -257,8 +280,107 @@ def run_checks(parse_only: bool, tests: tuple[str, ...], tests_only: bool, inter
     if parse_only:
         return
     scripts = sorted((GAME / "tests").glob("test_*.gd"))
-    for index, script in enumerate(scripts, 1):
-        print(f"[TEST {index}/{len(scripts)}] {script.name}", flush=True)
-        check(script.name, "--script", str(script.relative_to(GAME)))
+    workers = jobs if jobs is not None else 3
+    if workers > 1 and (jobs is not None or len(scripts) >= 12):
+        _parallel_tests([script.name for script in scripts], workers, intervals)
+    else:
+        for index, script in enumerate(scripts, 1):
+            print(f"[TEST {index}/{len(scripts)}] {script.name}", flush=True)
+            check(script.name, "--script", str(script.relative_to(GAME)))
     print("[SMOKE] Main scene", flush=True)
     check("main-smoke", "--quit-after", "5")
+
+
+def _parallel_tests(tests: list[str], jobs: int, intervals: list) -> None:
+    """Run separate engines in independent project and user directories."""
+    linked = next((path for path in GAME.rglob("*") if path.is_symlink()), None)
+    if linked is not None:
+        raise RuntimeError(f"Parallel checks refuse project symlinks: {linked}; use --jobs 1")
+    cancelled = threading.Event()
+    workers: queue.Queue[Path] = queue.Queue()
+    with tempfile.TemporaryDirectory(prefix="emblem-check-workers-") as directory:
+
+        def prepare(index: int) -> Path:
+            project = Path(directory) / f"worker-{index}"
+            _copy_test_project(project)
+            config = project / "project.godot"
+            text = config.read_text()
+            name = f"emblem-check-{uuid.uuid4().hex}"
+            text, count = re.subn(r"(?m)^config/name=.*$", f'config/name="{name}"', text)
+            if count != 1:
+                raise RuntimeError("Expected one config/name in copied project.godot")
+            text = re.sub(
+                r"(?m)^config/use_custom_user_dir=.*$", "config/use_custom_user_dir=false", text
+            )
+            config.write_text(text)
+            return project
+
+        with ThreadPoolExecutor(max_workers=min(jobs, len(tests))) as setup:
+            for project in setup.map(prepare, range(min(jobs, len(tests)))):
+                workers.put(project)
+
+        def run(index: int, test: str) -> None:
+            project = workers.get()
+            started = time.perf_counter()
+            finished = False
+            try:
+                print(f"[TEST {index + 1}/{len(tests)}] {test}", flush=True)
+                godot("--script", f"tests/{test}", project=project, cancelled=cancelled)
+                finished = True
+            finally:
+                workers.put(project)
+                intervals.append(
+                    {
+                        "name": test,
+                        "seconds": round(time.perf_counter() - started, 3),
+                        "finished": finished,
+                    }
+                )
+
+        with ThreadPoolExecutor(max_workers=jobs) as executor:
+            pending = {}
+            next_index = 0
+            failure = None
+            try:
+                while next_index < len(tests) or pending:
+                    while failure is None and next_index < len(tests) and len(pending) < jobs:
+                        future = executor.submit(run, next_index, tests[next_index])
+                        pending[future] = next_index
+                        next_index += 1
+                    if not pending:
+                        break
+                    done, _ = wait(pending, return_when=FIRST_COMPLETED)
+                    for future in done:
+                        pending.pop(future)
+                        try:
+                            future.result()
+                        except _Cancelled:
+                            pass
+                        except BaseException as error:
+                            if failure is None:
+                                failure = error
+                                cancelled.set()
+                    if failure is not None and not pending:
+                        raise failure
+            finally:
+                cancelled.set()
+
+
+def _copy_test_project(project: Path) -> None:
+    # macOS can make independent copy-on-write clones without copying every byte.
+    if sys.platform == "darwin":
+        with owned_process(
+            ["cp", "-cR", str(GAME), str(project)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        ) as process:
+            copied = process.wait() == 0
+        if copied:
+            recovery = project / ".godot/check-recovery"
+            if recovery.is_dir() and not recovery.is_symlink():
+                shutil.rmtree(recovery)
+            (project / ".godot/check.lock").unlink(missing_ok=True)
+            return
+        if project.exists():
+            shutil.rmtree(project)
+    shutil.copytree(GAME, project, ignore=shutil.ignore_patterns("check.lock", "check-recovery"))
