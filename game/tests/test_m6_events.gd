@@ -6,7 +6,7 @@ const Battle = preload("res://gameplay/battle_state.gd")
 const Store = preload("res://persistence/battle_store.gd")
 const Clips = preload("res://app/battle_clip_library.gd")
 const Events = preload("res://gameplay/battle_events.gd")
-const M4Events = preload("res://tests/test_m4_events.gd")
+const Rounds = preload("res://tests/support/phase_driver.gd")
 # Oracle: temp/m3-m7 p6/route samples, temp/m6/content-plan.md and the
 # source i.m ordinary phase boundary. Combat and phase waits are controlled.
 var _draws: int = 0
@@ -170,7 +170,7 @@ func _phases(opened: Dictionary, context: Dictionary) -> bool:
 		_limits.clear()
 		_observations.clear()
 		_observed_battle = battle
-		var advanced: Dictionary = M4Events.advance(battle)
+		var advanced: Dictionary = Rounds.advance(battle)
 		_observed_battle = null
 		if not _expect(advanced["ok"], "Advance actual m6 phases with controlled automatic waits"):
 			return false
@@ -390,7 +390,7 @@ func _combat(opened: Dictionary) -> bool:
 	):
 		return false
 	var combat_draws: int = _draws
-	var advanced: Dictionary = M4Events.advance(battle)
+	var advanced: Dictionary = Rounds.advance(battle)
 	if not _expect(
 		advanced["ok"] and _draws == combat_draws + 1 and _limits.back() == 11,
 		"Actual boss ring uses the same RNG stream once after ordinary combat and the new-round boundary"

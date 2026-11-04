@@ -3,9 +3,12 @@
 import json
 import tempfile
 import unittest
+from io import BytesIO
 from pathlib import Path
 
 from emblem_dev.content.assets import publish_generated, share_textures
+from PIL import Image
+from texture_fixture import png
 
 
 class ChapterAssetsTest(unittest.TestCase):
@@ -30,7 +33,7 @@ class ChapterAssetsTest(unittest.TestCase):
         for image, data in images.items():
             path = directory / image
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes(data)
+            path.write_bytes(png(data))
         self.write_json(
             directory / "units.json",
             [{"sprite": image, "offsetX": -24, "id": index} for index, image in enumerate(images)],
@@ -54,7 +57,7 @@ class ChapterAssetsTest(unittest.TestCase):
     def stage(self, images):
         directory = Path(tempfile.mkdtemp(dir=self.temporary.name))
         for name, data in images.items():
-            (directory / name).write_bytes(data)
+            (directory / name).write_bytes(png(data))
         self.write_json(directory / "units.json", [{"sprite": name} for name in images])
         self.write_json(directory / "provenance.json", {"outputs": [*images, "units.json"]})
         return directory
@@ -66,7 +69,9 @@ class ChapterAssetsTest(unittest.TestCase):
         self.assertEqual(result["sharedTextures"], 3)
         self.assertEqual(self.images(first)[0], self.images(second)[0])
         self.assertNotEqual(self.images(first)[1], self.images(second)[1])
-        self.assertEqual([p.read_bytes() for p in self.images(second)], [b"one", b"second"])
+        self.assertEqual(
+            [p.read_bytes() for p in self.images(second)], [png(b"one"), png(b"second")]
+        )
         units = json.loads((second / "units.json").read_text())
         self.assertEqual(units[1]["offsetX"], -24)
         self.assertEqual(
@@ -86,6 +91,65 @@ class ChapterAssetsTest(unittest.TestCase):
             'uid="uid://original"', Path(str(self.images(second)[0]) + ".import").read_text()
         )
 
+    def test_equivalent_png_encodings_share_the_same_texture(self):
+        image = Image.new("RGBA", (9, 8), (1, 2, 3, 128))
+        first_bytes = BytesIO()
+        second_bytes = BytesIO()
+        image.save(first_bytes, format="PNG", compress_level=0)
+        image.save(second_bytes, format="PNG", compress_level=9)
+        self.assertNotEqual(first_bytes.getvalue(), second_bytes.getvalue())
+        first = self.battle("m0", {"one.png": first_bytes.getvalue()})
+        second = self.battle("m1", {"two.png": second_bytes.getvalue()})
+
+        share_textures(self.chapter)
+
+        self.assertEqual(self.images(first)[0], self.images(second)[0])
+
+    def test_shared_sources_are_grouped_by_target_and_survive_reimport(self):
+        first = self.battle("m0", {"first.png": b"same", "second.png": b"same"})
+        share_textures(self.chapter)
+        metadata = json.loads((first / "provenance.json").read_text())
+        groups = metadata["textureSourceGroups"]
+        self.assertEqual(len(groups), 1)
+        self.assertEqual(next(iter(groups.values())), ["first.png", "second.png"])
+        before = self.snapshot()
+        self.battle("m0", {"first.png": b"same", "second.png": b"same"})
+        share_textures(self.chapter)
+        self.assertEqual(self.snapshot(), before)
+
+    def test_duplicate_grouped_source_is_rejected_before_publication(self):
+        first = self.battle("m0", {"first.png": b"same"})
+        provenance = first / "provenance.json"
+        metadata = json.loads(provenance.read_text())
+        metadata["textureSourceGroups"] = {
+            "generated/shared/one.png": ["first.png"],
+            "generated/shared/two.png": ["first.png"],
+        }
+        self.write_json(provenance, metadata)
+        before = self.snapshot()
+        with self.assertRaisesRegex(ValueError, "Duplicate or invalid texture source"):
+            share_textures(self.chapter)
+        self.assertEqual(self.snapshot(), before)
+
+    def test_invalid_group_target_is_rejected_before_publication(self):
+        first = self.battle("m0", {"first.png": b"same"})
+        provenance = first / "provenance.json"
+        for target in ("../outside.png", "generated/shared/missing.png"):
+            metadata = json.loads(provenance.read_text())
+            metadata["textureSourceGroups"] = {target: ["first.png"]}
+            self.write_json(provenance, metadata)
+            before = self.snapshot()
+            with self.assertRaisesRegex(ValueError, "Invalid shared source texture"):
+                share_textures(self.chapter)
+            self.assertEqual(self.snapshot(), before)
+
+    def test_corrupt_png_is_rejected_before_publication(self):
+        self.battle("m0", {"broken.png": b"\x89PNG\r\n\x1a\ninvalid"})
+        before = self.snapshot()
+        with self.assertRaisesRegex(ValueError, "Invalid PNG"):
+            share_textures(self.chapter)
+        self.assertEqual(self.snapshot(), before)
+
     def test_reimport_reuses_existing_and_changed_source_preserves_other_battle(self):
         first = self.battle("m0", {"same.png": b"old"})
         second = self.battle("m1", {"same.png": b"old"})
@@ -97,8 +161,8 @@ class ChapterAssetsTest(unittest.TestCase):
         self.battle("m0", {"same.png": b"new"})
         share_textures(self.chapter)
         self.assertEqual(self.images(second)[0], old)
-        self.assertEqual(old.read_bytes(), b"old")
-        self.assertEqual(self.images(first)[0].read_bytes(), b"new")
+        self.assertEqual(old.read_bytes(), png(b"old"))
+        self.assertEqual(self.images(first)[0].read_bytes(), png(b"new"))
         self.assertIn("compress/mode=0", Path(str(self.images(first)[0]) + ".import").read_text())
         self.assertNotEqual(self.images(first)[0], old)
         # Once the last battle stops using the old image, shared ownership can remove it.
@@ -119,7 +183,7 @@ class ChapterAssetsTest(unittest.TestCase):
         share_textures(self.chapter)
         self.assertEqual(authored.read_bytes(), original)
         self.assertEqual((authored.parent / "own.png").read_bytes(), b"authored")
-        self.assertEqual(old.read_bytes(), b"old")
+        self.assertEqual(old.read_bytes(), png(b"old"))
 
     def test_dry_run_then_apply_is_idempotent_and_rewrites_absolute_entry(self):
         battle = self.battle("m0", {"map.png": b"map"})
@@ -136,7 +200,7 @@ class ChapterAssetsTest(unittest.TestCase):
         self.assertEqual(share_textures(self.chapter), plan)
         entry = json.loads((battle / "battle.json").read_text())
         self.assertEqual(entry["mapTexture"], "res://content/chapter_1/generated/shared/map.png")
-        self.assertEqual(self.images(battle)[0].read_bytes(), b"map")
+        self.assertEqual(self.images(battle)[0].read_bytes(), png(b"map"))
         after = self.snapshot()
         self.assertEqual(share_textures(self.chapter)["filesWritten"], 0)
         self.assertEqual(self.snapshot(), after)
@@ -148,8 +212,8 @@ class ChapterAssetsTest(unittest.TestCase):
         original = entry.read_bytes()
         share_textures(self.chapter)
         self.assertEqual(entry.read_bytes(), original)
-        self.assertEqual((battle / "map.png").read_bytes(), b"map")
-        self.assertEqual(self.images(battle)[1].read_bytes(), b"sprite")
+        self.assertEqual((battle / "map.png").read_bytes(), png(b"map"))
+        self.assertEqual(self.images(battle)[1].read_bytes(), png(b"sprite"))
 
     def test_normalized_chapter_still_cleans_unreferenced_shared_texture_and_sidecar(self):
         battle = self.battle("m0", {"sprite.png": b"sprite"})
@@ -195,8 +259,8 @@ class ChapterAssetsTest(unittest.TestCase):
         publish_generated(self.stage({"same.png": b"new"}), first, self.chapter)
         new = self.images(first)[0]
         self.assertEqual(self.images(second)[0], old)
-        self.assertEqual(old.read_bytes(), b"old")
-        self.assertEqual(new.read_bytes(), b"new")
+        self.assertEqual(old.read_bytes(), png(b"old"))
+        self.assertEqual(new.read_bytes(), png(b"new"))
         settings = Path(str(new) + ".import").read_text()
         self.assertIn("compress/mode=1", settings)
         self.assertNotIn("uid=", settings)
@@ -212,7 +276,7 @@ class ChapterAssetsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "another owner"):
             publish_generated(self.stage({"same.png": b"new"}), first, self.chapter)
         self.assertEqual(self.snapshot(), before)
-        self.assertEqual(kept.read_bytes(), b"old")
+        self.assertEqual(kept.read_bytes(), png(b"old"))
         provenance.write_bytes(clean)
         second = self.battle("m1", {"same.png": b"second"})
         incoming = self.stage({"same.png": b"new"})
@@ -221,7 +285,7 @@ class ChapterAssetsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "another owner"):
             publish_generated(incoming, first, self.chapter)
         self.assertEqual(self.snapshot(), before)
-        self.assertEqual((second / "same.png").read_bytes(), b"second")
+        self.assertEqual((second / "same.png").read_bytes(), png(b"second"))
         for rogue in ("shared/same.png.import", "battles/m1/provenance.json"):
             incoming = self.stage({"same.png": b"new"})
             path = incoming / rogue

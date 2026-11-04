@@ -77,6 +77,16 @@ func run() -> void:
 	):
 		_fail("Projection must keep absolute resources until the composed view is rebased")
 		return
+	empty["mapAnimations"]["units"]["0"]["frames"][0]["texture"] = "changed.png"
+	if (
+		bank != before
+		or (
+			inherited["mapAnimations"]["units"]["0"]["frames"][0]["texture"]
+			!= root + "shared/hero.png"
+		)
+	):
+		_fail("Projected map animations must not mutate the shared catalog or another view")
+		return
 	var missing: Dictionary = definition.duplicate(true)
 	missing["profiles"].erase("source_9_job_8_faction_0")
 	if (
@@ -91,6 +101,11 @@ func run() -> void:
 	malformed_bank["profiles"]["hero"]["appearances"]["0"] = "invalid"
 	if ContentProjection.project(chapter, definition, malformed_bank, records, {})["ok"]:
 		_fail("Malformed appearance payloads must return a content failure")
+		return
+	malformed_bank = bank.duplicate(true)
+	malformed_bank["profiles"]["hero"]["mapAnimation"] = "missing"
+	if ContentProjection.project(chapter, definition, malformed_bank, records, {})["ok"]:
+		_fail("Missing map animation references must return a content failure")
 		return
 	malformed_bank = bank.duplicate(true)
 	malformed_bank["storyCommon"]["images"] = "invalid"
@@ -293,6 +308,8 @@ func _record(source: int, job: int, point: Array) -> Dictionary:
 func _bank(root: String) -> Dictionary:
 	var bank: Dictionary = {
 		"profiles": {},
+		"appearancePool": {"hero": {"frames": [{"texture": root + "shared/hero.png"}]}},
+		"mapAnimationPool": {"hero": {"frames": [{"texture": root + "shared/hero.png"}]}},
 		"stages": {"stage_0": {"clips": {"pair/0/hit": root + "library/clips/pair.json"}}},
 		"scenes": {"scene_0": {}},
 		"interface": {"textures": {}},
@@ -303,9 +320,9 @@ func _bank(root: String) -> Dictionary:
 	for definition: Array in [["hero", 0], ["temporary", 8], ["inherited", 8]]:
 		bank["profiles"][definition[0]] = {
 			"unit": {"classId": definition[1], "sprite": root + "shared/hero.png"},
-			"mapAnimation": {"frames": [{"texture": root + "shared/hero.png"}]},
+			"mapAnimation": "hero",
 			"portrait": {"texture": null, "usesCommanderPortrait": true},
-			"appearances": {"0": {"frames": [{"texture": root + "shared/hero.png"}]}},
+			"appearances": {"0": "hero"},
 			"motion": {"stage_0": {"0": {"canAttack": false, "defenseGroup": "standing"}}}
 		}
 	return bank

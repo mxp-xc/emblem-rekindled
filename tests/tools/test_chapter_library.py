@@ -7,6 +7,7 @@ from pathlib import Path
 
 from emblem_dev.content.assets import texture_import_parameters
 from emblem_dev.content.library import STAGE_FIELDS, import_presentation
+from texture_fixture import png
 
 
 class ChapterLibraryTest(unittest.TestCase):
@@ -27,7 +28,7 @@ class ChapterLibraryTest(unittest.TestCase):
     def native(self, directory, identity=0, pixels=b"same", weapon=1):
         source = self.root / directory
         source.mkdir()
-        (source / "sprite.png").write_bytes(pixels)
+        (source / "sprite.png").write_bytes(png(pixels))
         unit = {
             "id": identity,
             "name": "King",
@@ -152,6 +153,86 @@ class ChapterLibraryTest(unittest.TestCase):
         import_presentation(self.chapter, self.root / "first")
         self.assertEqual(self.snapshot(), before)
 
+    def test_reimport_preserves_unchanged_provenance_format(self):
+        source = self.native("first")
+        import_presentation(self.chapter, source)
+        path = self.chapter / "generated/library/provenance.json"
+        unchanged = json.dumps(json.loads(path.read_text()), separators=(",", ":")).encode()
+        path.write_bytes(unchanged)
+
+        import_presentation(self.chapter, source)
+
+        self.assertEqual(path.read_bytes(), unchanged)
+
+    def test_shared_appearance_keeps_distinct_profiles_and_stable_references(self):
+        first = self.native("first")
+        second = self.native("second", identity=9)
+        for filename in ("units.json", "spawns.json"):
+            path = second / filename
+            values = json.loads(path.read_text())
+            values[0]["sourceId"] = 1
+            self.write(path, values)
+        first_id = import_presentation(self.chapter, first)["bindings"]["0"]
+        second_id = import_presentation(self.chapter, second)["bindings"]["9"]
+        catalog = self.chapter / "generated/library/catalog.json"
+        bank = json.loads(catalog.read_text())
+        self.assertNotEqual(first_id, second_id)
+        self.assertEqual(bank["profiles"][first_id]["unit"]["sourceId"], 0)
+        self.assertEqual(bank["profiles"][second_id]["unit"]["sourceId"], 1)
+        first_ref = bank["profiles"][first_id]["appearances"]["1"]
+        self.assertEqual(bank["profiles"][second_id]["appearances"]["1"], first_ref)
+        self.assertIn(first_ref, bank["appearancePool"])
+        before = self.snapshot()
+        import_presentation(self.chapter, first)
+        self.assertEqual(self.snapshot(), before)
+
+    def test_missing_shared_appearance_rejects_import_without_publication(self):
+        source = self.native("first")
+        profile = import_presentation(self.chapter, source)["bindings"]["0"]
+        catalog = self.chapter / "generated/library/catalog.json"
+        bank = json.loads(catalog.read_text())
+        bank["profiles"][profile]["appearances"]["1"] = "missing"
+        self.write(catalog, bank)
+        before = self.snapshot()
+
+        with self.assertRaises(KeyError):
+            import_presentation(self.chapter, source)
+
+        self.assertEqual(self.snapshot(), before)
+
+    def test_shared_map_animation_preserves_independent_profiles_and_reimport(self):
+        first = self.native("first")
+        second = self.native("second", identity=9)
+        for filename in ("units.json", "spawns.json"):
+            path = second / filename
+            values = json.loads(path.read_text())
+            values[0]["sourceId"] = 1
+            self.write(path, values)
+        first_id = import_presentation(self.chapter, first)["bindings"]["0"]
+        second_id = import_presentation(self.chapter, second)["bindings"]["9"]
+        bank = json.loads((self.chapter / "generated/library/catalog.json").read_text())
+        first_ref = bank["profiles"][first_id]["mapAnimation"]
+        self.assertIsInstance(first_ref, str)
+        self.assertEqual(bank["profiles"][second_id]["mapAnimation"], first_ref)
+        self.assertIn(first_ref, bank["mapAnimationPool"])
+        before = self.snapshot()
+        import_presentation(self.chapter, first)
+        self.assertEqual(self.snapshot(), before)
+
+    def test_missing_map_animation_rejects_import_without_publication(self):
+        source = self.native("first")
+        profile = import_presentation(self.chapter, source)["bindings"]["0"]
+        catalog = self.chapter / "generated/library/catalog.json"
+        bank = json.loads(catalog.read_text())
+        bank["profiles"][profile]["mapAnimation"] = "missing"
+        self.write(catalog, bank)
+        before = self.snapshot()
+
+        with self.assertRaises(KeyError):
+            import_presentation(self.chapter, source)
+
+        self.assertEqual(self.snapshot(), before)
+
     def test_changed_visual_keeps_prior_profile_and_new_weapon_extends_existing(self):
         original = import_presentation(self.chapter, self.native("first"))["bindings"]["0"]
         extension = import_presentation(self.chapter, self.native("extension", weapon=2))
@@ -167,6 +248,10 @@ class ChapterLibraryTest(unittest.TestCase):
         self.assertNotEqual(result["bindings"]["0"], original)
         bank = json.loads((self.chapter / "generated/library/catalog.json").read_text())
         self.assertEqual(set(bank["profiles"][original]["appearances"]), {"1", "2"})
+        self.assertNotEqual(
+            bank["profiles"][original]["appearances"]["1"],
+            bank["profiles"][result["bindings"]["0"]]["appearances"]["1"],
+        )
         self.assertEqual(len(list((self.chapter / "generated/shared").rglob("*.png"))), 2)
 
     def test_dry_run_and_conflicting_motion_never_modify_chapter(self):
@@ -231,17 +316,17 @@ class ChapterLibraryTest(unittest.TestCase):
         art_path = first / "battle/manifest.json"
         art = json.loads(art_path.read_text())
         art["effects"] = {"cloud": {"texture": "cloud.png", "virtualWidth": 1, "virtualHeight": 1}}
-        (first / "battle/cloud.png").write_bytes(b"sky-one")
+        (first / "battle/cloud.png").write_bytes(png(b"sky-one"))
         self.write(art_path, art)
         import_presentation(self.chapter, first)
         before = self.snapshot()
         changed = self.native("changed")
         self.write(changed / "battle/manifest.json", art)
-        (changed / "battle/cloud.png").write_bytes(b"sky-two")
+        (changed / "battle/cloud.png").write_bytes(png(b"sky-two"))
         with self.assertRaisesRegex(ValueError, "sampling pixels or terrain placement changed"):
             import_presentation(self.chapter, changed)
         self.assertEqual(self.snapshot(), before)
-        (changed / "battle/cloud.png").write_bytes(b"sky-one")
+        (changed / "battle/cloud.png").write_bytes(png(b"sky-one"))
         art["backgrounds"]["grass"]["virtualHeight"] = 32
         self.write(changed / "battle/manifest.json", art)
         with self.assertRaisesRegex(ValueError, "sampling pixels or terrain placement changed"):
@@ -270,7 +355,7 @@ class ChapterLibraryTest(unittest.TestCase):
         result = import_presentation(self.chapter, changed)
         self.assertNotEqual(result["bindings"], first["bindings"])
         images = list((self.chapter / "generated/shared").rglob("*.png"))
-        self.assertEqual({p.read_bytes() for p in images}, {b"same", b"new"})
+        self.assertEqual({p.read_bytes() for p in images}, {png(b"same"), png(b"new")})
         for image in images:
             self.assertEqual(texture_import_parameters(image, {}), (("compress/mode", "1"),))
         self.assertNotIn(
@@ -361,7 +446,7 @@ class ChapterLibraryTest(unittest.TestCase):
         )
         report = import_presentation(self.chapter, first)
         second = self.native("second", identity=9)
-        (second / "renamed.png").write_bytes(b"same")
+        (second / "renamed.png").write_bytes(png(b"same"))
         for name in (
             "units.json",
             "map_animations.json",

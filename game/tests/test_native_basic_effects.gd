@@ -2,6 +2,7 @@ extends SceneTree
 
 const Clock = preload("res://features/battle/native_motion_clock.gd")
 const Effects = preload("res://features/battle/native_basic_effects.gd")
+const TextureImage = preload("res://tests/support/texture_image.gd")
 
 
 func _initialize() -> void:
@@ -47,12 +48,8 @@ func same_raster(actual: Dictionary, expected: Array) -> bool:
 		and actual["position"] == expected_position
 	):
 		return true
-	var image: Image = (
-		actual["texture"].get_image()
-		if actual["texture"] is Texture2D
-		else Image.load_from_file(ProjectSettings.globalize_path(actual["texture"]))
-	)
-	var oracle: Image = Image.load_from_file(ProjectSettings.globalize_path(expected[0]))
+	var image: Image = TextureImage.read(actual["texture"])
+	var oracle: Image = TextureImage.read(expected[0])
 	if image == null or oracle == null:
 		return false
 	var clipped: Rect2i = Rect2i(actual["position"], image.get_size()).intersection(

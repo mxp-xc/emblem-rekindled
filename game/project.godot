@@ -16,6 +16,10 @@ config/quit_on_go_back=false
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://content/chapter_1/generated/icon.png"
 
+[autoload]
+
+ChapterAtlas="*res://app/atlas_bootstrap.gd"
+
 [display]
 
 window/size/viewport_width=720

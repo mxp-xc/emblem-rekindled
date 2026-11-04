@@ -1,10 +1,64 @@
 """Own shared chapter textures offline; runtime manifests keep ordinary PNG references."""
 
+import io
 import json
 import os
 import re
 import shutil
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+
+from PIL import Image, UnidentifiedImageError
+
+
+def texture_sources(metadata: dict) -> dict[str, str]:
+    """Expand target-to-source groups for import and ownership checks."""
+    if "textureSources" in metadata:
+        raise ValueError("Legacy texture source format requires migration")
+    groups = metadata.get("textureSourceGroups", {})
+    if not isinstance(groups, dict):
+        raise ValueError("Invalid grouped texture sources")
+    result = {}
+    for target, names in groups.items():
+        if not isinstance(target, str) or not isinstance(names, list) or not names:
+            raise ValueError("Invalid grouped texture sources")
+        target_path = PurePosixPath(target)
+        if (
+            target_path.is_absolute()
+            or ".." in target_path.parts
+            or target_path.as_posix() != target
+            or target_path.parts[:2] != ("generated", "shared")
+        ):
+            raise ValueError(f"Invalid shared source texture: {target}")
+        for name in names:
+            if not isinstance(name, str) or name in result:
+                raise ValueError("Duplicate or invalid texture source")
+            source = PurePosixPath(name)
+            if source.is_absolute() or ".." in source.parts or source.as_posix() != name:
+                raise ValueError("Duplicate or invalid texture source")
+            result[name] = target
+    return result
+
+
+def group_texture_sources(sources: dict[str, str]) -> dict[str, list[str]]:
+    groups: dict[str, list[str]] = {}
+    for name, target in sorted(sources.items()):
+        groups.setdefault(target, []).append(name)
+    return dict(sorted(groups.items()))
+
+
+def texture_pixels(path: Path):
+    """Compare ordinary PNGs by lossless RGBA; preserve opaque input bytes otherwise."""
+    data = path.read_bytes()
+    if not data.startswith(b"\x89PNG\r\n\x1a\n"):
+        raise ValueError(f"Invalid PNG: {path}")
+    try:
+        with Image.open(io.BytesIO(data)) as image:
+            if image.format == "PNG" and not (set(image.info) - {"transparency"}):
+                rgba = image.convert("RGBA")
+                return ("rgba", rgba.size, rgba.tobytes())
+    except (OSError, UnidentifiedImageError) as error:
+        raise ValueError(f"Invalid PNG: {path}") from error
+    return ("bytes", data)
 
 
 def texture_import_parameters(path: Path, defaults: dict[str, str]) -> tuple[tuple[str, str], ...]:
@@ -74,6 +128,10 @@ def share_textures(chapter: Path, *, dry_run: bool = False) -> dict[str, int]:
     for provenance in sorted(generated.rglob("provenance.json")):
         metadata = json.loads(provenance.read_text())
         owners[provenance] = metadata
+        for value in set(texture_sources(metadata).values()):
+            path = (chapter / value).resolve()
+            if not path.is_relative_to(shared) or not path.is_file():
+                raise ValueError(f"Invalid shared source texture: {value}")
         for path in owned_output_paths(provenance.parent, metadata["outputs"]):
             if path in ownership:
                 raise ValueError(f"Multiple owners for generated output: {path}")
@@ -135,21 +193,21 @@ def share_textures(chapter: Path, *, dry_run: bool = False) -> dict[str, int]:
     for manifest, data in manifests.items():
         visit(data, manifest)
 
-    # Full bytes are compared directly; filenames and deployment IDs are not identity.
-    canonical: dict[tuple[bytes, tuple], Path] = {}
+    # PNG encoding can change after an atlas is unpacked; compare decoded pixels.
+    canonical: dict[tuple[tuple, tuple], Path] = {}
     copies: dict[Path, Path] = {}
     paths = sorted(p for p in ownership if p.suffix == ".png")
     occupied = set(ownership)
     for path in paths:
         if path.is_relative_to(shared):
             canonical.setdefault(
-                (path.read_bytes(), texture_import_parameters(path, defaults)), path
+                (texture_pixels(path), texture_import_parameters(path, defaults)), path
             )
     replacements = {}
     for path in paths:
         if path.is_relative_to(shared) or path in protected or path not in references:
             continue
-        key = path.read_bytes(), texture_import_parameters(path, defaults)
+        key = texture_pixels(path), texture_import_parameters(path, defaults)
         destination = canonical.get(key)
         if destination is None:
             destination = shared / path.relative_to(generated)
@@ -209,7 +267,7 @@ def share_textures(chapter: Path, *, dry_run: bool = False) -> dict[str, int]:
                 for name in data["outputs"]
                 if (provenance.parent / name).resolve() not in deletes
             )
-            sources = dict(data.get("textureSources", {}))
+            sources = texture_sources(data)
             sources.update(
                 {
                     path.relative_to(provenance.parent).as_posix(): destination.relative_to(
@@ -219,11 +277,13 @@ def share_textures(chapter: Path, *, dry_run: bool = False) -> dict[str, int]:
                     if ownership[path] == provenance
                 }
             )
-            updated_metadata["textureSources"] = {
-                name: value
-                for name, value in sorted(sources.items())
-                if (chapter / value).resolve() in live_shared
-            }
+            updated_metadata["textureSourceGroups"] = group_texture_sources(
+                {
+                    name: value
+                    for name, value in sorted(sources.items())
+                    if (chapter / value).resolve() in live_shared
+                }
+            )
         updated_metadata["outputs"] = outputs
         if updated_metadata != data:
             writes[provenance] = (
@@ -256,7 +316,7 @@ def publish_generated(output: Path, target: Path, chapter: Path) -> dict[str, in
     previous = (
         json.loads((target / "provenance.json").read_text())
         if (target / "provenance.json").exists()
-        else {"outputs": [], "textureSources": {}}
+        else {"outputs": [], "textureSourceGroups": {}}
     )
     before = owned_output_paths(target, previous["outputs"])
     incoming = owned_output_paths(target, provenance["outputs"])
@@ -268,7 +328,7 @@ def publish_generated(output: Path, target: Path, chapter: Path) -> dict[str, in
         raise ValueError("Incoming files disagree with the ownership list")
     sources = {
         name: value
-        for name, value in previous.get("textureSources", {}).items()
+        for name, value in texture_sources(previous).items()
         if name in provenance["outputs"]
     }
     for name, value in sources.items():
@@ -287,7 +347,7 @@ def publish_generated(output: Path, target: Path, chapter: Path) -> dict[str, in
             sidecar.write_bytes(
                 texture_import_settings(texture_import_parameters(chapter / value, {}))
             )
-    provenance["textureSources"] = sources
+    provenance["textureSourceGroups"] = group_texture_sources(sources)
     (output / "provenance.json").write_text(
         json.dumps(provenance, ensure_ascii=False, indent=2) + "\n"
     )

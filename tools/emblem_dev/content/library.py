@@ -6,10 +6,14 @@ import shutil
 import tempfile
 from pathlib import Path
 
+from emblem_dev.content import profile_pool
 from emblem_dev.content.assets import (
+    group_texture_sources,
     publish_generated,
     texture_import_parameters,
     texture_import_settings,
+    texture_pixels,
+    texture_sources,
 )
 
 UNIT_FIELDS = (
@@ -103,12 +107,29 @@ def import_presentation(chapter: Path, source: Path, *, dry_run: bool = False) -
     game = chapter.parents[1]
     existing = library / "catalog.json"
     previous_sources = (
-        _read(library / "provenance.json").get("textureSources", {})
+        texture_sources(_read(library / "provenance.json"))
         if (library / "provenance.json").exists()
         else {}
     )
-    bank = _read(existing) if existing.exists() else {"profiles": {}, "stages": {}, "scenes": {}}
+    previous_metadata = (
+        (library / "provenance.json").read_bytes()
+        if (library / "provenance.json").exists()
+        else None
+    )
+    bank = (
+        _read(existing)
+        if existing.exists()
+        else {
+            "profiles": {},
+            "stages": {},
+            "scenes": {},
+            "appearancePool": {},
+            "mapAnimationPool": {},
+        }
+    )
     bank = copy.deepcopy(bank)
+    previous_appearances = profile_pool.expand(bank)
+    previous_animations = profile_pool.expand_animations(bank)
     defaults = _read(chapter / "generated/shared/provenance.json")["textureImportParameters"]
     art = _read(source / "battle/manifest.json")
     motion = _read(source / "battle/clips/manifest.json")
@@ -159,7 +180,7 @@ def import_presentation(chapter: Path, source: Path, *, dry_run: bool = False) -
             raise ValueError(f"Reused sampled motion file is missing: {name}")
     images: dict[Path, Path] = {}
     image_settings: dict[Path, tuple] = {}
-    image_contents: dict[Path, bytes] = {}
+    image_contents: dict[Path, tuple] = {}
     published_settings: dict[Path, tuple] = {}
     clip_writes: dict[Path, dict] = {}
     report = {
@@ -199,7 +220,7 @@ def import_presentation(chapter: Path, source: Path, *, dry_run: bool = False) -
                 path = images[path]
             if path.is_file():
                 if path not in image_contents:
-                    image_contents[path] = path.read_bytes()
+                    image_contents[path] = texture_pixels(path)
                 if settings is None:
                     if path not in published_settings:
                         published_settings[path] = texture_import_parameters(path, defaults)
@@ -222,7 +243,7 @@ def import_presentation(chapter: Path, source: Path, *, dry_run: bool = False) -
             if not path.is_file():
                 raise ValueError(f"Missing native sampling resource: {path}")
             if path not in image_contents:
-                image_contents[path] = path.read_bytes()
+                image_contents[path] = texture_pixels(path)
             return image_contents[path]
         return value
 
@@ -302,7 +323,9 @@ def import_presentation(chapter: Path, source: Path, *, dry_run: bool = False) -
                     return resource(path)
                 relative = path.relative_to(source)
                 destination = library / "images" / namespace / relative
-                if destination in images and images[destination].read_bytes() != path.read_bytes():
+                if destination in images and texture_pixels(images[destination]) != texture_pixels(
+                    path
+                ):
                     raise ValueError(f"Conflicting image in presentation request: {destination}")
                 images[destination] = path
                 settings = image_settings.get(
@@ -590,6 +613,8 @@ def import_presentation(chapter: Path, source: Path, *, dry_run: bool = False) -
         fallback_scene = next(iter(bank["scenes"]), None)
         bank["scenes"][scene_id] = relocate(scene, source / "battle", scene_id, fallback_scene)
     report["scene"] = scene_id
+    profile_pool.compact(bank, previous_appearances)
+    profile_pool.compact_animations(bank, previous_animations)
     referenced_images: set[Path] = set()
 
     def collect_images(value):
@@ -641,14 +666,26 @@ def import_presentation(chapter: Path, source: Path, *, dry_run: bool = False) -
                 },
             )
             publish_generated(output, library, chapter)
+            # Texture sharing can make newly published paths identical to an
+            # existing appearance. Coalesce only after paths have settled.
+            published = _read(existing)
+            published_pool = profile_pool.expand(published)
+            published_animations = profile_pool.expand_animations(published)
+            profile_pool.compact(published, previous_appearances | published_pool)
+            profile_pool.compact_animations(published, previous_animations | published_animations)
+            if _read(existing) != published:
+                _write(existing, published)
             # The bank keeps old profiles even when a new native export does not emit
             # their source PNGs. Preserve their semantic source paths for later refreshes.
             provenance_path = library / "provenance.json"
             metadata = _read(provenance_path)
-            sources = previous_sources | metadata.get("textureSources", {})
-            metadata["textureSources"] = {
-                name: path for name, path in sorted(sources.items()) if (chapter / path).is_file()
-            }
+            sources = previous_sources | texture_sources(metadata)
+            metadata["textureSourceGroups"] = group_texture_sources(
+                {name: path for name, path in sorted(sources.items()) if (chapter / path).is_file()}
+            )
             if _read(provenance_path) != metadata:
                 _write(provenance_path, metadata)
+            if previous_metadata is not None and json.loads(previous_metadata) == metadata:
+                if provenance_path.read_bytes() != previous_metadata:
+                    provenance_path.write_bytes(previous_metadata)
     return report

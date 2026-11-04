@@ -403,7 +403,9 @@ func _source46(content: Dictionary, battle: RefCounted) -> bool:
 				and actor["sprite"] == profile["unit"]["sprite"]
 				and (
 					content["mapAnimations"]["units"][str(identity)]
-					== ContentProjection.relative_resources(profile["mapAnimation"])
+					== ContentProjection.relative_resources(
+						library["mapAnimationPool"][profile["mapAnimation"]]
+					)
 				)
 			),
 			"Actor%d independently binds source46 class/level/cell/map profile" % identity
@@ -423,7 +425,9 @@ func _source46(content: Dictionary, battle: RefCounted) -> bool:
 				(
 					(
 						content["battleArt"]["appearances"][alias]
-						== ContentProjection.relative_resources(profile["appearances"][weapon])
+						== ContentProjection.relative_resources(
+							content["_library"]["appearancePool"][profile["appearances"][weapon]]
+						)
 					)
 					and (
 						content["battleClips"]["appearances"][alias]

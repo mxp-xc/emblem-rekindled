@@ -3,6 +3,7 @@ extends SceneTree
 const Matrix = preload("res://tests/test_m4_content.gd")
 const Session = preload("res://app/chapter_session.gd")
 const Events = preload("res://gameplay/battle_events.gd")
+const Rounds = preload("res://tests/support/phase_driver.gd")
 const WAVES: Dictionary = {
 	3: [109, 114, 107],
 	4: [112, 111, 110],
@@ -43,7 +44,7 @@ func _rounds(opened: Dictionary, context: Dictionary) -> bool:
 	var before_draws: int = _draws
 	while battle.round_number < 11:
 		var previous: int = battle.round_number
-		var advanced: Dictionary = advance(battle)
+		var advanced: Dictionary = Rounds.advance(battle)
 		if not _expect(advanced["ok"], "Advance m4 real phases: " + str(advanced)):
 			return false
 		var cloned: bool = false
@@ -142,23 +143,6 @@ func _rounds(opened: Dictionary, context: Dictionary) -> bool:
 		),
 		"m4 awards1000 and formal roster once while retaining the current route"
 	)
-
-
-# Actual commands, with waits replacing automatic actions at controlled boundaries.
-static func advance(battle: RefCounted) -> Dictionary:
-	var events: Array = []
-	for phase: int in range(3):
-		while battle.automatic_actor() >= 0:
-			var waited: Dictionary = battle.wait_unit(battle.automatic_actor())
-			if not waited["ok"]:
-				return waited
-		var result: Dictionary = battle.end_phase()
-		if not result["ok"]:
-			return result
-		events.append_array(result["events"])
-		if battle.phase == 0:
-			return {"ok": true, "events": events}
-	return {"ok": false, "error": "PHASE_DID_NOT_RETURN"}
 
 
 func _priority(opened: Dictionary) -> bool:

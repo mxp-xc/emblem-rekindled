@@ -53,6 +53,25 @@ func _initialize() -> void:
 	if battle.unit(9)["hp"] != 26:
 		fail("A displayed unit snapshot must not mutate authoritative state")
 		return
+	var rules: RefCounted = load("res://gameplay/map_rules.gd").new(
+		{"width": 3, "height": 1, "movementCosts": {"0": [[1, 1, 1]]}}, [0, 1, 2]
+	)
+	var actor := {
+		"x": 0, "y": 0, "move": 2, "classGroup": 0, "faction": 0, "hp": 10, "visible": true
+	}
+	var ally := {"x": 1, "y": 0, "faction": 0, "hp": 10, "visible": true}
+	var enemy := {"x": 1, "y": 0, "faction": 2, "hp": 10, "visible": true}
+	if not rules.field(actor, [actor, ally, enemy]).has(Vector2i(2, 0)):
+		fail("The first live occupant determines whether a shared cell can be crossed")
+		return
+	ally["hp"] = 0
+	if rules.field(actor, [actor, ally, enemy]).has(Vector2i(1, 0)):
+		fail("A defeated ally cannot hide a living enemy occupying the same cell")
+		return
+	enemy["x"] = 2
+	if not rules.field(actor, [actor, ally, enemy]).has(Vector2i(1, 0)):
+		fail("Movement fields must reflect changes to occupants between calls")
+		return
 	print("PASS movement: original 1000-cell oracle, alliance, cancel, wait, invalid commands")
 	quit(0)
 

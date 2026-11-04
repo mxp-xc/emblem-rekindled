@@ -964,11 +964,12 @@ func set_world_encounter(marker: Variant) -> void:
 	_encounter_frame = 0
 	_encounter_updates = 0
 	if _world_encounter is Dictionary:
-		for profile: Dictionary in data.get("_library", {}).get("profiles", {}).values():
+		var library: Dictionary = data.get("_library", {})
+		for profile: Dictionary in library.get("profiles", {}).values():
 			var unit: Dictionary = profile.get("unit", {})
 			if unit.get("classId") != _world_encounter.get("classId") or unit.get("faction") != 2:
 				continue
-			var animation: Dictionary = profile["mapAnimation"]
+			var animation: Dictionary = library["mapAnimationPool"][profile["mapAnimation"]]
 			for index: Variant in animation["idleSequence"]:
 				_encounter_frames.append(load(animation["frames"][int(index)]["texture"]))
 			_encounter_offset = Vector2(animation["spriteOffsetX"], animation["spriteOffsetY"])

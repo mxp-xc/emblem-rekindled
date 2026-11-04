@@ -1,7 +1,7 @@
 extends SceneTree
 
 const Matrix = preload("res://tests/test_m7_content.gd")
-const Rounds = preload("res://tests/test_m4_events.gd")
+const Rounds = preload("res://tests/support/phase_driver.gd")
 const Session = preload("res://app/chapter_session.gd")
 var _scene: Control
 var _owned: String = ""
@@ -188,7 +188,8 @@ func _arrivals() -> bool:
 			return false
 		var committed: Dictionary = _scene.battle.snapshot()
 		_scene._present_phase_events(advanced["events"])
-		var deadline: int = Time.get_ticks_msec() + 10000
+		# Full 1x arrivals include camera travel and can approach ten seconds.
+		var deadline: int = Time.get_ticks_msec() + 20000
 		while _scene.story_player.visible and Time.get_ticks_msec() < deadline:
 			var story: Control = _scene.story_player
 			queue_seen = queue_seen or story._arrival_queue_updates_remaining > 0

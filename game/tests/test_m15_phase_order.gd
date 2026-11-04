@@ -1,8 +1,8 @@
 extends SceneTree
 
 const Matrix = preload("res://tests/test_m9_content.gd")
-const Flow = preload("res://tests/test_m9_flow.gd")
-const Rounds = preload("res://tests/test_m4_events.gd")
+const Scenario = preload("res://tests/support/m9_scenario.gd")
+const Rounds = preload("res://tests/support/phase_driver.gd")
 var _scene: Control
 
 
@@ -29,7 +29,7 @@ func run() -> void:
 # A controlled ordering case exercises a real m9 clone wave. It does not
 # claim that the combined event states arise naturally in m15.
 func _case(kind: String) -> bool:
-	var opened: Dictionary = Flow.prepare_boundary(Matrix.CONTEXTS[1], 2)
+	var opened: Dictionary = Scenario.prepare_boundary(Matrix.CONTEXTS[1], 2)
 	if not _expect(opened["ok"], "Open real m9 clone boundary"):
 		return false
 	_scene._adopt_content(opened["content"], opened["battle"])

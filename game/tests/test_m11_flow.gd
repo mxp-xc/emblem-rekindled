@@ -2,7 +2,7 @@ extends SceneTree
 
 const Matrix = preload("res://tests/test_m11_content.gd")
 const Session = preload("res://app/chapter_session.gd")
-const Rounds = preload("res://tests/test_m4_events.gd")
+const Rounds = preload("res://tests/support/phase_driver.gd")
 const GROUPS: Array = [[44, 45, 46], [56, 57, 58, 59], [47, 48, 49], [55, 61, 62, 63]]
 var _scene: Control
 var _owned: String

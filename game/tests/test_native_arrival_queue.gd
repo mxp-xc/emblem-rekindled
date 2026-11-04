@@ -1,7 +1,7 @@
 extends SceneTree
 
 const Matrix = preload("res://tests/test_m3_content.gd")
-const Rounds = preload("res://tests/test_m4_events.gd")
+const Rounds = preload("res://tests/support/phase_driver.gd")
 const Session = preload("res://app/chapter_session.gd")
 const Battle = preload("res://gameplay/battle_state.gd")
 const Contract = preload("res://app/chapter_story_contract.gd")

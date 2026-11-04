@@ -20,6 +20,7 @@ from emblem_dev.content.chapter1 import (
     variant_requests,
 )
 from emblem_dev.content.definitions import SOURCE_SHA
+from texture_fixture import png
 
 
 class AdaptiveClassSamplingTest(unittest.TestCase):
@@ -342,11 +343,11 @@ class AdaptiveClassSamplingTest(unittest.TestCase):
             (source / "battle" / "clips").mkdir(parents=True)
             (source / "battle" / "clips" / "manifest.json").write_text("manifest")
             (source / "nested").mkdir()
-            (source / "nested" / "sprite.png").write_bytes(b"pixels")
+            (source / "nested" / "sprite.png").write_bytes(png(b"pixels"))
             destination = root / "evidence"
             preserve_native_sample(source, destination)
             self.assertEqual((destination / "units.json").read_text(), "units")
-            self.assertEqual((destination / "nested" / "sprite.png").read_bytes(), b"pixels")
+            self.assertEqual((destination / "nested" / "sprite.png").read_bytes(), png(b"pixels"))
             with self.assertRaises(FileExistsError):
                 preserve_native_sample(source, destination)
             with self.assertRaises(ValueError):

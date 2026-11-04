@@ -2,7 +2,7 @@ extends SceneTree
 
 const M4 = preload("res://tests/test_m4_content.gd")
 const M5 = preload("res://tests/test_m5_content.gd")
-const Rounds = preload("res://tests/test_m4_events.gd")
+const Rounds = preload("res://tests/support/phase_driver.gd")
 const Matrix = preload("res://tests/test_m8_content.gd")
 const Session = preload("res://app/chapter_session.gd")
 const Content = preload("res://app/chapter_content.gd")

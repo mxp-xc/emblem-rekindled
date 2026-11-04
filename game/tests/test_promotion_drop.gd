@@ -1,7 +1,7 @@
 extends SceneTree
 
 const Session = preload("res://app/chapter_session.gd")
-const Rounds = preload("res://tests/test_m4_events.gd")
+const Rounds = preload("res://tests/support/phase_driver.gd")
 const CHAPTER: String = "res://content/chapter_1/chapter.json"
 var _draws: Array[int] = []
 var _source: Dictionary = {}

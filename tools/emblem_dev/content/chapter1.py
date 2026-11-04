@@ -733,6 +733,10 @@ def update_chapter(
         staged = work / "game/content" / chapter.name
         shutil.copytree(chapter, staged)
         try:
+            if (staged / "generated/atlas/manifest.json").is_file():
+                from emblem_dev.content.atlas import unpack_chapter
+
+                unpack_chapter(staged)
             entry = json.loads((staged / "chapter.json").read_text())
             members = set(entry["initialParty"]) | set(entry["recruitByNode"].values())
             bank = json.loads((staged / "generated/library/catalog.json").read_text())

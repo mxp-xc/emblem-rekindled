@@ -96,7 +96,8 @@ def motion_requirements(chapter: Path) -> dict:
         }
         for profile_id in set(definition["profiles"].values()) | summon_profiles:
             profile = bank["profiles"][profile_id]
-            for weapon, art in profile["appearances"].items():
+            for weapon, reference in profile["appearances"].items():
+                art = bank["appearancePool"][reference]
                 motion = profile["motion"][stage_id][weapon]
                 appearances.append((profile_id, weapon, art["nativeSide"], motion))
         required = set()
@@ -104,7 +105,8 @@ def motion_requirements(chapter: Path) -> dict:
             if not action["canAttack"]:
                 continue
             native_action = stage["actionGroups"][action["actionGroup"]]
-            native_art = bank["profiles"][profile]["appearances"][weapon]
+            reference = bank["profiles"][profile]["appearances"][weapon]
+            native_art = bank["appearancePool"][reference]
             normal = generated_noncritical(native_action, native_art)
             critical = generated_critical(native_action, native_art)
             outcomes = (() if normal else ("hit", "miss")) + (() if critical else ("critical",))
@@ -281,6 +283,10 @@ def import_map(chapter: Path, source: Path, deployment: dict) -> dict:
     with tempfile.TemporaryDirectory(prefix="emblem-chapter-") as directory:
         staged = Path(directory) / "game/content" / chapter.name
         shutil.copytree(chapter, staged)
+        if (staged / "generated/atlas/manifest.json").is_file():
+            from emblem_dev.content.atlas import unpack_chapter
+
+            unpack_chapter(staged)
         result = prepare_map(staged, source, deployment)
         publication = publish_chapter(chapter, staged, before)
     return {**result, **publication}
@@ -297,6 +303,27 @@ def publish_chapter(chapter: Path, staged: Path, before: dict) -> dict:
     check = share_textures(staged, dry_run=True)
     if check["filesWritten"] or check["filesRemoved"]:
         raise ValueError("Staged chapter still requires texture normalization")
+    if Path("generated/atlas/manifest.json") in before:
+        from emblem_dev.content.assets import texture_import_parameters
+        from emblem_dev.content.atlas import pack_chapter
+
+        pack_chapter(staged)
+        defaults = json.loads((staged / "generated/shared/provenance.json").read_text())[
+            "textureImportParameters"
+        ]
+        for image in (staged / "generated/atlas").glob("*.png"):
+            relative = image.relative_to(staged)
+            original = chapter / relative
+            sidecar = Path(str(image) + ".import")
+            previous = before.get(Path(str(relative) + ".import"))
+            if (
+                original.is_file()
+                and previous is not None
+                and texture_import_parameters(original, defaults)
+                == texture_import_parameters(image, defaults)
+            ):
+                sidecar.write_bytes(previous)
+        format_changed_json(staged, before)
     after = {p.relative_to(staged): p.read_bytes() for p in staged.rglob("*") if p.is_file()}
     for relative in after.keys() & before.keys():
         if relative.suffix == ".json" and json.loads(after[relative]) == json.loads(

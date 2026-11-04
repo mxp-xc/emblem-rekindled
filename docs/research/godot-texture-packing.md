@@ -4,7 +4,7 @@
 
 后续实施：用户随后要求尽早完成章内共享图片，实施由[共享资源任务](https://github.com/mxp-xc/emblem-rekindled/issues/31)跟踪。
 以下统计与“本轮不迁移”建议保留为调研时点记录；当前所有权、导入与改图约定以
-[开发说明](../development.md#章内共享图片与改图)为准。采用共享普通PNG，未引入图集或素材压缩包。
+[开发说明](../development.md#章内共享图片与改图)为准。后续已采用物理图集和逻辑图片路径，迁移实测见[原版与重制版对照](original-remake-footprint.md)。
 
 ## 判断
 

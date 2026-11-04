@@ -3,7 +3,7 @@ extends SceneTree
 const Session = preload("res://app/chapter_session.gd")
 const M12 = preload("res://tests/test_m12_content.gd")
 const Clones = preload("res://gameplay/battle_clones.gd")
-const Rounds = preload("res://tests/test_m4_events.gd")
+const Rounds = preload("res://tests/support/phase_driver.gd")
 
 
 func _initialize() -> void:

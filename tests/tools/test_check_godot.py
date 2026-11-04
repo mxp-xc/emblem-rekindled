@@ -347,9 +347,15 @@ class GodotIsolationTest(unittest.TestCase):
         self.assertFalse((self.game / ".godot/check-recovery").exists())
 
     def test_invalid_worker_count_is_rejected_before_configuration_write(self) -> None:
-        for jobs in (0, 9):
-            with self.assertRaisesRegex(ValueError, "between 1 and 8"):
+        for jobs in (0, 13):
+            with self.assertRaisesRegex(ValueError, "between 1 and 12"):
                 check_godot.check(jobs=jobs)
+        self.assertEqual(self.project.read_bytes(), self.original)
+
+    def test_twelve_workers_are_available_for_a_full_check(self) -> None:
+        with patch("emblem_dev.checks.godot.run_checks") as run_checks:
+            self.assertEqual(check_godot.check(jobs=12), 0)
+        self.assertEqual(run_checks.call_args.args[-1], 12)
         self.assertEqual(self.project.read_bytes(), self.original)
 
     def test_requested_tests_keep_source_order_without_import(self) -> None:

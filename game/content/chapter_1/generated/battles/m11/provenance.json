@@ -6,7 +6,7 @@
   "recordCount": 55,
   "outputs": ["battle.json", "deployments.json", "map.json"],
   "description": "Original map and ordered deployment; presentation owned by chapter library",
-  "textureSources": {
-    "map.png": "generated/shared/battles/m11/map.png"
+  "textureSourceGroups": {
+    "generated/shared/battles/m11/map.png": ["map.png"]
   }
 }

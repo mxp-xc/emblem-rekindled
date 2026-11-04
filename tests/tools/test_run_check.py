@@ -2,6 +2,7 @@
 
 import json
 import tempfile
+import threading
 import unittest
 from contextlib import redirect_stdout
 from io import StringIO
@@ -100,10 +101,8 @@ class TimedCheckTest(unittest.TestCase):
         ):
             self.assertEqual(pipeline.lint(), 0)
         helper.assert_called_once()
-        self.assertEqual(
-            [call.args[0][0] for call in run.call_args_list[:4]],
-            ["gdlint", "gdformat", "ruff", "ruff"],
-        )
+        programs = [Path(call.args[0][0]).name for call in run.call_args_list]
+        self.assertCountEqual(programs, ["gdlint", "gdformat", "ruff", "ruff", "prettier"])
         self.assertFalse(
             any(
                 "python" in item or item == "bun"
@@ -111,6 +110,51 @@ class TimedCheckTest(unittest.TestCase):
                 for item in call.args[0]
             )
         )
+
+    def test_tools_run_every_discovered_file_and_report_failure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            tests = Path(directory)
+            (tests / "test_first.py").touch()
+            (tests / "test_second.py").touch()
+            (tests / "not_a_package").mkdir()
+            (tests / "not_a_package/test_ignored.py").touch()
+            (tests / "package").mkdir()
+            (tests / "package/__init__.py").touch()
+            (tests / "package/test_nested.py").touch()
+            calls = []
+
+            def fake_run(command, *, cwd, stdout):
+                pattern = command[-1]
+                calls.append(pattern)
+                stdout.write(f"ran {pattern}\n")
+                return 1 if pattern == "test_second.py" else 0
+
+            output = StringIO()
+            with (
+                patch.object(pipeline, "TESTS", tests),
+                patch.object(pipeline, "run", side_effect=fake_run),
+                redirect_stdout(output),
+            ):
+                self.assertEqual(pipeline.tools(), 1)
+            self.assertCountEqual(calls, ["test_first.py", "test_second.py", "test_nested.py"])
+            self.assertIn("ran test_first.py", output.getvalue())
+            self.assertIn("ran test_second.py", output.getvalue())
+
+    def test_helper_check_overlaps_read_only_format_checks(self):
+        formatter_started = threading.Event()
+
+        def helper(_game):
+            return 0 if formatter_started.wait(timeout=2) else 7
+
+        def command(_command, *, cwd, stdout):
+            formatter_started.set()
+            return 0
+
+        with (
+            patch.object(pipeline.helpers, "check", side_effect=helper),
+            patch.object(pipeline, "run", side_effect=command),
+        ):
+            self.assertEqual(pipeline.lint(), 0)
 
 
 if __name__ == "__main__":

@@ -18,6 +18,13 @@ func field(
 		origin = Vector2i(actor["x"], actor["y"])
 	if allowance < 0:
 		allowance = int(actor["move"]) + 1
+	var occupants: Dictionary = {}
+	for unit: Dictionary in units:
+		if not unit["visible"] or unit["hp"] <= 0:
+			continue
+		var position := Vector2i(unit["x"], unit["y"])
+		if not occupants.has(position):
+			occupants[position] = unit
 	var remaining: Dictionary = {origin: allowance}
 	var queue: Array[Vector2i] = [origin]
 	var cursor: int = 0
@@ -28,7 +35,7 @@ func field(
 			var destination := cell + direction
 			if not inside(destination):
 				continue
-			var occupant: Dictionary = unit_at(units, destination)
+			var occupant: Dictionary = occupants.get(destination, {})
 			if (
 				not occupant.is_empty()
 				and _alliances[occupant["faction"]] != _alliances[actor["faction"]]

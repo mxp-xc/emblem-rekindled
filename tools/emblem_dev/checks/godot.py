@@ -205,8 +205,8 @@ def check(
 ) -> int:
     if sum((parse_only, bool(tests), tests_only)) > 1:
         raise ValueError("parse_only, tests and tests_only are mutually exclusive")
-    if jobs is not None and not 1 <= jobs <= 8:
-        raise ValueError("jobs must be between 1 and 8")
+    if jobs is not None and not 1 <= jobs <= 12:
+        raise ValueError("jobs must be between 1 and 12")
     for test in tests:
         if Path(test).name != test or not test.startswith("test_") or not test.endswith(".gd"):
             raise ValueError("--test expects a test file name, not a path")
@@ -280,7 +280,7 @@ def run_checks(
     if parse_only:
         return
     scripts = sorted((GAME / "tests").glob("test_*.gd"))
-    workers = jobs if jobs is not None else 3
+    workers = jobs if jobs is not None else min(12, (os.cpu_count() or 1) + 2)
     if workers > 1 and (jobs is not None or len(scripts) >= 12):
         _parallel_tests([script.name for script in scripts], workers, intervals)
     else:

@@ -2,7 +2,7 @@ extends SceneTree
 
 const Battle = preload("res://gameplay/battle_state.gd")
 const Session = preload("res://app/chapter_session.gd")
-const Rounds = preload("res://tests/test_m4_events.gd")
+const Rounds = preload("res://tests/support/phase_driver.gd")
 const CHAPTER: String = "res://content/chapter_1/chapter.json"
 var _content: Dictionary
 var _m1_progress: Dictionary

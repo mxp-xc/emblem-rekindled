@@ -146,6 +146,12 @@ static func project(
 	art["appearances"] = {}
 	var animations: Dictionary = {"units": {}}
 	var interface_data: Dictionary = library["interface"].duplicate(true)
+	var appearances: Variant = library.get("appearancePool")
+	if not appearances is Dictionary:
+		return _failure("人物外观库无效")
+	var map_animations: Variant = library.get("mapAnimationPool")
+	if not map_animations is Dictionary:
+		return _failure("地图动画库无效")
 	interface_data["portraitByUnitId"] = {}
 	if not interface_data.get("textures") is Dictionary:
 		return _failure("公共界面贴图定义无效")
@@ -153,14 +159,15 @@ static func project(
 		var id: int = int(unit["id"])
 		var profile: Dictionary = library["profiles"][bound["profiles"][id]]
 		if (
-			not profile.get("mapAnimation") is Dictionary
+			not profile.get("mapAnimation") is String
+			or not map_animations.get(profile["mapAnimation"]) is Dictionary
 			or not profile.get("portrait") is Dictionary
 			or not profile.get("appearances") is Dictionary
 			or not profile.get("motion") is Dictionary
 			or not profile["motion"].get(stage_id) is Dictionary
 		):
 			return _failure("人物表现不完整: " + str(id))
-		animations["units"][str(id)] = profile["mapAnimation"].duplicate(true)
+		animations["units"][str(id)] = map_animations[profile["mapAnimation"]].duplicate(true)
 		var portrait: Dictionary = profile["portrait"].duplicate(true)
 		if portrait.get("texture") != null:
 			if not portrait["texture"] is Dictionary:
@@ -173,13 +180,14 @@ static func project(
 			if (
 				not weapon is String
 				or not weapon.is_valid_int()
-				or not profile["appearances"][weapon] is Dictionary
+				or not profile["appearances"][weapon] is String
+				or not appearances.get(profile["appearances"][weapon]) is Dictionary
 			):
 				return _failure("人物武器表现引用无效: " + str(id))
 			var alias: String = "%d:%s" % [id, weapon]
 			if not profile["motion"][stage_id].get(weapon) is Dictionary:
 				return _failure("人物缺少武器动作: " + alias)
-			art["appearances"][alias] = profile["appearances"][weapon].duplicate(true)
+			art["appearances"][alias] = appearances[profile["appearances"][weapon]].duplicate(true)
 			stage["appearances"][alias] = profile["motion"][stage_id][weapon].duplicate(true)
 	var result: Dictionary = {
 		"ok": true,

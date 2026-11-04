@@ -61,3 +61,12 @@ def show_source(file: Path, needle: str, radius: int = 160, limit: int = 5) -> N
     """按字符范围读取生成源码的有限上下文。"""
     for fragment in fragments(file.read_text(), needle, radius=radius, limit=limit):
         print(fragment)
+
+
+@app.command("extract-texture")
+def extract_texture(logical: str, output: Path) -> None:
+    """从初章图集导出一张图片，供人工制作替换素材。"""
+    from emblem_dev.content.atlas import extract_texture as extract
+
+    extract(ROOT / "game/content/chapter_1", logical, output)
+    print(f"已导出: {output}")

@@ -2,8 +2,9 @@
 
 import json
 import sys
+import tempfile
 import time
-import unittest
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import nullcontext, redirect_stderr, redirect_stdout
 from datetime import datetime
 from pathlib import Path
@@ -14,10 +15,16 @@ from emblem_dev.paths import GAME, ROOT, TESTS
 from emblem_dev.process import run
 
 
+def _run_captured(command: list[str]) -> tuple[int, str]:
+    with tempfile.TemporaryFile(mode="w+t") as output:
+        result = run(command, cwd=ROOT, stdout=output)
+        output.seek(0)
+        return result, output.read()
+
+
 def lint() -> int:
     commands = (
         ["gdlint", "game", "tools"],
-        None,
         ["gdformat", "--check", "--line-length", "100", "game", "tools"],
         ["ruff", "check", "tools", "tests"],
         ["ruff", "format", "--check", "tools", "tests"],
@@ -32,17 +39,48 @@ def lint() -> int:
             ".prettierrc.json",
         ],
     )
-    for command in commands:
-        code = helpers.check(GAME) if command is None else run(command, cwd=ROOT, stdout=sys.stdout)
-        if code:
-            return code
-    return 0
+    # These checks only read the workspace. Keep their logs separate and print
+    # in command order, while independent formatters run concurrently.
+    with ThreadPoolExecutor(max_workers=len(commands) + 1) as executor:
+        helper = executor.submit(helpers.check, GAME)
+        results = list(executor.map(_run_captured, commands))
+        helper_code = helper.result()
+    failure = 0
+    for index, (result, output) in enumerate(results):
+        print(output, end="")
+        if result and not failure:
+            failure = result
+        if index == 0 and helper_code and not failure:
+            failure = helper_code
+    return failure
 
 
 def tools() -> int:
-    suite = unittest.defaultTestLoader.discover(str(TESTS), pattern="test_*.py")
-    result = unittest.TextTestRunner(stream=sys.stderr).run(suite)
-    return 0 if result.wasSuccessful() else 1
+    patterns = sorted(
+        {
+            path.name
+            for path in TESTS.rglob("test_*.py")
+            if all(
+                (parent / "__init__.py").is_file()
+                for parent in path.parents
+                if parent != TESTS and parent.is_relative_to(TESTS)
+            )
+        }
+    )
+    if not patterns:
+        return 0
+    commands = [
+        [sys.executable, "-m", "unittest", "discover", "-s", str(TESTS), "-p", pattern]
+        for pattern in patterns
+    ]
+    with ThreadPoolExecutor(max_workers=min(4, len(commands))) as executor:
+        results = list(executor.map(_run_captured, commands))
+    failure = 0
+    for result, output in results:
+        print(output, end="")
+        if result and not failure:
+            failure = result
+    return failure
 
 
 def check(mode: str = "quick", output: Path | None = None) -> int:

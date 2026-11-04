@@ -1,7 +1,7 @@
 extends SceneTree
 
 const Matrix = preload("res://tests/test_m8_content.gd")
-const Rounds = preload("res://tests/test_m4_events.gd")
+const Rounds = preload("res://tests/support/phase_driver.gd")
 const Session = preload("res://app/chapter_session.gd")
 var _scene: Control
 var _owned: String = ""

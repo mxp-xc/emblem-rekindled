@@ -51,7 +51,7 @@ func _m1() -> Dictionary:
 	)
 	if not next["ok"]:
 		return next
-	var arrived: Dictionary = load("res://tests/test_m4_events.gd").advance(next["battle"])
+	var arrived: Dictionary = load("res://tests/support/phase_driver.gd").advance(next["battle"])
 	if not arrived["ok"]:
 		return arrived
 	if not (

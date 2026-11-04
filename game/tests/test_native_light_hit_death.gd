@@ -1,5 +1,7 @@
 extends SceneTree
 
+const TextureImage = preload("res://tests/support/texture_image.gd")
+
 
 func _initialize() -> void:
 	var opened: Dictionary = load("res://app/chapter_session.gd").new().open(
@@ -114,12 +116,8 @@ func matches_layer(actual: Dictionary, expected: Array, content: Dictionary) -> 
 	var source: Variant = actual.get("textureSource")
 	if source == null:
 		source = content["battleClips"]["textures"][actual["texture"]]["texture"]
-	var image: Image = (
-		source.get_image()
-		if source is Texture2D
-		else Image.load_from_file(ProjectSettings.globalize_path(source))
-	)
-	var oracle: Image = Image.load_from_file(ProjectSettings.globalize_path(expected[1]))
+	var image: Image = TextureImage.read(source)
+	var oracle: Image = TextureImage.read(expected[1])
 	if image == null or oracle == null:
 		return false
 	var position := Vector2i(int(actual["x"]), int(actual["y"]))

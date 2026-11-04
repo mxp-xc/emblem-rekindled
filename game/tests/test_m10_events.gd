@@ -6,7 +6,7 @@ const Battle = preload("res://gameplay/battle_state.gd")
 const Store = preload("res://persistence/battle_store.gd")
 const Clips = preload("res://app/battle_clip_library.gd")
 const Events = preload("res://gameplay/battle_events.gd")
-const Rounds = preload("res://tests/test_m4_events.gd")
+const Rounds = preload("res://tests/support/phase_driver.gd")
 # Oracle: temp/m10/discovery.md,items.md and original-route-*/observations.json.
 # Automatic turns wait; combat and occupancy boundaries are explicit fixtures.
 var _draws: int = 0

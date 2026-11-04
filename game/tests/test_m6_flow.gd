@@ -1,7 +1,7 @@
 extends SceneTree
 
 const Matrix = preload("res://tests/test_m6_content.gd")
-const Events = preload("res://tests/test_m4_events.gd")
+const Rounds = preload("res://tests/support/phase_driver.gd")
 const Session = preload("res://app/chapter_session.gd")
 var _scene: Control
 var _owned: String = ""
@@ -61,7 +61,7 @@ static func prepare_boundary(context: Dictionary, round_number: int) -> Dictiona
 	if not opened["ok"]:
 		return opened
 	while opened["battle"].round_number < round_number:
-		var advanced: Dictionary = Events.advance(opened["battle"])
+		var advanced: Dictionary = Rounds.advance(opened["battle"])
 		if not advanced["ok"]:
 			return advanced
 	var state: Dictionary = opened["battle"].snapshot()
@@ -244,7 +244,7 @@ func _arrivals() -> bool:
 			return false
 		declared[int(entrance["unitId"])] = true
 	while _scene.battle.round_number < 3:
-		var advanced: Dictionary = Events.advance(_scene.battle)
+		var advanced: Dictionary = Rounds.advance(_scene.battle)
 		if not _expect(advanced["ok"], "Advance actual m6 using controlled wait commands"):
 			return false
 		var committed: Dictionary = _scene.battle.snapshot()
@@ -424,7 +424,7 @@ func _recovery() -> bool:
 	_scene.resume_battle(_scene.battle)
 	var inventory: Array = _scene.battle.unit(85)["inventory"].duplicate(true)
 	var previous_round: int = _scene.battle.round_number
-	var advanced: Dictionary = Events.advance(_scene.battle)
+	var advanced: Dictionary = Rounds.advance(_scene.battle)
 	if not _expect(advanced["ok"], "Actual new-round command applies boss ring81"):
 		return false
 	var committed: Dictionary = _scene.battle.snapshot()

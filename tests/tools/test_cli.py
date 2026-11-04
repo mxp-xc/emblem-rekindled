@@ -48,6 +48,7 @@ class NativeCliTest(unittest.TestCase):
                 ("setup",),
                 ("serve",),
                 ("source-context",),
+                ("extract-texture",),
                 ("qa", "android"),
                 ("check", "game"),
                 ("import", "chapter-1"),
@@ -86,6 +87,25 @@ class NativeCliTest(unittest.TestCase):
         check.assert_called_once_with(
             tests=["test_first.gd"], tests_only=False, timings=None, jobs=2
         )
+
+    def test_lint_reports_all_checks_and_returns_first_failure(self):
+        seen = []
+
+        def fake_run(command, *, cwd, stdout):
+            seen.append(command[0])
+            stdout.write(f"checked {command[0]}\n")
+            return 7 if command[0] == "gdlint" else (9 if command[:2] == ["ruff", "check"] else 0)
+
+        output = io.StringIO()
+        with (
+            patch.object(pipeline.helpers, "check", return_value=0),
+            patch.object(pipeline, "run", side_effect=fake_run),
+            contextlib.redirect_stdout(output),
+        ):
+            self.assertEqual(pipeline.lint(), 7)
+        self.assertEqual(len(seen), 5)
+        self.assertIn("checked gdlint", output.getvalue())
+        self.assertIn("checked ruff", output.getvalue())
 
     def test_invalid_parameters_stop_before_business(self):
         with patch.object(godot, "check") as check:

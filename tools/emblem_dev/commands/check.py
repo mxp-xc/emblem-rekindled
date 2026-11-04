@@ -52,7 +52,7 @@ def check_game(
     tests_only: Annotated[bool, typer.Option()] = False,
     timings: Annotated[Path | None, typer.Option()] = None,
     jobs: Annotated[
-        int | None, typer.Option(min=1, max=8, help="并行测试工程数；1 表示串行")
+        int | None, typer.Option(min=1, max=12, help="并行测试工程数；1 表示串行")
     ] = None,
 ) -> None:
     """执行隔离的 Godot 检查。"""

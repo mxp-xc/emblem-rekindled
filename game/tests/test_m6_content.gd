@@ -379,7 +379,9 @@ func _deployment(
 				(
 					(
 						content["battleArt"]["appearances"][alias]
-						== ContentProjection.relative_resources(profile["appearances"][weapon])
+						== ContentProjection.relative_resources(
+							content["_library"]["appearancePool"][profile["appearances"][weapon]]
+						)
 					)
 					and content["battleClips"]["appearances"].has(alias)
 				),

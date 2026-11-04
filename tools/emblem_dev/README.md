@@ -53,12 +53,16 @@ hooks 默认不配置；仓库 pre-commit/pre-push 是直接退出的空 hook，
 ## 命令导航与参数约定
 
 分组入口为 `workspace`、`check`、`build`、`verify`、`import`、`qa`；
-顶层另有 `setup`、`serve`、`source-context`。先看分组，再看叶子帮助：
+顶层另有 `setup`、`serve`、`source-context`、`extract-texture`。先看分组，再看叶子帮助：
 
 ```sh
 uv run er qa --help
 uv run er qa android --help
 ```
+
+`uv run er extract-texture 'res://content/chapter_1/generated/shared/…/frame.png' temp/frame.png`
+按逻辑路径从初章图集导出单张原图，输出已存在时拒绝覆盖；人工换图的目录和登记方式见
+[开发说明](../../docs/development.md#章内共享图片与改图)。
 
 所有层级支持 `--help`；顶层还提供 `--show-completion` 与 `--install-completion`。
 后者会安装当前 shell 的补全。本文表格未标必填的选项均可省略；无默认值的可选选项默认为未提供。
@@ -83,7 +87,7 @@ uv run er qa android --help
 | `er check tools`          | 无参数；工具行为测试                                                      |
 | `er check helpers`        | 无参数；Godot 测试 helper 使用边界                                        |
 | `er check parse`          | 可选 `--timings PATH`；导入资源、批量解析脚本                             |
-| `er check game`           | 可重复 `--test FILE`；可选 `--tests-only`（默认关闭）、`--timings PATH`、`--jobs 1..8` |
+| `er check game`           | 可重复 `--test FILE`；可选 `--tests-only`（默认关闭）、`--timings PATH`、`--jobs 1..12` |
 | `er check restore-config` | 无参数；恢复中断检查留下的工程配置                                        |
 
 游戏行为测试显式选文件，工具测试按本次改动选择测试文件，例如：
@@ -100,7 +104,7 @@ uv run python -m unittest discover -s tests/tools -p test_cli.py
 game 默认执行资源导入、解析、行为测试和主场景 smoke；`--test` 只执行指定行为测试文件。
 `--tests-only` 跳过导入和解析，执行全部行为测试及主场景 smoke；不能与 `--test` 同用。
 parse 的批量解析共享一个引擎，行为测试逐个隔离；Godot 报错即使返回0也判失败，每次引擎调用有60秒超时。
-完整行为测试默认使用三个独立工程副本并行，单个引擎仍逐文件运行；首次失败会停止调度并清理已启动的引擎。
+完整行为测试默认按 CPU 逻辑核心数加二、最多十二个独立工程副本并行，单个引擎仍逐文件运行；首次失败会停止调度并清理已启动的引擎。
 定向 `--test` 默认串行，显式指定 `--jobs 2` 等可并行；`--jobs 1` 强制串行。
 并行要求游戏工程内没有符号链接，以免副本写入原路径；有链接时使用串行检查。
 副本准备也计入总耗时，短测试集合通常串行更快。
@@ -109,6 +113,8 @@ parse 的批量解析共享一个引擎，行为测试逐个隔离；Godot 报�
 执行到 game 阶段才生成 `godot-timings.json`，lint/tools 早失败时没有该文件。
 日志转入文件，终端显示阶段。计时围绕本次实际调用，不为计时重复执行检查，失败也保留已完成和未完成项。
 单独 game / parse 的 `--timings` 写引擎调用计时 JSON（父目录自动创建）。
+lint 的独立格式检查并行执行并按固定顺序输出结果；tools 将原有 unittest 发现范围按文件分配到
+最多四个独立 Python 进程。任一项失败仍会报告错误并阻止后续阶段，不减少测试集合。
 
 普通失败和可处理的中断会清理拥有的引擎进程组并恢复配置。
 强制终止留下 `game/.godot/check-recovery/` 时，后续检查会拒绝运行：

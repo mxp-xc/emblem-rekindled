@@ -3,7 +3,7 @@ extends SceneTree
 const Session = preload("res://app/chapter_session.gd")
 const Events = preload("res://gameplay/battle_events.gd")
 const M11 = preload("res://tests/test_m11_content.gd")
-const Rounds = preload("res://tests/test_m4_events.gd")
+const Rounds = preload("res://tests/support/phase_driver.gd")
 var draws: Array[int] = []
 
 

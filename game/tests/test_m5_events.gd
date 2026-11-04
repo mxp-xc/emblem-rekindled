@@ -6,7 +6,7 @@ const Battle = preload("res://gameplay/battle_state.gd")
 const Store = preload("res://persistence/battle_store.gd")
 const Clips = preload("res://app/battle_clip_library.gd")
 const Events = preload("res://gameplay/battle_events.gd")
-const M4Events = preload("res://tests/test_m4_events.gd")
+const Rounds = preload("res://tests/support/phase_driver.gd")
 # Oracle: temp/m3-m7/events/{summary.json,m5/observations.json}, and
 # p5.json and m5-route-*.json. All battle boundaries below are controlled.
 const CAVALRY: Array[int] = [64, 65, 66, 67, 68, 69]
@@ -136,7 +136,7 @@ func _phases(opened: Dictionary) -> bool:
 	var emitted: Dictionary = {1: 0, 3: 0}
 	while battle.round_number < 5:
 		var previous: int = battle.round_number
-		var advanced: Dictionary = M4Events.advance(battle)
+		var advanced: Dictionary = Rounds.advance(battle)
 		if not _expect(advanced["ok"], "Advance actual m5 phases using controlled automatic waits"):
 			return false
 		for event: Dictionary in advanced["events"]:

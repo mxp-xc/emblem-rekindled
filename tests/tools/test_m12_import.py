@@ -5,8 +5,10 @@ import unittest
 from pathlib import Path
 
 import test_chapter_configuration as configuration_fixture
+from emblem_dev.content.assets import texture_sources
 from emblem_dev.content.configuration import publish_map
 from emblem_dev.content.definitions import read_deployment
+from texture_fixture import png
 
 
 class M12ImportTest(unittest.TestCase):
@@ -30,7 +32,7 @@ class M12ImportTest(unittest.TestCase):
         fixture.write(fixture.source / "map.json", native_map)
         tile = fixture.source / "map_tiles/opened_chest.png"
         tile.parent.mkdir()
-        tile.write_bytes(b"native-tile-88")
+        tile.write_bytes(png(b"native-tile-88"))
         fixture.deployment["locations"] = [{"id": "chest_0", "position": [1, 1]}]
         publish_map(fixture.chapter, fixture.source, fixture.deployment, fixture.presentation)
         target = fixture.chapter / "generated/battles/m2"
@@ -42,9 +44,9 @@ class M12ImportTest(unittest.TestCase):
         self.assertNotIn("locationTileVariants", result)
         texture = result["tileVariants"]["opened_chest"]["texture"]
         self.assertTrue(texture.startswith("res://content/chapter_1/generated/shared/"))
-        self.assertEqual((fixture.root / "game" / texture[6:]).read_bytes(), b"native-tile-88")
+        self.assertEqual((fixture.root / "game" / texture[6:]).read_bytes(), png(b"native-tile-88"))
         provenance = json.loads((target / "provenance.json").read_text())
-        self.assertIn("map_tiles/opened_chest.png", provenance["textureSources"])
+        self.assertIn("map_tiles/opened_chest.png", texture_sources(provenance))
         before = fixture.snapshot()
         publish_map(fixture.chapter, fixture.source, fixture.deployment, fixture.presentation)
         self.assertEqual(fixture.snapshot(), before)

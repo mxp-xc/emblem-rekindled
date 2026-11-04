@@ -15,6 +15,7 @@ from emblem_dev.content.configuration import (
     normalize_deployment,
     publish_map,
 )
+from texture_fixture import png
 
 
 class ChapterConfigurationTest(unittest.TestCase):
@@ -77,7 +78,7 @@ class ChapterConfigurationTest(unittest.TestCase):
         )
         self.source = self.root / "native"
         self.write(self.source / "map.json", {"width": 2, "height": 2})
-        (self.source / "map.png").write_bytes(b"map")
+        (self.source / "map.png").write_bytes(png(b"map"))
         self.write(self.source / "provenance.json", {"source": "native"})
         self.deployment = {
             "battleId": "m2",
@@ -169,7 +170,7 @@ class ChapterConfigurationTest(unittest.TestCase):
         self.addCleanup(fixture.doCleanups)
         native = fixture.native("source")
         self.write(native / "map.json", {"width": 2, "height": 2})
-        (native / "map.png").write_bytes(b"map")
+        (native / "map.png").write_bytes(png(b"map"))
         self.write(native / "provenance.json", {"source": "native"})
         self.write(
             fixture.chapter / "chapter.json",
@@ -226,7 +227,7 @@ class ChapterConfigurationTest(unittest.TestCase):
         first = fixture.native("first")
         for source in (first,):
             self.write(source / "map.json", {"width": 2, "height": 2})
-            (source / "map.png").write_bytes(b"map")
+            (source / "map.png").write_bytes(png(b"map"))
             self.write(source / "provenance.json", {"source": "native"})
         import_map(chapter, first, self.deployment)
         catalog = chapter / "generated/library/catalog.json"
@@ -234,7 +235,10 @@ class ChapterConfigurationTest(unittest.TestCase):
         profile_id = next(iter(bank["profiles"]))
         enemy = copy.deepcopy(bank["profiles"][profile_id])
         enemy["unit"]["faction"] = 2
-        enemy["appearances"]["1"]["nativeSide"] = "right"
+        appearance = copy.deepcopy(bank["appearancePool"][enemy["appearances"]["1"]])
+        appearance["nativeSide"] = "right"
+        bank["appearancePool"]["enemy_weapon_1"] = appearance
+        enemy["appearances"]["1"] = "enemy_weapon_1"
         enemy["motion"]["stage_0"]["1"].update(canAttack=False, actionGroup=None)
         bank["profiles"]["enemy"] = enemy
         stage = bank["stages"]["stage_0"]
@@ -260,7 +264,7 @@ class ChapterConfigurationTest(unittest.TestCase):
 
         extension = fixture.native("extension", weapon=2)
         self.write(extension / "map.json", {"width": 2, "height": 2})
-        (extension / "map.png").write_bytes(b"map")
+        (extension / "map.png").write_bytes(png(b"map"))
         self.write(extension / "provenance.json", {"source": "native"})
         motion_path = extension / "battle/clips/manifest.json"
         motion = json.loads(motion_path.read_text())
